@@ -1,0 +1,2 @@
+import {auth,runtime,one} from '@/lib/server';
+export async function GET(req:Request,{params}:any){try{await auth();const {id}=await params,f=await one('SELECT * FROM files WHERE id=?',id);if(!f)return new Response('Not found',{status:404});const o=await runtime().BUCKET.get(id);if(!o)return new Response('Not found',{status:404});return new Response(o.body,{headers:{'Content-Type':f.mime,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});}catch{return new Response('Forbidden',{status:403});}}

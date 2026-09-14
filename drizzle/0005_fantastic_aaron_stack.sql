@@ -1,0 +1,1 @@
+ALTER TABLE `config` ADD `next_product_number` integer DEFAULT 1 NOT NULL;

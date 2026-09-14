@@ -1,0 +1,2 @@
+import {one} from '@/lib/server';
+export async function GET(req:Request,{params}:any){const {token}=await params;const j=await one('SELECT id,racket,status,paid,amount,created FROM jobs WHERE token=?',token);if(!j)return Response.json({error:'ไม่พบใบรับไม้'},{status:404});const config=await one("SELECT line_oa FROM config WHERE id=1");return Response.json({...j,lineOa:config?.line_oa||''},{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});}

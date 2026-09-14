@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Wingpro POS",
+  "short_name": "Wingpro",
+  "description": "ขายหน้าร้าน จัดการสินค้าและรับคืนไม้แบดมินตัน",
+  "lang": "th",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f8fc",
+  "theme_color": "#087fac",
+  "icons": [
+    {
+      "src": "/wingpro-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
