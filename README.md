@@ -18,6 +18,7 @@
    - `DATABASE_URL` ใช้ Transaction pooler connection string port 6543 และเปิด SSL
    - `POS_OWNER_EMAIL` ต้องตรงกับผู้ใช้เจ้าของใน Supabase Auth
    - `NEXT_PUBLIC_SITE_URL` เป็น URL production ของ Vercel
+   - หากใช้ Supabase–Vercel integration ระบบรองรับ `POSTGRES_URL` แทน `DATABASE_URL`, `SUPABASE_SECRET_KEY` แทน `SUPABASE_SERVICE_ROLE_KEY` และ legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` โดยอัตโนมัติ
 4. ใน Supabase Authentication > URL Configuration ตั้ง Site URL เป็น URL production และเพิ่ม localhost เป็น Redirect URL สำหรับพัฒนา
 5. Deploy ด้วย `npm ci && npm run build`
 

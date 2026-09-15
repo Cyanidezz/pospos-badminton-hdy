@@ -10,7 +10,7 @@ export const runtime = () => ({
 let sqlClient: Sql | undefined;
 function sql() {
   if (sqlClient) return sqlClient;
-  const url = process.env.DATABASE_URL;
+  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
   if (!url) throw new Error("ยังไม่ได้ตั้งค่าฐานข้อมูล Supabase");
   sqlClient = postgres(url, { max: 5, idle_timeout: 20, connect_timeout: 15, prepare: false, ssl: "require" });
   return sqlClient;
