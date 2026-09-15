@@ -112,3 +112,7 @@ button:not([data-slot]),.choice{min-height:44px}.page-heading .actions{align-ite
 .stock-filters{display:flex;gap:8px;flex-wrap:wrap}.stock-alert{margin:14px 0;color:#986319;font-size:14px}.stock-state{margin-top:14px}.stock-low{background:#fff2cc;color:#986319}.category-manage{display:flex;align-items:center;gap:8px;padding:14px 0;border-bottom:1px solid #dce6ee}.category-manage>span{flex:1;min-width:0;overflow-wrap:anywhere}.category-manage small{display:block}.import-preview{max-height:360px;overflow:auto;margin:14px 0}.import-preview>div{padding:12px;border-bottom:1px solid #dce6ee}.import-preview small,.import-preview span{display:block}.warehouse-receive>p{margin:12px 0}
 
 .warehouse-numbers.warehouse-numbers-general{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+.login-page{min-height:100svh;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#eef7ff,#f8fbff)}
+.login-card{width:min(100%,430px);display:grid;gap:20px;padding:32px;border:1px solid #d9e6f1;border-radius:24px;background:#fff;box-shadow:0 24px 70px rgba(20,77,119,.12)}
+.login-card h1{margin:4px 0;font-size:2rem;color:#17364d}.login-card p{color:#70808d}.login-logo{width:96px;height:96px;object-fit:contain;border-radius:22px;margin:auto}.login-card button{min-height:50px}

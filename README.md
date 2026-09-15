@@ -1,12 +1,25 @@
-# Badminton POS
+# Wingpro POS
 
-ระบบขายหน้าร้านและงานขึ้นเอ็น ภาษาไทย สร้างด้วย React / Vinext, D1, R2
+ระบบขายหน้าร้าน คลังสินค้า งานขึ้นเอ็น ค่าใช้จ่าย วันลา และรายงาน ภาษาไทย สร้างด้วย Next.js, Supabase และ PostgreSQL สำหรับเผยแพร่บน Vercel
 
 ## ขอบเขตและการเริ่มใช้
 
-เวอร์ชันแรกเผยแพร่เป็นส่วนตัว เจ้าของต้องเข้าใช้งานครั้งแรกก่อนแชร์ ระบบผูกเจ้าของกับ POS_OWNER_EMAIL ที่ตรวจสอบจากเจ้าของ Sites แล้วเท่านั้น บริการภาพตัวอย่างหรือผู้เข้าชมคนแรกไม่ได้รับสิทธิ์เจ้าของ จากนั้นเพิ่มอีเมลสมาชิกในหน้าพนักงาน ไม่ใช่การส่งคำเชิญอัตโนมัติ ทุก API หลังร้านตรวจสมาชิกและบทบาทฝั่งเซิร์ฟเวอร์
+เจ้าของต้องสร้างผู้ใช้คนแรกใน Supabase Authentication และตั้ง `POS_OWNER_EMAIL` ให้ตรงกัน เมื่อเข้าสู่ระบบครั้งแรก ระบบจะสร้างสมาชิกบทบาทเจ้าของให้อัตโนมัติ จากนั้นเจ้าของเพิ่มบัญชีพนักงานพร้อมรหัสผ่านในหน้า “จัดการผู้ใช้และสิทธิ์” ได้ ทุก API ตรวจ session สมาชิก และบทบาทฝั่งเซิร์ฟเวอร์
 
-การให้พนักงานและลูกค้าใช้งานจริงต้องตั้ง audience ของเว็บไซต์ให้รองรับ ผู้ใช้ภายนอกเข้าดูได้เฉพาะเส้นทางติดตามด้วย token สุ่ม ไม่สามารถดูข้อมูลหลังร้านหากไม่ได้รับสิทธิ์สมาชิก
+ผู้ใช้ภายนอกเข้าดูได้เฉพาะหน้าติดตามด้วย token สุ่ม ไม่สามารถดูข้อมูลหลังร้านหากไม่ได้รับสิทธิ์สมาชิก ตารางทั้งหมดเปิด RLS และปิดการเข้าถึงตรงจาก browser; API ฝั่งเซิร์ฟเวอร์เท่านั้นที่เชื่อมฐานข้อมูล รูปถูกเก็บใน private Storage bucket และส่งผ่าน API ที่ตรวจสิทธิ์
+
+## ตั้งค่า Supabase และ Vercel
+
+1. Schema อยู่ใน `supabase/migrations` และถูกออกแบบสำหรับ Supabase project ของ Wingpro โดยเฉพาะ
+2. ใน Supabase Authentication สร้างผู้ใช้เจ้าของร้านพร้อมอีเมลที่ต้องการ
+3. ใน Vercel ตั้ง Environment Variables ตาม `.env.example`:
+   - `NEXT_PUBLIC_SUPABASE_URL` และ `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` ใช้เฉพาะฝั่งเซิร์ฟเวอร์ ห้ามเติมคำนำหน้า `NEXT_PUBLIC_`
+   - `DATABASE_URL` ใช้ Transaction pooler connection string port 6543 และเปิด SSL
+   - `POS_OWNER_EMAIL` ต้องตรงกับผู้ใช้เจ้าของใน Supabase Auth
+   - `NEXT_PUBLIC_SITE_URL` เป็น URL production ของ Vercel
+4. ใน Supabase Authentication > URL Configuration ตั้ง Site URL เป็น URL production และเพิ่ม localhost เป็น Redirect URL สำหรับพัฒนา
+5. Deploy ด้วย `npm ci && npm run build`
 
 ## การคำนวณ
 
@@ -21,14 +34,12 @@
 
 ## LINE
 
-ตั้ง runtime secrets LINE_CHANNEL_ACCESS_TOKEN และ LINE_CHANNEL_SECRET ผ่าน Sites แล้วกรอก LINE OA ID ในหน้าตั้งค่า ตั้ง webhook เป็น /api/line เปิด webhook ใน LINE Developers และเปิดการเข้าถึงเว็บไซต์ให้ LINE เข้าถึงได้ ลูกค้าส่งข้อความ LINK ตาม token ใบรับไม้ในแชท OA เพื่อผูกบัญชี ระบบตรวจ HMAC-SHA256 ของ webhook ก่อนประมวลผลและส่งข้อความเมื่อพนักงานเปลี่ยนสถานะ มีสถานะส่งและปุ่มลองส่งซ้ำ
+ตั้ง `LINE_CHANNEL_ACCESS_TOKEN` และ `LINE_CHANNEL_SECRET` ใน Vercel แล้วกรอก LINE OA ID ในหน้าตั้งค่า ตั้ง webhook เป็น `https://โดเมนร้าน/api/line` และเปิด webhook ใน LINE Developers ลูกค้าส่งข้อความ LINK ตาม token ใบรับไม้ในแชท OA เพื่อผูกบัญชี ระบบตรวจ HMAC-SHA256 ก่อนประมวลผล
 
 อ้างอิง https://developers.line.biz/en/docs/messaging-api/verify-webhook-signature/ และ https://developers.line.biz/en/docs/messaging-api/sending-messages/
 
 ## ตรวจสอบ
 
-`node tests/pos-workflows.cjs` ตรวจ API จริงผ่าน SQLite adapter: สิทธิ์พนักงาน ราคาพร้อมหมายเหตุ ส่วนลด ขายติดลบ จองเอ็น ตัดครั้งเดียว คืนไม้ ต้นทุนภายหลัง คอม ค่าแรง วันลา ป้องกัน concurrent stale writes
-
-`npx tsc --noEmit` และ build ตาม Sites skill
+ใช้ `npm run build` ตรวจ TypeScript และ production build และ `npm test` สำหรับชุดทดสอบส่วนประกอบที่รองรับ
 
 ยังไม่ได้ทดสอบด้วยเครื่องสแกนจริง กล้องมือถือจริง หรือบัญชี LINE จริง ข้อมูลรายการเริ่มต้นว่าง ไม่มีข้อมูลตัวอย่างปะปน

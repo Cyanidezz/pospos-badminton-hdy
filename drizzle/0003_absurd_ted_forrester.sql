@@ -1,1 +1,0 @@
-ALTER TABLE `expenses` ADD `photos` text DEFAULT '[]' NOT NULL;

@@ -1,0 +1,13 @@
+create policy "server only" on public.config for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.members for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.product_categories for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.products for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.receipts for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.sales for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.items for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.jobs for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.leaves for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.expenses for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.files for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.operations for all to anon, authenticated using (false) with check (false);
+create policy "server only" on public.stock_adjustments for all to anon, authenticated using (false) with check (false);
