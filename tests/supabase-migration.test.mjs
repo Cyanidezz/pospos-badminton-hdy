@@ -69,3 +69,10 @@ test("keeps bill corrections auditable and excludes voided sales", async () => {
   assert.match(pos, /เหตุผลส่วนลดท้ายบิล/);
   assert.match(pos, /เหตุผลที่ยกเลิกบิล/);
 });
+
+test("normalizes unlimited Excel stock before import", async () => {
+  const importer = await read("app/product-import.tsx");
+  assert.match(importer, /sourceQty===999999/);
+  assert.match(importer, /qty:unlimited\?0:sourceQty/);
+  assert.match(importer, /สต๊อกไม่จำกัดหรือจำนวน 999999 จะเริ่มที่ 0/);
+});
