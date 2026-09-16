@@ -54,3 +54,18 @@ test("enforces configurable cashier permissions on the server", async () => {
   assert.doesNotMatch(dataRoute, /JSON\.stringify\(memberPermissions\)/);
   assert.doesNotMatch(pos, /บัญชี ChatGPT/);
 });
+
+test("keeps bill corrections auditable and excludes voided sales", async () => {
+  const migration = await read("supabase/migrations/20260916080000_sale_corrections.sql");
+  const dataRoute = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  assert.match(migration, /discount_reason text not null/);
+  assert.match(migration, /status text not null default 'active'/);
+  assert.match(migration, /voided_by uuid references public\.members/);
+  assert.match(dataRoute, /action==='editSale'/);
+  assert.match(dataRoute, /action==='voidSale'/);
+  assert.match(dataRoute, /sales\.status='active'/);
+  assert.match(dataRoute, /UPDATE products SET stock=stock\+\?/);
+  assert.match(pos, /เหตุผลส่วนลดท้ายบิล/);
+  assert.match(pos, /เหตุผลที่ยกเลิกบิล/);
+});
