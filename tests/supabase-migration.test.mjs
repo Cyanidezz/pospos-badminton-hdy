@@ -84,6 +84,15 @@ test("renders inventory rows in the selected sort order", async () => {
   assert.match(pos, /<tbody>\{sortedInventoryRows\.map/);
 });
 
+test("uses role-based landing pages and limits dashboard categories", async () => {
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /\[page,setPage\]=useState\(''\)/);
+  assert.match(pos, /owner\?\[\['dashboard','ภาพรวมร้าน'/);
+  assert.match(pos, /can\('pos'\)\?\[\['pos','ขายหน้าร้าน \(POS\)'/);
+  assert.match(pos, /showAllCategories\?cats\.slice\(1\):cats\.slice\(1,7\)/);
+  assert.match(pos, /แสดงทั้งหมด/);
+});
+
 test("keeps purchase orders staged until inventory is received", async () => {
   const migration = await read("supabase/migrations/20260917001000_purchase_orders.sql");
   const approvalMigration = await read("supabase/migrations/20260917010000_purchase_order_approval.sql");
