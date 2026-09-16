@@ -77,3 +77,22 @@ test("normalizes unlimited Excel stock before import", async () => {
   assert.match(importer, /qty:unlimited\?0:sourceQty/);
   assert.match(importer, /สต๊อกไม่จำกัดหรือจำนวน 999999 จะเริ่มที่ 0/);
 });
+
+test("keeps purchase orders staged until inventory is received", async () => {
+  const migration = await read("supabase/migrations/20260917001000_purchase_orders.sql");
+  const dataRoute = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  assert.match(migration, /create table public\.suppliers/i);
+  assert.match(migration, /create table public\.purchase_orders/i);
+  assert.match(migration, /create table public\.purchase_order_items/i);
+  assert.match(migration, /status in \('draft','approved','paid','received'\)/);
+  for (const table of ["suppliers","purchase_orders","purchase_order_items"]) {
+    assert.match(migration, new RegExp(`alter table public\\.${table} enable row level security`, "i"));
+    assert.match(migration, new RegExp(`policy "server only" on public\\.${table}`, "i"));
+  }
+  assert.match(dataRoute, /transitions:any=\{draft:'approved',approved:'paid',paid:'received'\}/);
+  assert.match(dataRoute, /action==='purchaseOrderStatus'\)\{owner\(me\)/);
+  assert.match(dataRoute, /UPDATE products SET stock=stock\+\?,cost=\?/);
+  assert.match(pos, /รับสินค้าเข้า \(PO\)/);
+  assert.doesNotMatch(pos, /id:'receive',name:'รับสินค้า'/);
+});
