@@ -89,7 +89,9 @@ test("uses role-based landing pages and limits dashboard categories", async () =
   assert.match(pos, /\[page,setPage\]=useState\(''\)/);
   assert.match(pos, /owner\?\[\['dashboard','ภาพรวมร้าน'/);
   assert.match(pos, /can\('pos'\)\?\[\['pos','ขายหน้าร้าน \(POS\)'/);
-  assert.match(pos, /showAllCategories\?cats\.slice\(1\):cats\.slice\(1,7\)/);
+  assert.match(pos, /\['stringing','งานขึ้นเอ็น'.*\['inventory','คลังสินค้า'.*\['purchaseOrders','รับสินค้าเข้า \(PO\)'/);
+  assert.match(pos, /categorySales=cats\.slice\(1\).*\.sort\(\(a,b\)=>b\.amount-a\.amount/);
+  assert.match(pos, /showAllCategories\?categorySales:categorySales\.slice\(0,6\)/);
   assert.match(pos, /แสดงทั้งหมด/);
 });
 
