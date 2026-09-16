@@ -78,6 +78,12 @@ test("normalizes unlimited Excel stock before import", async () => {
   assert.match(importer, /สต๊อกไม่จำกัดหรือจำนวน 999999 จะเริ่มที่ 0/);
 });
 
+test("renders inventory rows in the selected sort order", async () => {
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /const sortedInventoryRows=/);
+  assert.match(pos, /<tbody>\{sortedInventoryRows\.map/);
+});
+
 test("keeps purchase orders staged until inventory is received", async () => {
   const migration = await read("supabase/migrations/20260917001000_purchase_orders.sql");
   const approvalMigration = await read("supabase/migrations/20260917010000_purchase_order_approval.sql");
