@@ -116,3 +116,4 @@ button:not([data-slot]),.choice{min-height:44px}.page-heading .actions{align-ite
 .login-page{min-height:100svh;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#eef7ff,#f8fbff)}
 .login-card{width:min(100%,430px);display:grid;gap:20px;padding:32px;border:1px solid #d9e6f1;border-radius:24px;background:#fff;box-shadow:0 24px 70px rgba(20,77,119,.12)}
 .login-card h1{margin:4px 0;font-size:2rem;color:#17364d}.login-card p{color:#70808d}.login-logo{width:96px;height:96px;object-fit:contain;border-radius:22px;margin:auto}.login-card button{min-height:50px}
+.permission-list{display:grid;gap:10px;padding:14px;border:1px solid var(--border);border-radius:12px}.permission-list>.switch-row{margin:0;padding:8px 0}

@@ -92,6 +92,16 @@ export function integer(value: any, min = 1) {
   return parsed;
 }
 export const categories = ["ไม้แบดมินตัน","เอ็นแบดมินตัน","รองเท้า","เสื้อผ้า","กระเป๋า","อุปกรณ์เสริม"];
+export const permissionKeys = ["pos","discount","inventory","stringing","expenses","leave","earnings"] as const;
+export const defaultCashierPermissions = { pos: true, discount: true, inventory: true, stringing: true, expenses: false, leave: true, earnings: false };
+export function permissions(member: any) {
+  if (member.role === "owner") return Object.fromEntries(permissionKeys.map(key => [key, true]));
+  const saved = member.permissions && typeof member.permissions === "object" ? member.permissions : {};
+  return Object.fromEntries(permissionKeys.map(key => [key, typeof saved[key] === "boolean" ? saved[key] : defaultCashierPermissions[key]]));
+}
+export function permit(member: any, key: typeof permissionKeys[number]) {
+  if (!permissions(member)[key]) throw new Error("บัญชีนี้ไม่มีสิทธิ์ใช้งานส่วนนี้");
+}
 export async function getCategories() { return (await all("SELECT name FROM product_categories ORDER BY name")).map((row: any) => row.name); }
 export const statuses = ["รับไม้","รอขึ้นเอ็น","กำลังขึ้นเอ็น","พร้อมรับไม้","คืนไม้แล้ว"];
 export async function transaction(id: string, member: any, action: string, revision: number, statements: Statement[]) {

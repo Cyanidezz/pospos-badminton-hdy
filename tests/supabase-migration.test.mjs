@@ -40,3 +40,15 @@ test("member upserts target the case-insensitive email index", async () => {
   assert.match(dataRoute, /ON CONFLICT\(\(lower\(email\)\)\)/);
   assert.doesNotMatch(`${server}\n${dataRoute}`, /ON CONFLICT\(email\)/);
 });
+
+test("enforces configurable cashier permissions on the server", async () => {
+  const migration = await read("supabase/migrations/20260916012411_cashier_permissions.sql");
+  const server = await read("lib/server.ts");
+  const dataRoute = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  assert.match(migration, /permissions jsonb not null/);
+  assert.match(server, /export function permit/);
+  assert.match(dataRoute, /permit\(me,required\[action\]\)/);
+  assert.match(dataRoute, /permit\(me,'discount'\)/);
+  assert.doesNotMatch(pos, /บัญชี ChatGPT/);
+});
