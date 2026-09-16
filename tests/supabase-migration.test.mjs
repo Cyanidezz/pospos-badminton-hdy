@@ -156,3 +156,11 @@ test("owners can rename users and reset passwords", async () => {
   assert.match(pos, /รหัสผ่านใหม่ \(เว้นว่างหากไม่เปลี่ยน\)/);
   assert.match(pos, /m\.id!==data\.me\.id&&!!m\.active/);
 });
+
+test("filters purchase orders by selected day month or year", async () => {
+  const po = await read("app/purchase-orders.tsx");
+  assert.match(po, /\[filterDate,setFilterDate\]/);
+  assert.match(po, /groupBy==='day'\?order\.date===filterDate/);
+  assert.match(po, /groupBy==='month'\?order\.date\.slice\(0,7\)===filterDate\.slice\(0,7\)/);
+  assert.match(po, /aria-label="เลือกวันที่ใบ PO"/);
+});
