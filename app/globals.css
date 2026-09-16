@@ -237,3 +237,5 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #bfd4e1;border-radius:
   .register-layout .register-products{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 @media(min-width:1500px){.register-layout{grid-template-columns:minmax(0,1.7fr) minmax(430px,.8fr)}.register-layout .register-products{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.register-main>.page-heading{display:none}.register-main .register-toolbar{justify-content:flex-start}
+@media(min-width:1200px){.register-main .register-toolbar{display:none}}
