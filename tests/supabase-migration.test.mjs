@@ -164,3 +164,11 @@ test("filters purchase orders by selected day month or year", async () => {
   assert.match(po, /groupBy==='month'\?order\.date\.slice\(0,7\)===filterDate\.slice\(0,7\)/);
   assert.match(po, /aria-label="เลือกวันที่ใบ PO"/);
 });
+
+test("owner leave records are approved immediately", async () => {
+  const api = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  assert.match(api, /me\.role==='owner'\?'อนุมัติ':'รออนุมัติ'/);
+  assert.match(api, /บันทึกโดยเจ้าของกิจการ/);
+  assert.match(pos, /owner\?'บันทึกวันลา':'ขอลา'/);
+});
