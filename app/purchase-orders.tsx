@@ -9,7 +9,7 @@ const localDate=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangko
 const statusName:any={draft:'ร่าง',approved:'อนุมัติแล้ว',paid:'จ่ายเงินแล้ว',received:'รับสินค้าแล้ว'};
 const nextStatus:any={draft:'approved',approved:'paid',paid:'received'};
 const nextLabel:any={draft:'อนุมัติใบสั่งซื้อ',approved:'ยืนยันจ่ายเงินแล้ว',paid:'ยืนยันรับสินค้าเข้าคลัง'};
-const money=(satang:number)=>Number(satang||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money=(satang:number)=>(Number(satang||0)/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 export function PurchaseOrders({data,products,categories,owner,busy,onAction}:any){
  const [editing,setEditing]=useState<any>(null),[scan,setScan]=useState(false),[productQuery,setProductQuery]=useState(''),[supplierForm,setSupplierForm]=useState(false),[newSupplier,setNewSupplier]=useState({name:'',address:'',phone:'',line:''}),[newProduct,setNewProduct]=useState<any>(null),[uploading,setUploading]=useState(false),[groupBy,setGroupBy]=useState<'day'|'month'|'year'>('day');
