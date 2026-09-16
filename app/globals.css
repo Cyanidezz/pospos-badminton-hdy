@@ -89,9 +89,10 @@
 .register-products.view-list .register-product-name{min-height:0;gap:5px;padding:13px 15px}
 .register-products.view-list .register-product-name h3{font-size:16px}
 .register-products.view-list .register-product-price{min-width:125px}
-.register-bottom{--primary:#087fac;position:fixed;bottom:0;left:16rem;right:0;z-index:30;background:white;border-top:1px solid #d8e3eb;padding:12px 24px max(14px,env(safe-area-inset-bottom));display:none;gap:14px;align-items:center;box-shadow:0 -5px 18px #17334708}
+.register-bottom{--primary:#087fac;position:fixed;bottom:0;left:16rem;right:0;z-index:30;background:white;border-top:1px solid #d8e3eb;padding:12px 24px max(14px,env(safe-area-inset-bottom));display:flex;gap:14px;align-items:center;box-shadow:0 -5px 18px #17334708}
 .register-bottom>div{display:flex;flex-direction:column;gap:4px;min-width:0}.register-bottom>div small{font-size:14px;color:#527187;overflow-wrap:anywhere}.register-bottom>div span{font-size:14px;color:#82909c}
 .register-bottom .register-total{flex:1;max-width:700px;margin-left:auto;justify-content:space-between;border-radius:18px;padding:13px 20px;min-height:62px}
+.register-layout .cart-bottom .checkout{display:none}
 .register-total strong{font-size:28px;letter-spacing:-.6px}.register-total>span{display:flex;align-items:center;gap:10px;font-size:16px}
 body:has(.register-main) .install-banner{position:relative;left:auto;bottom:auto;transform:none;margin:0 auto 170px;box-shadow:none}
 .expense-photo-thumbs{display:flex;gap:10px;flex-wrap:wrap}.expense-photo-thumbs>div{display:flex;flex-direction:column;align-items:center}.expense-photo-thumbs img{width:78px;height:78px;object-fit:cover;border-radius:7px}.expense-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.expense-gallery img{width:100%;height:auto;border-radius:8px}
