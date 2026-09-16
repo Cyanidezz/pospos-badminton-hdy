@@ -66,7 +66,7 @@ export async function auth() {
     db().prepare("INSERT INTO config(id,shop) VALUES(1,'Wingpro') ON CONFLICT(id) DO NOTHING"),
     db().prepare("UPDATE config SET shop='Wingpro' WHERE id=1 AND shop IN ('Badminton Shop','Badminton POS')"),
     ...(email === ownerEmail ? [
-      db().prepare("INSERT INTO members(id,email,name,role,active) VALUES(?,?,?,'owner',1) ON CONFLICT(email) DO UPDATE SET id=excluded.id,name=excluded.name,role='owner',active=1")
+      db().prepare("INSERT INTO members(id,email,name,role,active) VALUES(?,?,?,'owner',1) ON CONFLICT((lower(email))) DO UPDATE SET id=excluded.id,name=excluded.name,role='owner',active=1")
         .bind(data.user.id,email,String(data.user.user_metadata?.full_name || email)),
     ] : []),
   ]);

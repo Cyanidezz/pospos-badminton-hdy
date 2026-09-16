@@ -32,3 +32,11 @@ test("keeps secrets server-side", async () => {
   const admin = await read("lib/supabase/admin.ts");
   assert.match(admin, /process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
 });
+
+test("member upserts target the case-insensitive email index", async () => {
+  const server = await read("lib/server.ts");
+  const dataRoute = await read("app/api/data/route.ts");
+  assert.match(server, /ON CONFLICT\(\(lower\(email\)\)\)/);
+  assert.match(dataRoute, /ON CONFLICT\(\(lower\(email\)\)\)/);
+  assert.doesNotMatch(`${server}\n${dataRoute}`, /ON CONFLICT\(email\)/);
+});
