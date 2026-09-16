@@ -1,4 +1,4 @@
-import postgres, { type Sql } from "postgres";
+import postgres, { type Sql, type TransactionSql } from "postgres";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = () => ({
@@ -25,15 +25,15 @@ class Statement {
   values: unknown[] = [];
   constructor(public query: string) {}
   bind(...values: unknown[]) { this.values = values; return this; }
-  async all(executor: Sql = sql()) {
+  async all(executor: Sql | TransactionSql = sql()) {
     const rows = await executor.unsafe(pgPlaceholders(this.query), this.values as never[]);
     return { results: Array.from(rows) };
   }
-  async first(executor: Sql = sql()) {
+  async first(executor: Sql | TransactionSql = sql()) {
     const rows = await executor.unsafe(pgPlaceholders(this.query), this.values as never[]);
     return rows[0] ?? null;
   }
-  async run(executor: Sql = sql()) { return executor.unsafe(pgPlaceholders(this.query), this.values as never[]); }
+  async run(executor: Sql | TransactionSql = sql()) { return executor.unsafe(pgPlaceholders(this.query), this.values as never[]); }
 }
 
 class Database {
