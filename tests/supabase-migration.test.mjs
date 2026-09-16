@@ -141,8 +141,8 @@ test("manages product import and selective Excel export", async () => {
 test("uses compact permission details and readable inventory states", async () => {
   const pos = await read("app/pos.tsx");
   const css = await read("app/globals.css");
-  assert.match(pos, />ดูสิทธิ์</);
-  assert.match(pos, /permission-view-list/);
+  assert.doesNotMatch(pos, /สิทธิ์แคชเชียร์/);
+  assert.match(pos, /a\.role==='owner'\?0:1/);
   assert.match(css, /\.stock-state\.paid/);
   assert.match(css, /\.stock-state\.stock-low/);
   assert.match(css, /white-space:nowrap/);
