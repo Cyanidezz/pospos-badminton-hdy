@@ -82,6 +82,8 @@ test("renders inventory rows in the selected sort order", async () => {
   const pos = await read("app/pos.tsx");
   assert.match(pos, /const sortedInventoryRows=/);
   assert.match(pos, /<tbody>\{sortedInventoryRows\.map/);
+  assert.match(pos, /field="price">ราคาขาย/);
+  assert.match(pos, /field="cost">ราคาทุน/);
 });
 
 test("uses role-based landing pages and limits dashboard categories", async () => {
@@ -93,6 +95,9 @@ test("uses role-based landing pages and limits dashboard categories", async () =
   assert.match(pos, /categorySales=cats\.slice\(1\).*\.sort\(\(a,b\)=>b\.amount-a\.amount/);
   assert.match(pos, /showAllCategories\?categorySales:categorySales\.slice\(0,6\)/);
   assert.match(pos, /แสดงทั้งหมด/);
+  assert.match(pos, /page==='dashboard'\?'dashboard-main'/);
+  assert.match(pos, /page==='expenses'\?'expenses-main'/);
+  assert.match(pos, /page==='team'\?'team-main'/);
 });
 
 test("keeps purchase orders staged until inventory is received", async () => {
