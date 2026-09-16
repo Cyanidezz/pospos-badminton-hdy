@@ -126,3 +126,33 @@ test("keeps purchase orders staged until inventory is received", async () => {
   assert.match(purchaseOrders, /บันทึก \(รออนุมัติ\)/);
   assert.match(purchaseOrders, /บันทึกและอนุมัติ/);
 });
+
+test("manages product import and selective Excel export", async () => {
+  const manager = await read("app/excel-manager.tsx");
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /จัดการสินค้าด้วย Excel/);
+  assert.match(manager, /นำเข้าสินค้า/);
+  assert.match(manager, /ส่งออกสินค้า/);
+  assert.match(manager, /selected\.length===0\|\|selected\.includes/);
+  assert.match(manager, /exportCategory==='ทั้งหมด'/);
+  assert.match(manager, /XLSX\.writeFile/);
+});
+
+test("uses compact permission details and readable inventory states", async () => {
+  const pos = await read("app/pos.tsx");
+  const css = await read("app/globals.css");
+  assert.match(pos, />ดูสิทธิ์</);
+  assert.match(pos, /permission-view-list/);
+  assert.match(css, /\.stock-state\.paid/);
+  assert.match(css, /\.stock-state\.stock-low/);
+  assert.match(css, /white-space:nowrap/);
+});
+
+test("owners can rename users and reset passwords", async () => {
+  const api = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  assert.match(api, /auth\.admin\.updateUserById/);
+  assert.match(api, /user_metadata:\{full_name:str\(b\.name\)\}/);
+  assert.match(pos, /รหัสผ่านใหม่ \(เว้นว่างหากไม่เปลี่ยน\)/);
+  assert.match(pos, /m\.id!==data\.me\.id&&!!m\.active/);
+});
