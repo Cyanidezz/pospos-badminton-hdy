@@ -226,3 +226,14 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #bfd4e1;border-radius:
 @media(max-width:767px){.desktop-cart-product-thumb{display:none}}
 .line-action-header{padding:2px 44px 4px;text-align:center}.line-action-header h2{margin:0;color:#103b53;font-size:19px}.line-action-header p{margin:5px 0 0;color:#718494;font-size:13px;line-height:1.45}
 @media(max-width:767px){.mobile-cart-item-summary>.mobile-cart-item-actions{display:flex;align-self:stretch;align-items:flex-end;justify-content:space-between;gap:9px}.mobile-cart-item-actions>strong{align-self:flex-start;padding-top:2px;font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}.mobile-cart-item-summary .mobile-remove-item{width:36px!important;height:36px!important;min-height:36px!important;padding:0!important;border:1px solid #dbe7ee!important;border-radius:10px!important;background:#fff!important;color:#71867b!important;box-shadow:0 5px 14px rgba(10,54,80,.07)!important}.mobile-cart-item-summary .mobile-remove-item:hover{background:#fff1f1!important;color:#a43f46!important;border-color:#f0d4d6!important}}
+/* Desktop register: product catalog and active cart stay visible together. */
+@media(min-width:1200px){
+  .register-toolbar>[data-slot=tabs]{display:none}
+  .register-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(390px,.85fr);gap:20px;align-items:start}
+  .register-layout.screen-catalog>.cart,.register-layout.screen-cart>.catalog{display:block}
+  .register-layout .cart{position:sticky;top:20px;max-width:none;margin:0;max-height:calc(100dvh - 185px);display:flex!important;flex-direction:column}
+  .register-layout .cart-items{min-height:180px;max-height:none;overflow:auto;flex:1}
+  .register-layout .cart-bottom{flex:0 0 auto}
+  .register-layout .register-products{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(min-width:1500px){.register-layout{grid-template-columns:minmax(0,1.7fr) minmax(430px,.8fr)}.register-layout .register-products{grid-template-columns:repeat(4,minmax(0,1fr))}}
