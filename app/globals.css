@@ -224,3 +224,4 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #bfd4e1;border-radius:
 @media(min-width:768px){.line-action-overlay{align-items:center;padding:24px}.line-action-overlay .line-action-dialog{border-radius:22px!important}}
 .desktop-cart-product-thumb{width:52px;height:52px;flex:0 0 52px;border-radius:11px;overflow:hidden;background:#eaf5fa;color:#168eb9}.desktop-cart-product-thumb img{width:100%;height:100%;object-fit:cover}.desktop-cart-product-thumb span{display:grid;width:100%;height:100%;place-items:center;font-size:20px;font-weight:800}.cart-item-title>b{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis}.cart-item-title>.icon-button{margin-left:auto;flex:0 0 auto}
 @media(max-width:767px){.desktop-cart-product-thumb{display:none}}
+.line-action-header{padding:2px 44px 4px;text-align:center}.line-action-header h2{margin:0;color:#103b53;font-size:19px}.line-action-header p{margin:5px 0 0;color:#718494;font-size:13px;line-height:1.45}
