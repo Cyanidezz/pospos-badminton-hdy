@@ -50,5 +50,7 @@ test("enforces configurable cashier permissions on the server", async () => {
   assert.match(server, /export function permit/);
   assert.match(dataRoute, /permit\(me,required\[action\]\)/);
   assert.match(dataRoute, /permit\(me,'discount'\)/);
+  assert.match(dataRoute, /role,memberPermissions/);
+  assert.doesNotMatch(dataRoute, /JSON\.stringify\(memberPermissions\)/);
   assert.doesNotMatch(pos, /บัญชี ChatGPT/);
 });
