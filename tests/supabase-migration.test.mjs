@@ -172,3 +172,9 @@ test("owner leave records are approved immediately", async () => {
   assert.match(api, /บันทึกโดยเจ้าของกิจการ/);
   assert.match(pos, /owner\?'บันทึกวันลา':'ขอลา'/);
 });
+
+test("shows active inventory count and total stock cost", async () => {
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /className="inventory-value-summary"/);
+  assert.match(pos, /Math\.max\(0,Number\(p\.stock\)\|\|0\)\*\(p\.cost\|\|0\)/);
+});
