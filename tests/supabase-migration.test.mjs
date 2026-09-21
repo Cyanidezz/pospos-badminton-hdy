@@ -390,7 +390,7 @@ test("brand assets use the Wingpro colors instead of the old green/teal", async 
   assert.match(css, /\.register-product-name\{background:linear-gradient\(145deg,#3a70d4,#5488e6\)\}/);
 });
 
-test("member stamps: one per paid job, a reward every N, free jobs earn no stamp", async t => {
+test("member stamps: one per paid job or linked POS bill, a reward every N, free jobs earn none", async t => {
   let customers;
   try { customers = await import("../lib/customers.ts"); }
   catch { t.skip("this Node version cannot import .ts files directly"); return; }
@@ -415,7 +415,8 @@ test("member stamps: one per paid job, a reward every N, free jobs earn no stamp
   [c] = customers.buildCustomers(jobs, { stampsRequired: 3, sales });
   assert.equal(c.sales.length, 1);
   assert.equal(c.spent, 5 * 40000 + 129000);
-  assert.equal(c.stamps, 5);
+  assert.equal(c.stamps, 6, "the linked POS bill earns a stamp too");
+  assert.equal(c.posStamps, 1);
   assert.equal(customers.rewardDiscount(40000, null), 40000);
   assert.equal(customers.rewardDiscount(40000, 10000), 10000);
   assert.equal(customers.rewardDiscount(5000, 10000), 5000);
@@ -465,4 +466,59 @@ test("payment dialogs default to transfer with a large QR and no repeated amount
   assert.match(pos, /payWide\?'pay-dialog'/);
   assert.match(css, /\.pay-body\.with-qr\{display:grid;grid-template-columns:minmax\(0,340px\)/);
   assert.match(css, /\.pay-body \.bank-qr\{[^}]*max-height:calc\(90dvh - 270px\)/);
+});
+
+test("POS bills earn stamps, POS-only members exist, and notes come from the config map", async t => {
+  let customers;
+  try { customers = await import("../lib/customers.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const job = { id: "j1", customer: "สมชาย", phone: "081-234-5678", racket: "R", tension: "25", created: "2026-09-01T10:00:00Z", status: "คืนไม้แล้ว", paid: 1, amount: 40000, reward_used: 0 };
+  const bill = (id, key, total, extra = {}) => ({ id, customer_key: key, customer_name: "ชื่อในบิล", total, status: "active", job_id: null, created: "2026-09-10T10:00:00Z", ...extra });
+  const sales = [bill("s1", "0812345678", 15000), bill("s2", "0812345678", 3000), bill("s3", "0812345678", 9000, { status: "voided" }), bill("s4", "0812345678", 20000, { job_id: "j1" }), bill("s5", "0876543210", 5000, { customer_name: "คุณใหม่" })];
+  let list = customers.buildCustomers([job], { stampsRequired: 3, sales, notes: { "0812345678": "ชอบความตึงสูง" } });
+  const som = list.find(c => c.key === "0812345678");
+  assert.equal(som.stamps, 3, "1 job + 2 active POS bills (voided and job-payment bills do not count)");
+  assert.equal(som.jobStamps, 1);
+  assert.equal(som.posStamps, 2);
+  assert.equal(som.note, "ชอบความตึงสูง");
+  const fresh = list.find(c => c.key === "0876543210");
+  assert.ok(fresh, "a customer who only shops at the POS is a member too");
+  assert.equal(fresh.name, "คุณใหม่");
+  assert.equal(fresh.phone, "087-654-3210");
+  assert.equal(fresh.stamps, 1);
+  assert.equal(fresh.jobs.length, 0);
+  list = customers.buildCustomers([job], { stampsRequired: 3, sales, posMinAmount: 10000 });
+  assert.equal(list.find(c => c.key === "0812345678").posStamps, 1, "only the ฿150 bill reaches the ฿100 minimum");
+  assert.equal(list.find(c => c.key === "0876543210").stamps, 0);
+  assert.equal(customers.billEarnsStamp(bill("x", "1", 10000), 10000), true);
+  assert.equal(customers.billEarnsStamp(bill("x", "1", 9999), 10000), false);
+  assert.equal(customers.billEarnsStamp(bill("x", null, 99999), 0), false, "a bill with no member earns nothing");
+  assert.equal(customers.formatPhone("0812345678"), "081-234-5678");
+});
+
+test("editing a member: server rules, migration and screens", async () => {
+  const migration = await read("supabase/migrations/20260922020000_member_notes_and_pos_stamps.sql");
+  const route = await read("app/api/data/route.ts");
+  const page = await read("app/members-page.tsx");
+  const pos = await read("app/pos.tsx");
+  const settings = await read("app/shop-settings.tsx");
+  assert.match(migration, /add column if not exists customer_notes jsonb/);
+  assert.match(migration, /add column if not exists member_pos_min_amount/);
+  const edit = route.slice(route.indexOf("else if(action==='customerEdit')"), route.indexOf("else if(action==='leave')"));
+  assert.match(edit, /access\.stringing\|\|access\.pos/, "needs stringing or POS access");
+  assert.match(edit, /เบอร์นี้มีลูกค้าคนอื่นอยู่แล้ว/, "never merge into another customer");
+  assert.match(edit, /UPDATE jobs SET customer=\?,phone=\?/);
+  assert.match(edit, /UPDATE sales SET customer_key=\?,customer_name=\?/);
+  assert.match(edit, /'customer_notes' in config/, "notes need the migration");
+  assert.match(edit, /jsonb_build_object/);
+  const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
+  assert.match(job, /SELECT COUNT\(\*\) FROM sales WHERE customer_key=\? AND status='active' AND job_id IS NULL AND total>=\?/, "the server counts POS stamps for the reward");
+  assert.match(route, /\^\(\\d\{6,20\}\|name:\.\{1,90\}\)\$/, "member key format is validated on sales");
+  assert.match(route, /member_pos_min_amount',b\.memberPosMinAmount/);
+  assert.match(page, /function EditForm/);
+  assert.match(page, /\+ เพิ่มสมาชิกใหม่/);
+  assert.match(page, /บิลนี้ได้ \+1 แต้ม/);
+  assert.match(pos, /act\('customerEdit'/);
+  assert.match(pos, /total=\{total\}\/><\/Field>/);
+  assert.match(settings, /'member_pos_min_amount' in config/);
 });

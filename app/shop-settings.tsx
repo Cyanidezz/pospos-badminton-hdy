@@ -22,6 +22,7 @@ export function settingsPayload(form:any,config:any){
     payload.memberStampsRequired=form.memberStampsRequired??config.member_stamps_required;
     payload.memberRewardCap=form.memberRewardCap??(config.member_reward_cap===null||config.member_reward_cap===undefined?'':config.member_reward_cap/100);
   }
+  if('member_pos_min_amount' in config)payload.memberPosMinAmount=form.memberPosMinAmount??(config.member_pos_min_amount||0)/100;
   return payload;
 }
 
@@ -88,7 +89,7 @@ export function BankPanel({form,setForm,config,busy,uploading,upload,onSave,Fiel
 export function MemberPanel({form,setForm,config,busy,onSave,Field}:any){
   const ready='member_stamps_required' in config;
   return <div className="panel report"><h2>ระบบสมาชิก</h2>
-    <p className="muted">ขึ้นเอ็นและชำระแล้ว 1 ครั้ง = 1 แต้ม ครบตามจำนวนที่ตั้ง ลูกค้าได้สิทธิ์ขึ้นเอ็นฟรี 1 ครั้ง (ลูกค้าจัดกลุ่มตามเบอร์โทรอัตโนมัติ)</p>
+    <p className="muted">ขึ้นเอ็นและชำระแล้ว 1 ครั้ง = 1 แต้ม และบิลหน้าร้านที่ผูกสมาชิก 1 บิล = 1 แต้ม ครบตามจำนวนที่ตั้ง ลูกค้าได้สิทธิ์ขึ้นเอ็นฟรี 1 ครั้ง (ลูกค้าจัดกลุ่มตามเบอร์โทรอัตโนมัติ)</p>
     {!ready&&<div className="notice">ยังไม่ได้อัปเดตฐานข้อมูลสำหรับส่วนนี้ ให้รัน migration <code>20260922010000_members.sql</code> บน Supabase ก่อน</div>}
     <form onSubmit={e=>{e.preventDefault();onSave()}}>
       <div className="form-grid">
@@ -96,6 +97,8 @@ export function MemberPanel({form,setForm,config,busy,onSave,Field}:any){
         <Field label="ส่วนลดสูงสุดต่อสิทธิ์ (บาท)"><input type="number" min="0" step="0.01" disabled={!ready} placeholder="ว่าง = ฟรีทั้งงาน" value={form.memberRewardCap??(config.member_reward_cap===null||config.member_reward_cap===undefined?'':config.member_reward_cap/100)} onChange={e=>setForm({...form,memberRewardCap:e.target.value})}/></Field>
       </div>
       <p className="muted">ถ้าใส่ส่วนลดสูงสุด เช่น 100 บาท สิทธิ์จะลดให้ไม่เกิน 100 บาทต่องาน (ลูกค้าจ่ายส่วนที่เหลือ) ปล่อยว่างเพื่อให้ฟรีทั้งงาน</p>
+      {ready&&!('member_pos_min_amount' in config)&&<div className="notice">แต้มจากบิลหน้าร้านต้องรัน migration <code>20260922020000_member_notes_and_pos_stamps.sql</code> ก่อน</div>}
+      <Field label="บิลหน้าร้าน (POS) ที่ผูกสมาชิก ได้ 1 แต้มเมื่อยอดตั้งแต่ (บาท)"><input type="number" min="0" step="0.01" disabled={!('member_pos_min_amount' in config)} placeholder="0 = ทุกบิลได้แต้ม" value={form.memberPosMinAmount??((config.member_pos_min_amount||0)/100)} onChange={e=>setForm({...form,memberPosMinAmount:e.target.value})}/></Field>
       <button disabled={busy||!ready}>บันทึกระบบสมาชิก</button>
     </form></div>;
 }
