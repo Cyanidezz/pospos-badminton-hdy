@@ -53,7 +53,6 @@ export const uid = () => crypto.randomUUID();
 export const now = () => new Date().toISOString();
 export const all = async (query: string, ...values: unknown[]) => (await db().prepare(query).bind(...values).all()).results;
 export const one = async (query: string, ...values: unknown[]) => db().prepare(query).bind(...values).first();
-
 export async function auth() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
@@ -103,7 +102,9 @@ export function permit(member: any, key: typeof permissionKeys[number]) {
   if (!permissions(member)[key]) throw new Error("บัญชีนี้ไม่มีสิทธิ์ใช้งานส่วนนี้");
 }
 export async function getCategories() { return (await all("SELECT name FROM product_categories ORDER BY name")).map((row: any) => row.name); }
-export const statuses = ["รับไม้","รอขึ้นเอ็น","กำลังขึ้นเอ็น","พร้อมรับไม้","คืนไม้แล้ว"];
+export const statuses = ["รอขึ้นเอ็น","กำลังขึ้นเอ็น","พร้อมรับไม้","คืนไม้แล้ว"];
+// Jobs saved before the "รับไม้" step was removed are treated as waiting for stringing.
+export const normalizeJobStatus = (status: string) => status === "รับไม้" ? "รอขึ้นเอ็น" : status;
 export async function transaction(id: string, member: any, action: string, revision: number, statements: Statement[]) {
   await db().batch([
     db().prepare("INSERT INTO operations(id,staff_id,action,created,valid) VALUES(?,?,?,?, CASE WHEN (SELECT revision FROM config WHERE id=1)=? THEN 1 ELSE NULL END)").bind(id,member.id,action,now(),revision),

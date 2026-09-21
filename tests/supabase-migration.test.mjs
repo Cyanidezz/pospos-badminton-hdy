@@ -178,3 +178,43 @@ test("shows active inventory count and total stock cost", async () => {
   assert.match(pos, /className="inventory-value-summary"/);
   assert.match(pos, /Math\.max\(0,Number\(p\.stock\)\|\|0\)\*\(p\.cost\|\|0\)/);
 });
+
+test("stringing jobs start at waiting and offer payment right after saving", async () => {
+  const server = await read("lib/server.ts");
+  const route = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  const track = await read("app/track/[token]/page.tsx");
+  assert.match(server, /export const statuses = \["รอขึ้นเอ็น","กำลังขึ้นเอ็น","พร้อมรับไม้","คืนไม้แล้ว"\]/);
+  assert.match(pos, /const statuses=\['รอขึ้นเอ็น','กำลังขึ้นเอ็น','พร้อมรับไม้','คืนไม้แล้ว'\]/);
+  assert.doesNotMatch(track, /'รับไม้'/);
+  assert.match(route, /JSON\.stringify\(photos\),amount,'รอขึ้นเอ็น',me\.id/);
+  assert.match(route, /statuses\.indexOf\(normalizeJobStatus\(j\.status\)\)/);
+  assert.match(pos, /open\('jobPay'/);
+  assert.match(pos, /act\('payJob',\{id:form\.id,method:form\.jobPay/);
+  assert.match(pos, /modal==='jobPay'\?'ชำระภายหลัง':/);
+});
+
+test("owners can step a stringing job back or cancel it", async () => {
+  const route = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  const track = await read("app/track/[token]/page.tsx");
+  const migration = await read("supabase/migrations/20260921130000_job_cancel_status.sql");
+  const revert = route.slice(route.indexOf("action==='jobRevert'"), route.indexOf("action==='jobCancel'"));
+  const cancel = route.slice(route.indexOf("action==='jobCancel'"), route.indexOf("action==='notify'"));
+  assert.match(revert, /owner\(me\)/);
+  assert.match(revert, /statuses\[index-1\]/);
+  assert.match(revert, /index===2\?null:j\.completed,index===3\?null:j\.returned/);
+  assert.match(cancel, /owner\(me\)/);
+  assert.match(cancel, /str\(b\.reason,500\)/);
+  assert.match(cancel, /UPDATE sales SET status='voided'/);
+  assert.match(cancel, /UPDATE products SET stock=stock\+\?/);
+  assert.match(cancel, /status='ยกเลิก',paid=0,completed=NULL/);
+  assert.match(route, /returned IS NULL AND status<>'ยกเลิก'\) reserved/);
+  assert.match(route, /if\(j\?\.status==='ยกเลิก'\)throw new Error\('งานนี้ถูกยกเลิกแล้ว'\);if\(!j\|\|j\.paid\)/);
+  assert.match(pos, /owner&&selected\.status!=='คืนไม้แล้ว'&&<button/);
+  assert.match(pos, /open\('jobRevert'/);
+  assert.match(pos, /open\('jobCancel'/);
+  assert.match(pos, /j\.status!=='ยกเลิก'\)\.length/);
+  assert.match(track, /job\.status!=='ยกเลิก'&&<ol>/);
+  assert.match(migration, /'ยกเลิก'/);
+});

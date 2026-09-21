@@ -354,3 +354,10 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .inventory-value-summary{margin:6px 2px 20px auto}
 .inventory-page-heading{margin-bottom:18px}
 @media(min-width:761px){.inventory-status-cards{gap:16px}}
+
+/* Stringing job payment summary: choose cash or transfer, or pay later. */
+.job-pay-summary{display:grid;gap:4px;padding:14px 16px;border-radius:14px;background:#eef3fd;border:1px solid #d3def5;color:#24406f}
+.job-pay-summary span{font-size:13px;color:#4c6699}
+.pay-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pay-option{min-height:52px!important;font-size:16px!important;font-weight:700!important;border-radius:14px!important;color:#2c4a86!important}
+.pay-option.is-active{background:linear-gradient(135deg,#4a7ddb,#3a70d4)!important;border-color:#3a70d4!important;color:#fff!important;box-shadow:0 8px 20px rgba(58,112,212,.28)!important}
