@@ -637,3 +637,13 @@ test("stock count start screen shows how many products and pieces each scope cov
   assert.deepEqual(s.byCategory["ว่าง"], { items: 0, units: 0 });
   assert.deepEqual(s.all, { items: 4, units: 17 });
 });
+
+test("sidebar can be hidden from a small button, and the POS bar has a stringing shortcut", async () => {
+  const pos = await read("app/pos.tsx"), css = await read("app/globals.css");
+  assert.match(pos, /function SidebarHide\(\)\{const \{toggleSidebar,isMobile\}=useSidebar\(\);if\(isMobile\)return null/);
+  assert.match(pos, /<SidebarHide\/><\/SidebarHeader>/);
+  // shortcut: only for accounts that may use stringing, sits before the pay button and goes through the same page switch as the menu
+  assert.match(pos, /can\('stringing'\)&&<button type="button" className="register-stringing"[\s\S]*?setPage\('stringing'\)[\s\S]*?<button className="register-total"/);
+  // when the sidebar is hidden the fixed pay bar must not leave a gap where the menu used to be
+  assert.match(css, /body:has\(\[data-slot=sidebar\]\[data-state=collapsed\]\) \.register-bottom\{left:0\}/);
+});

@@ -657,3 +657,18 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .scope-summary{margin:12px 0 14px;padding:10px 14px;border-radius:12px;background:#f0f5ff;border:1px solid #d5e2fb;color:#3d5688;font-size:14px}
 .scope-summary b{color:#1d3c76}
 .scope-item>span:last-child{flex:1;min-width:0}
+
+/* Hide-sidebar button in the sidebar header, more visible reopen icon in the top bar */
+.store-sidebar [data-slot=sidebar-header]{position:relative}
+.sidebar-hide{position:absolute;top:14px;right:12px;width:32px;height:32px;min-height:0!important;padding:0!important;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,.28)!important;background:rgba(255,255,255,.12)!important;color:#fff!important;cursor:pointer;box-shadow:none!important}
+.sidebar-hide:hover{background:rgba(255,255,255,.26)!important}
+.topbar [data-slot=sidebar-trigger]{width:36px;height:36px;border-radius:10px;background:#eaf1fe;color:#2c5fc4}
+.topbar [data-slot=sidebar-trigger]:hover{background:#d7e5fd}
+/* Cashier shortcut to the stringing page, beside the pay button */
+.register-bottom .register-stringing{flex:none;display:inline-flex;align-items:center;gap:10px;min-height:62px;padding:0 20px;border-radius:18px;border:1.5px solid #f3b04a!important;background:linear-gradient(135deg,#fff7e6,#ffe9bd)!important;color:#8a4b00!important;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 6px 16px rgba(230,150,30,.18)!important;white-space:nowrap}
+.register-bottom .register-stringing:hover{background:linear-gradient(135deg,#ffefcc,#ffdd99)!important}
+.register-bottom .register-total{margin-left:0}
+.register-bottom>div{margin-right:auto}
+@media(max-width:767px){.register-bottom .register-stringing{min-height:60px;padding:0 14px;flex:0 0 auto}}
+/* the bottom pay bar spans the full width when the sidebar is hidden */
+body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
