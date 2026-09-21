@@ -432,3 +432,28 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .register-product-name:after{background:rgba(255,255,255,.18)}
 .register-product-name h3{font-weight:600}
 .register-product-name small{color:#e8f0ff}
+
+/* Settings: opening-hours editor, bank account and transfer QR. */
+.hours-edit{display:grid;gap:8px;margin-top:6px}
+.hours-edit-row{display:grid;grid-template-columns:96px auto minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:#f8faff;border:1px solid #e3e8f2}
+.hours-edit-row>b{color:#24406f;font-size:14px}
+.hours-edit-row input[type=time]{height:40px;padding:0 10px;min-width:0}
+.hours-edit-row .muted{grid-column:3/-1;margin:0}
+.hours-open{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#4c6699;cursor:pointer;white-space:nowrap}
+.hours-open input{width:18px!important;height:18px;padding:0;accent-color:#3a70d4;flex:none}
+.qr-upload{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:6px}
+.qr-actions{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.qr-actions .attach-button{padding:0 16px}
+.bank-qr-preview{width:170px;height:170px;object-fit:contain;background:#fff;border:1px solid #d3def5;border-radius:14px;padding:6px}
+.bank-qr-empty{width:170px;height:170px;display:grid;place-items:center;border:1px dashed #a9c1f0;border-radius:14px;background:#f4f8ff;color:#7c8aa5;font-size:13px}
+.bank-card{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:0 0 16px;padding:14px;border-radius:16px;background:#f4f8ff;border:1px solid #d3def5}
+.bank-qr{width:210px;height:210px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;border:1px solid #e3e8f2;flex:none}
+.bank-info{display:grid;gap:5px;min-width:0;flex:1 1 180px}
+.bank-amount{display:grid;padding:8px 12px;border-radius:12px;background:#fff;border:1px solid #d3def5}
+.bank-amount span{font-size:12px;color:#7c8aa5}
+.bank-amount b{font-size:24px;color:#3a70d4;letter-spacing:-.5px}
+.bank-bank{font-size:13px;color:#4c6699}
+.bank-name{font-size:16px;color:#24406f}
+.bank-no{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bank-no code{font-size:18px;font-weight:700;letter-spacing:.5px;color:#24406f;word-break:break-all}
+@media(max-width:560px){.hours-edit-row{grid-template-columns:70px auto minmax(0,1fr) auto minmax(0,1fr);gap:6px;padding:8px}.bank-qr{width:100%;height:auto;max-width:260px;margin:0 auto}}

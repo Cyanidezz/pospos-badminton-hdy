@@ -262,15 +262,19 @@ test("sends job status updates as a Flex card with a plain-text fallback", async
 
 test("customer tracking page has a prominent LINE button and the shop contact details", async () => {
   const page = await read("app/track/[token]/page.tsx");
+  const hours = await read("lib/shop-hours.ts");
   const css = await read("app/globals.css");
   assert.match(page, /className="line-cta"/);
-  assert.match(page, /phone:'080-539-0444'/);
-  assert.match(page, /href=\{'tel:'\+SHOP\.phone\.replaceAll\('-',''\)\}/);
-  assert.match(page, /facebook:'https:\/\/www\.facebook\.com\/profile\.php\?id=61583314268963'/);
-  assert.match(page, /days:\[1,2,3,4,5\],time:'15\.00 – 23\.00 น\.'/);
-  assert.match(page, /days:\[6\],time:'13\.00 – 21\.00 น\.'/);
-  assert.match(page, /days:\[0\],time:'หยุด'/);
-  assert.match(page, /timeZone:'Asia\/Bangkok'/);
+  assert.match(page, /href=\{'tel:'\+String\(info\.phone\)\.replace\(\/\[\^0-9\+\]\/g,''\)\}/);
+  assert.match(page, /href=\{info\.facebook\}/);
+  assert.match(page, /groupHours\(hours\)/);
+  assert.match(page, /isOpenNow\(hours,now\)/);
+  // The defaults shown until the owner edits them in "ตั้งค่าร้าน".
+  assert.match(hours, /phone: "080-539-0444"/);
+  assert.match(hours, /facebook: "https:\/\/www\.facebook\.com\/profile\.php\?id=61583314268963"/);
+  assert.match(hours, /\["15:00", "23:00"\]/);
+  assert.match(hours, /\["13:00", "21:00"\]/);
+  assert.match(hours, /timeZone: "Asia\/Bangkok"/);
   assert.match(css, /\.line-cta\{/);
 });
 
@@ -338,4 +342,49 @@ test("brand assets use the Wingpro colors instead of the old green/teal", async 
   for (const old of ["#0C79D8", "#2E9EFF", "#68C4FF"]) assert.ok(!favicon.includes(old), `favicon still uses ${old}`);
   assert.deepEqual(manifest.icons.map(i => i.src), ["/wingpro-icon.svg", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/maskable-512.png"]);
   assert.match(css, /\.register-product-name\{background:linear-gradient\(145deg,#3a70d4,#5488e6\)\}/);
+});
+
+test("opening hours: validation, grouping and open-now use Thailand time", async t => {
+  let hours;
+  try { hours = await import("../lib/shop-hours.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const week = hours.DEFAULT_SHOP.hours;
+  assert.deepEqual(hours.groupHours(week).map(r => `${r.label} ${r.time}`), ["จันทร์ – ศุกร์ 15.00 – 23.00 น.", "เสาร์ 13.00 – 21.00 น.", "อาทิตย์ หยุด"]);
+  assert.deepEqual(hours.parseHours(""), week);
+  assert.deepEqual(hours.parseHours("not json"), week);
+  assert.throws(() => hours.normalizeHours({ ...week, 1: ["25:00", "26:00"] }), /วันจันทร์/);
+  assert.throws(() => hours.normalizeHours({ ...week, 2: ["18:00", "09:00"] }), /เวลาปิดต้องหลังเวลาเปิด/);
+  assert.equal(hours.normalizeHours(JSON.stringify(week))["6"][1], "21:00");
+  assert.equal(hours.isOpenNow(week, { day: 3, minutes: 18 * 60 }), true);
+  assert.equal(hours.isOpenNow(week, { day: 3, minutes: 22 * 60 + 59 }), true);
+  assert.equal(hours.isOpenNow(week, { day: 3, minutes: 23 * 60 }), false);
+  assert.equal(hours.isOpenNow(week, { day: 3, minutes: 14 * 60 + 59 }), false);
+  assert.equal(hours.isOpenNow(week, { day: 0, minutes: 12 * 60 }), false);
+  const custom = { ...week, 3: null, 0: ["10:00", "12:00"] };
+  assert.deepEqual(hours.groupHours(custom).map(r => r.label), ["จันทร์ – อังคาร", "พุธ", "พฤหัสบดี – ศุกร์", "เสาร์", "อาทิตย์"]);
+});
+
+test("shop contact and bank settings are stored, validated and shown", async () => {
+  const migration = await read("supabase/migrations/20260922000000_shop_contact_and_bank.sql");
+  const route = await read("app/api/data/route.ts");
+  const track = await read("app/api/track/[token]/route.ts");
+  const page = await read("app/track/[token]/page.tsx");
+  const pos = await read("app/pos.tsx");
+  const settings = await read("app/shop-settings.tsx");
+  for (const column of ["contact_phone", "contact_facebook", "opening_hours", "bank_name", "bank_account_name", "bank_account_no", "bank_qr"]) assert.match(migration, new RegExp(`add column if not exists ${column}`));
+  const action = route.slice(route.indexOf("action==='settings'"), route.indexOf("action==='expense'"));
+  assert.match(action, /owner\(me\)/);
+  assert.match(action, /normalizeHours\(b\.openingHours\)/);
+  assert.match(action, /ขึ้นต้นด้วย https/);
+  assert.match(action, /ownedFiles\(\[qr\]\)/);
+  assert.match(action, /if\(b\.bankName!==undefined\)/, "fields left out (older clients) must be left alone");
+  assert.match(track, /contact_phone\?\?DEFAULT_SHOP\.phone/);
+  assert.match(page, /<ShopContact shop=\{job\.shop\}\/>/);
+  assert.doesNotMatch(page, /080-539-0444/, "phone number now comes from settings");
+  assert.match(settings, /'bank_name' in config/, "new fields are only sent once the migration is applied");
+  assert.match(pos, /<ContactPanel /);
+  assert.match(pos, /<BankPanel /);
+  assert.equal((pos.match(/<BankTransfer /g) || []).length, 2, "transfer QR at checkout/payJob and after saving a job");
+  assert.match(pos, /method==='โอนเงิน'&&<BankTransfer/);
+  assert.match(pos, /form\.jobPay==='โอนเงิน'&&<><BankTransfer/);
 });
