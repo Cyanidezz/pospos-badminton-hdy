@@ -522,3 +522,83 @@ test("editing a member: server rules, migration and screens", async () => {
   assert.match(pos, /total=\{total\}\/><\/Field>/);
   assert.match(settings, /'member_pos_min_amount' in config/);
 });
+
+test("stock count rules: missing/surplus, wrong-barcode swaps, blind counting progress", async t => {
+  let sc;
+  try { sc = await import("../lib/stock-count.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const item = (id, name, category, expected, counted, extra = {}) => ({ product_id: id, name, category, expected, counted, touched: counted > 0 ? 1 : 0, has_stock: expected !== 0, cost: 10000, ...extra });
+  const items = [
+    item("a", "A", "ลูกขน", 3, 3),
+    item("b", "B", "ลูกขน", 5, 3),
+    item("c", "C", "ลูกขน", 2, 4),
+    item("d", "D", "อุปกรณ์", 3, 0, { cost: 5000 }),         // never scanned: counts as 0 => missing
+    item("e", "E", "อุปกรณ์", -2, 0, { touched: 1, cost: 3000 }), // system was negative
+    item("f", "F", "ไม้", 0, 0, { cost: 200000 }),
+  ];
+  const r = sc.classify(items);
+  assert.deepEqual(r.missing.map(i => i.product_id), ["b", "d"], "sorted by value lost: B ฿200 before D ฿150");
+  assert.deepEqual(r.surplus.map(i => i.product_id), ["c", "e"]);
+  assert.deepEqual(r.matched.map(i => i.product_id), ["a", "f"]);
+  assert.equal(r.missingValue, 35000);
+  assert.equal(r.surplusValue, 26000);
+  assert.equal(r.missingUnits, 5);
+  assert.equal(r.surplusUnits, 4);
+  const swaps = sc.possibleSwaps(items);
+  assert.equal(swaps.length, 1, "D (missing 3) has no equal surplus in its category");
+  assert.equal(swaps[0].missing.product_id, "b");
+  assert.equal(swaps[0].surplus.product_id, "c");
+  assert.equal(swaps[0].similarCost, true);
+  const twoSurplus = [item("m", "M", "x", 4, 2, { cost: 100000 }), item("s1", "S1", "x", 0, 2, { cost: 500 }), item("s2", "S2", "x", 0, 2, { cost: 90000 })];
+  assert.equal(sc.possibleSwaps(twoSurplus)[0].surplus.product_id, "s2", "the closest cost wins");
+  assert.equal(sc.possibleSwaps([item("m", "M", "x", 4, 2), item("s", "S", "y", 0, 2)]).length, 0, "other categories are not paired");
+  assert.equal(sc.defaultReason(items[1], new Set(["b"])), "รับเข้าผิด / สแกนผิดตัว");
+  assert.equal(sc.defaultReason(items[3]), "ของหาย");
+  assert.equal(sc.defaultReason(items[2]), "นับผิด / ปรับตามการนับ");
+  const p = sc.progress(items.map(i => ({ ...i, expected: null })));
+  assert.equal(p.shouldHave, 5, "progress works without the system quantities");
+  assert.equal(p.counted, 4);
+  assert.equal(p.remaining, 1);
+  assert.equal(p.units, 10);
+});
+
+test("stock counting: server rules, migration and screens", async () => {
+  const migration = await read("supabase/migrations/20260922030000_stock_counts.sql");
+  const route = await read("app/api/count/route.ts");
+  const page = await read("app/stock-count.tsx");
+  const pos = await read("app/pos.tsx");
+  for (const table of ["stock_counts", "stock_count_items"]) {
+    assert.match(migration, new RegExp(`create table public\\.${table}`));
+    assert.match(migration, new RegExp(`alter table public\\.${table} enable row level security`));
+    assert.match(migration, new RegExp(`create policy "server only" on public\\.${table}`));
+  }
+  assert.match(migration, /status text not null check \(status in \('counting','review','closed','cancelled'\)\)/);
+  // who can do what
+  assert.match(route, /const canCount=\(me:any\)=>me\.role==='owner'\|\|!!permissions\(me\)\.inventory/);
+  const beforeOwner = route.slice(route.indexOf("if(action==='scan'||action==='set')"), route.indexOf("owner(me); // everything below"));
+  assert.doesNotMatch(beforeOwner, /owner\(me\)/, "counting itself is open to staff with inventory access");
+  const afterOwner = route.slice(route.indexOf("owner(me); // everything below"));
+  for (const action of ["start", "finish", "reopen", "cancel", "apply"]) assert.match(afterOwner, new RegExp(`action==='${action}'`), `${action} is owner-only`);
+  // blind counting
+  assert.match(route, /showExpected=isOwner&&session\.status!=='counting'/);
+  assert.match(route, /NULL::integer AS expected/);
+  // counting only while the session is 'counting'
+  assert.match(route, /c\.status='counting'/);
+  // apply: relative delta, set-based, once, audited, idempotent
+  const apply = route.slice(route.indexOf("if(action==='apply')"));
+  assert.match(apply, /SET stock=p\.stock\+\(i\.counted-i\.expected\)/, "relative delta keeps sales made during the count");
+  assert.match(apply, /jsonb_to_recordset\(\(\?::text\)::jsonb\)/, "JSON is sent as text (a jsonb-typed parameter would be double-encoded)");
+  assert.match(apply, /INSERT INTO stock_adjustments/);
+  assert.match(apply, /i\.applied=0/);
+  assert.match(apply, /transaction\(requestId,me,'countApply'/);
+  assert.doesNotMatch(apply, /for\s*\(/, "no per-product loop of round trips");
+  assert.match(route, /INSERT INTO stock_count_items\(count_id,product_id,expected\) SELECT/);
+  // screens
+  assert.match(pos, /\['stockCount','นับสต๊อก',ClipboardCheck\]/);
+  assert.match(pos, /<StockCountPage isOwner=\{owner\}/);
+  assert.match(pos, /onStockChanged=\{load\}/);
+  assert.match(page, /queue\.current=queue\.current\.then/, "scans are sent in order");
+  assert.match(page, /pending\.current\?current:data\.items/, "a refresh never overwrites counts still on their way");
+  assert.match(page, /requestId:crypto\.randomUUID\(\)/);
+  assert.match(page, /ยืนยันปรับสต๊อก/);
+});
