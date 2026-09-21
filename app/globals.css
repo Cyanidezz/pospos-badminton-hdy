@@ -503,3 +503,23 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .member-table th{padding:8px 10px;background:#e6eefc;color:#2c4a86;text-align:left;font-size:12px;white-space:nowrap}
 .member-table td{padding:9px 10px;border-bottom:1px solid #edf0f6;color:#2d3a53;vertical-align:top}
 @media(max-width:900px){.members-layout{grid-template-columns:minmax(0,1fr)}.members-rows{max-height:320px}}
+
+/* Payment dialogs: transfer first, a large QR beside the fields, member field last and quiet. */
+.pay-dialog{max-width:900px!important}
+.bank-qr-card{display:grid;place-items:center;padding:14px;margin:0 0 14px;border-radius:16px;background:#f4f8ff;border:1px solid #d3def5}
+.bank-info-card{display:grid;gap:4px;margin:0 0 14px;padding:12px 14px;border-radius:14px;background:#f4f8ff;border:1px solid #d3def5}
+.pay-body .bank-qr{display:block;width:100%;max-width:340px;height:auto;max-height:calc(90dvh - 270px);object-fit:contain;background:#fff;border-radius:12px;padding:8px}
+.pay-body.with-qr{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);column-gap:28px;align-items:start}
+.pay-body.with-qr>*{grid-column:2}
+.pay-body.with-qr>.bank-qr-card{grid-column:1;grid-row:1/span 12;margin:0}
+.member-optional{margin-top:6px}
+.member-optional>span{font-size:12px;font-weight:500;color:#8a97b2}
+.member-optional input{height:38px;font-size:14px;background:#fafbfe;border-color:#e3e8f2}
+@media(max-width:760px){.pay-dialog{max-width:540px!important}.pay-body.with-qr{display:block}.pay-body .bank-qr{max-height:60dvh}}
+.pay-dialog{padding:20px 26px!important}
+.pay-dialog [data-slot=dialog-header]{margin-bottom:6px}
+.pay-body.with-qr .payment-total{font-size:36px;padding:0 0 10px;text-align:left}
+.pay-body.with-qr .field{margin-bottom:10px}
+.pay-body.with-qr .muted{margin:2px 0 8px;font-size:12px}
+.pay-dialog .dialog-actions{margin-top:8px;padding-top:12px}
+.pay-dialog [data-slot=dialog-description]{display:none}

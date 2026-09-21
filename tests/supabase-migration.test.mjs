@@ -322,12 +322,13 @@ test("the job form is compact, has no default condition text, and condition is o
 
 test("the payment summary after saving a job shows the amount and payment choices", async () => {
   const pos = await read("app/pos.tsx");
-  const body = pos.slice(pos.indexOf("{modal==='jobPay'&&<>"), pos.indexOf("{modal==='leave'&&"));
-  assert.ok(body.startsWith("{modal==='jobPay'&&<>"), "jobPay body must exist in pos.tsx");
+  const start = pos.indexOf("{modal==='jobPay'&&<div className={'pay-body'");
+  assert.ok(start > 0, "jobPay body must exist in pos.tsx");
+  const body = pos.slice(start, pos.indexOf("{modal==='leave'&&"));
   assert.match(body, /className="job-pay-summary"/);
   assert.match(body, /<b>\{form\.racket\}<\/b>/);
   assert.match(body, /className="payment-total">฿\{fmt\(form\.amount\)\}/);
-  assert.match(body, /\['เงินสด','โอนเงิน'\]/);
+  assert.match(body, /\['โอนเงิน','เงินสด'\]/, "transfer is listed first");
   assert.match(body, /form\.jobPay==='โอนเงิน'&&/);
   assert.match(body, /แนบสลิป/);
 });
@@ -446,4 +447,22 @@ test("member program: server rules, settings and screens", async () => {
   assert.match(pos, /customerKey:form\.member\?\.key,customerName:form\.member\?\.name/);
   assert.match(pos, /form\.reward&&form\.amount===0/);
   assert.match(pos, /ยืนยันใช้สิทธิ์/);
+});
+
+test("payment dialogs default to transfer with a large QR and no repeated amount", async () => {
+  const pos = await read("app/pos.tsx");
+  const bank = await read("app/bank-transfer.tsx");
+  const css = await read("app/globals.css");
+  assert.match(pos, /\[method,setMethod\]=useState\('โอนเงิน'\)/);
+  assert.match(pos, /jobPay:'โอนเงิน'\}/);
+  assert.match(pos, /options=\{\['โอนเงิน','เงินสด','บัตร'\]\}/);
+  assert.doesNotMatch(pos, /amountText=/, "the amount is shown once at the top, not again in the bank card");
+  assert.doesNotMatch(bank, /amountText|bank-amount/);
+  const checkout = pos.slice(pos.indexOf("(modal==='checkout'||modal==='payJob')&&<div className={'pay-body'"), pos.indexOf("{modal==='editSale'"));
+  assert.ok(checkout.indexOf("<BankTransfer") > 0);
+  assert.ok(checkout.lastIndexOf("MemberPicker") > checkout.indexOf("แนบสลิป"), "the member field comes after the slip field (last)");
+  assert.match(checkout, /className="member-optional"/);
+  assert.match(pos, /payWide\?'pay-dialog'/);
+  assert.match(css, /\.pay-body\.with-qr\{display:grid;grid-template-columns:minmax\(0,340px\)/);
+  assert.match(css, /\.pay-body \.bank-qr\{[^}]*max-height:calc\(90dvh - 270px\)/);
 });
