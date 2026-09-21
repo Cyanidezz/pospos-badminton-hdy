@@ -139,8 +139,20 @@ export async function notifyJob(id: string) {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ to: job.line_user, messages: [{ type: "text", text: `สถานะไม้ ${job.racket}: ${job.status}\nเลขรับไม้ ${job.id.slice(0,8).toUpperCase()}${job.paid?'\nชำระเงินแล้ว':`\nยอดชำระ ${(job.amount/100).toFixed(2)} บาท`}` }] }),
       });
-      state = response.ok ? "แจ้ง LINE แล้ว" : "ส่งไม่สำเร็จ กดลองส่งอีกครั้ง";
-    } catch { state = "ส่งไม่สำเร็จ กดลองส่งอีกครั้ง"; }
+      if (response.ok) state = "แจ้ง LINE แล้ว";
+      else {
+        const detail = (await response.text().catch(() => "")).slice(0, 300);
+        console.error("LINE push failed", response.status, detail);
+        const hint = response.status === 401 ? "Channel access token ไม่ถูกต้องหรือหมดอายุ"
+          : response.status === 429 ? "ข้อความเกินโควตาของ LINE เดือนนี้"
+          : response.status === 400 ? "ลูกค้าอาจบล็อกหรือลบร้านออกจากเพื่อนแล้ว"
+          : "กดลองส่งอีกครั้ง";
+        state = `ส่งไม่สำเร็จ (${response.status}): ${hint}`;
+      }
+    } catch (error: any) {
+      console.error("LINE push failed", error?.message);
+      state = "ส่งไม่สำเร็จ: เชื่อมต่อ LINE ไม่ได้ กดลองส่งอีกครั้ง";
+    }
   }
   await db().prepare("UPDATE jobs SET notify=? WHERE id=?").bind(state,id).run();
   return state;

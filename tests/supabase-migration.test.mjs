@@ -238,3 +238,12 @@ test("shows the new job's receipt with its QR code after the payment step", asyn
   assert.match(pos, /onClick=\{\(\)=>\{if\(modal==='jobPay'\)setOpenJobId\(form\.id\);setModal\(''\)\}\}/);
   assert.match(pos, /onOpenChange=\{v=>\{if\(!busy&&!uploading&&!v\)\{if\(modal==='jobPay'\)setOpenJobId\(form\.id\)/);
 });
+
+test("LINE push failures report the real cause instead of a generic message", async () => {
+  const server = await read("lib/server.ts");
+  const notify = server.slice(server.indexOf("export async function notifyJob"));
+  assert.match(notify, /console\.error\("LINE push failed", response\.status, detail\)/);
+  assert.match(notify, /response\.status === 401 \? "Channel access token/);
+  assert.match(notify, /state = `ส่งไม่สำเร็จ \(\$\{response\.status\}\): \$\{hint\}`/);
+  assert.doesNotMatch(notify, /Authorization: Bearer \$\{token\}[^]*console\.(log|error)\([^)]*token/);
+});
