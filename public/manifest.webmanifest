@@ -7,8 +7,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f3f8fc",
-  "theme_color": "#087fac",
+  "background_color": "#fefaf7",
+  "theme_color": "#3a70d4",
   "icons": [
     {
       "src": "/wingpro-icon.svg",

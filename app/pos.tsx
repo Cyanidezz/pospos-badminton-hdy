@@ -20,7 +20,7 @@ const defaultCashierPermissions={pos:true,discount:true,inventory:true,stringing
 const fmt=(v:number)=>((v||0)/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const day=(s:string)=>s?new Date(s).toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'}):'';
 const today=()=>day(new Date().toISOString());
-function BadmintonRacket({size=24}:any){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><ellipse cx="9" cy="8" rx="5" ry="6"/><path d="m12.5 12.5 7 7M16.5 16.5l-2 2M6 4l6 8M4 7l7 5M8 2l5 5M4 10l5 3"/></svg>}
+function BadmintonRacket({size=24}:any){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><g transform="translate(12 11.7) rotate(-45) scale(1.1) translate(-12 -11.45)"><ellipse cx="12" cy="7" rx="4.6" ry="5.6"/><path d="M12 1.4v11.2M7.8 5h8.4M7.5 9h9M10.2 12.2 12 14.6l1.8-2.4M12 14.6V21.5"/><path d="M12 17.6v4" strokeWidth="3"/></g></svg>}
 function Choice({value,onChange,options}:any){return <Select value={value} onValueChange={onChange}><SelectTrigger className="choice"><SelectValue placeholder="เลือก…"/></SelectTrigger><SelectContent>{options.map((o:any)=><SelectItem key={typeof o==='string'?o:o.id} value={typeof o==='string'?o:o.id}>{typeof o==='string'?o:o.name}</SelectItem>)}</SelectContent></Select>}
 function Field({label,children}:any){return <label className="field"><span>{label}</span>{children}</label>}
 function Empty({text,action}:any){return <div className="empty"><Package size={32}/><h3>{text}</h3>{action}</div>}
