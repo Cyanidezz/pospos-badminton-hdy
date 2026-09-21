@@ -618,3 +618,22 @@ test('new stringing job form: grouped sections and a barcode scan button for the
   assert.doesNotMatch(css.slice(css.indexOf('.job-fields{display:grid')), /\.job-grid\{[^}]*repeat\(12/);
   assert.match(css, /\.scan-string\{/);
 });
+
+test("stock count start screen shows how many products and pieces each scope covers", async t => {
+  const page = await read("app/stock-count.tsx"), pos = await read("app/pos.tsx"), css = await read("app/globals.css");
+  assert.match(pos, /<StockCountPage[^>]*products=\{data\.products\|\|\[\]\}/);
+  assert.match(page, /scopeStats\(products\|\|\[\],categories\)/);
+  assert.match(page, /รายการ · \{num\(stat\.units\)\} ชิ้น/);
+  assert.match(page, /disabled=\{busy\|\|!shown\.items\}/, "an empty scope cannot start a count");
+  assert.doesNotMatch(page, /<select value=\{scope\}/, "the scope picker is the styled Select, not the plain browser one");
+  assert.match(css, /\.scope-item\[data-state=checked\]\{background:linear-gradient/);
+  let sc;
+  try { sc = await import("../lib/stock-count.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const p = (category, stock, active = 1) => ({ category, stock, active });
+  const s = sc.scopeStats([p("กริป", 3), p("กริป", 4), p("กริป", 99, 0), p("ถุงเท้า", -3), p("ลูกขน", 10)], ["กริป", "ถุงเท้า", "ลูกขน", "ว่าง"]);
+  assert.deepEqual(s.byCategory["กริป"], { items: 2, units: 7 }, "archived products are not counted");
+  assert.deepEqual(s.byCategory["ถุงเท้า"], { items: 1, units: 0 }, "negative stock is 0 pieces on the shelf");
+  assert.deepEqual(s.byCategory["ว่าง"], { items: 0, units: 0 });
+  assert.deepEqual(s.all, { items: 4, units: 17 });
+});

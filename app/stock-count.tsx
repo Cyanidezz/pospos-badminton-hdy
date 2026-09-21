@@ -3,9 +3,11 @@ import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {toast} from 'sonner';
 import {Camera,ClipboardCheck,Minus,Plus,ScanLine,Search,TriangleAlert} from 'lucide-react';
 import {CountScanner} from './count-scanner';
-import {COUNT_REASONS,classify,defaultReason,diffOf,diffValue,possibleSwaps,progress,type CountItem} from '@/lib/stock-count';
+import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
+import {COUNT_REASONS,classify,defaultReason,diffOf,diffValue,possibleSwaps,progress,scopeStats,type CountItem,type ScopeStat} from '@/lib/stock-count';
 
 const baht=(satang:number)=>'฿'+(satang/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const num=(n:number)=>n.toLocaleString('th-TH');
 const dateTime=(iso:string)=>iso?new Date(iso).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Bangkok'}):'—';
 
 async function call(method:'GET'|'POST',path:string,body?:any){
@@ -161,8 +163,13 @@ function Review({data,isOwner,reload,onStockChanged}:any){
 }
 
 // ---------------------------------------------------------------- start screen and history
-function Start({data,isOwner,categories,reload}:any){
+// One row of the scope picker: the name on the left, "N รายการ · M ชิ้น" on the right.
+const ScopeLabel=({name,stat}:{name:string;stat:ScopeStat})=><span className="scope-row"><b>{name}</b><small className="scope-count">{num(stat.items)} รายการ · {num(stat.units)} ชิ้น</small></span>;
+
+function Start({data,isOwner,categories,products,reload}:any){
+  const stats=useMemo(()=>scopeStats(products||[],categories),[products,categories]);
   const [scope,setScope]=useState(''),[busy,setBusy]=useState(false),[detail,setDetail]=useState<any>(null);
+  const shown=scope?stats.byCategory[scope]:stats.all;
   const start=async()=>{setBusy(true);try{await call('POST','/api/count',{action:'start',scope,requestId:crypto.randomUUID()});await reload()}catch(e:any){toast.error(e.message)}finally{setBusy(false)}};
   const open=async(id:string)=>{try{setDetail(await call('GET','/api/count?view=detail&id='+id))}catch(e:any){toast.error(e.message)}};
   return <div className="count-layout single">
@@ -170,8 +177,17 @@ function Start({data,isOwner,categories,reload}:any){
       <h2><ClipboardCheck size={20}/> เริ่มรอบนับสต๊อก</h2>
       {isOwner?<>
         <p className="muted">ระบบจะจำยอดในระบบ ณ ตอนกดเริ่ม ให้พนักงานสแกนนับของที่มีอยู่จริง แล้วเทียบให้ว่าสินค้าไหนขาด (หาย) หรือเกิน แนะนำให้นับตอนร้านปิด</p>
-        <label className="field"><span>ขอบเขตการนับ</span><select value={scope} onChange={e=>setScope(e.target.value)}><option value="">ทั้งร้าน</option>{categories.map((c:string)=><option key={c} value={c}>{c}</option>)}</select></label>
-        <button disabled={busy} onClick={start}>{busy?'กำลังสร้างรอบนับ…':'เริ่มรอบนับ'}</button>
+        <div className="field"><span id="scope-label">ขอบเขตการนับ</span>
+          <Select value={scope||'__all'} onValueChange={v=>setScope(v==='__all'?'':v)}>
+            <SelectTrigger className="choice scope-trigger" aria-labelledby="scope-label"><SelectValue/></SelectTrigger>
+            <SelectContent position="popper" sideOffset={6} className="scope-menu">
+              <SelectItem value="__all" className="scope-item"><ScopeLabel name="ทั้งร้าน" stat={stats.all}/></SelectItem>
+              {categories.map((c:string)=>{const st=stats.byCategory[c];return <SelectItem key={c} value={c} className="scope-item" disabled={!st.items}><ScopeLabel name={c} stat={st}/></SelectItem>})}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="scope-summary">รอบนี้จะนับ <b>{num(shown.items)} รายการ</b> · ในระบบมีรวม <b>{num(shown.units)} ชิ้น</b></p>
+        <button disabled={busy||!shown.items} onClick={start}>{busy?'กำลังสร้างรอบนับ…':'เริ่มรอบนับ'}</button>
       </>:<p className="muted">ยังไม่มีรอบนับที่เปิดอยู่ ให้เจ้าของร้านเริ่มรอบนับก่อน</p>}
     </section>
     {data.history.length>0&&<section className="panel count-history"><h2>ประวัติการนับ</h2>
@@ -186,13 +202,13 @@ function Start({data,isOwner,categories,reload}:any){
   </div>;
 }
 
-export function StockCountPage({isOwner,categories,onStockChanged}:any){
+export function StockCountPage({isOwner,categories,products,onStockChanged}:any){
   const [data,setData]=useState<any>(null),[error,setError]=useState('');
   const reload=useCallback(async()=>{try{setData(await call('GET','/api/count'));setError('')}catch(e:any){setError(e.message)}},[]);
   useEffect(()=>{reload()},[reload]);
   if(error&&!data)return <div className="panel report"><div className="notice">{error}</div></div>;
   if(!data)return <div className="panel report"><p>กำลังโหลด…</p></div>;
   if(!data.ready)return <div className="panel report"><div className="notice">ระบบนับสต๊อกต้องอัปเดตฐานข้อมูลก่อน ให้รัน migration <code>20260922030000_stock_counts.sql</code> บน Supabase แล้วรีเฟรชหน้านี้</div></div>;
-  if(!data.session)return <Start data={data} isOwner={isOwner} categories={categories} reload={reload}/>;
+  if(!data.session)return <Start data={data} isOwner={isOwner} categories={categories} products={products} reload={reload}/>;
   return data.session.status==='counting'?<Counting key={data.session.id} data={data} isOwner={isOwner} reload={reload}/>:<Review key={data.session.id+data.session.status} data={data} isOwner={isOwner} reload={reload} onStockChanged={onStockChanged}/>;
 }

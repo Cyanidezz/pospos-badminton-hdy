@@ -57,3 +57,13 @@ export function progress(items: CountItem[]) {
   const counted = shouldHave.filter(i => i.touched).length;
   return { shouldHave: shouldHave.length, counted, remaining: shouldHave.length - counted, units: items.reduce((n, i) => n + i.counted, 0), products: items.filter(i => i.touched).length };
 }
+
+export type ScopeStat = { items: number; units: number };
+
+// What a count would cover: active products (the same rule the server uses when it snapshots the stock) and the
+// number of pieces the system says are on hand. Negative stock is not "pieces on the shelf", so it counts as 0.
+export function scopeStats(products: { category: string; active?: number; stock?: number }[], categories: string[]) {
+  const stat = (list: typeof products): ScopeStat => ({ items: list.length, units: list.reduce((n, p) => n + Math.max(Number(p.stock) || 0, 0), 0) });
+  const active = products.filter(p => p.active !== 0);
+  return { all: stat(active), byCategory: Object.fromEntries(categories.map(c => [c, stat(active.filter(p => p.category === c))])) as Record<string, ScopeStat> };
+}

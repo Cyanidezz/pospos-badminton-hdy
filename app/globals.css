@@ -634,3 +634,26 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .job-dialog [data-slot=dialog-header]{margin-bottom:4px}
 @media(max-width:560px){.job-fields>.f-s2,.job-fields>.f-s3,.job-fields>.f-s4{grid-column:1/-1}}
 .job-section .attach-button{padding:0 8px;gap:5px;white-space:nowrap;font-size:13px}
+
+/* Stock count: scope picker with product / piece counts, and a clearly coloured menu */
+.scope-trigger{width:100%;height:54px;padding:0 14px;background:#fff;border:1.5px solid #b9cdf2!important;color:#1d3c76;font-size:16px;cursor:pointer}
+.scope-trigger:hover{border-color:#3a70d4!important;background:#f5f9ff}
+.scope-trigger[data-state=open]{border-color:#3a70d4!important;box-shadow:0 0 0 4px rgba(58,112,212,.15)}
+.scope-trigger [data-slot=select-value]{display:block;flex:1;min-width:0}
+.scope-trigger svg{opacity:1;color:#3a70d4;width:20px;height:20px}
+.scope-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-width:0}
+.scope-row b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scope-count{flex:none;padding:3px 10px;border-radius:999px;background:#e3edff;color:#2c5fc4;font-size:12.5px;font-weight:600;white-space:nowrap}
+.scope-menu{border:1.5px solid #b9cdf2!important;border-radius:14px!important;background:#fff!important;box-shadow:0 18px 44px rgba(29,60,118,.22)!important;max-height:min(420px,var(--radix-select-content-available-height))!important}
+.scope-menu [data-slot=select-item-indicator]{display:none}
+.scope-item{padding:11px 14px!important;border-radius:10px!important;font-size:15px!important;color:#1d3c76;cursor:pointer!important}
+.scope-item+.scope-item{margin-top:2px}
+.scope-item:first-child{margin-bottom:6px;background:#f0f5ff;border:1px solid #d5e2fb}
+.scope-item[data-highlighted]{background:#dfeaff!important;color:#123a86!important}
+.scope-item[data-state=checked]{background:linear-gradient(135deg,#3a70d4,#2f5fbb)!important;color:#fff!important;border-color:transparent}
+.scope-item[data-state=checked] .scope-count{background:rgba(255,255,255,.22);color:#fff}
+.scope-item[data-disabled]{opacity:.45}
+.scope-item[data-disabled] .scope-count{background:#eef1f7;color:#6f7f9d}
+.scope-summary{margin:12px 0 14px;padding:10px 14px;border-radius:12px;background:#f0f5ff;border:1px solid #d5e2fb;color:#3d5688;font-size:14px}
+.scope-summary b{color:#1d3c76}
+.scope-item>span:last-child{flex:1;min-width:0}
