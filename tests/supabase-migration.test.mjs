@@ -315,3 +315,15 @@ test("the job form is compact, has no default condition text, and condition is o
   assert.match(route, /String\(b\.condition\|\|''\)\.trim\(\)\.slice\(0,2000\)/);
   assert.match(css, /\.job-form\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 });
+
+test("the payment summary after saving a job shows the amount and payment choices", async () => {
+  const pos = await read("app/pos.tsx");
+  const body = pos.slice(pos.indexOf("{modal==='jobPay'&&<>"), pos.indexOf("{modal==='leave'&&"));
+  assert.ok(body.startsWith("{modal==='jobPay'&&<>"), "jobPay body must exist in pos.tsx");
+  assert.match(body, /className="job-pay-summary"/);
+  assert.match(body, /<b>\{form\.racket\}<\/b>/);
+  assert.match(body, /className="payment-total">฿\{fmt\(form\.amount\)\}/);
+  assert.match(body, /\['เงินสด','โอนเงิน'\]/);
+  assert.match(body, /form\.jobPay==='โอนเงิน'&&/);
+  assert.match(body, /แนบสลิป/);
+});
