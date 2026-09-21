@@ -1,5 +1,6 @@
 import postgres, { type Sql, type TransactionSql } from "postgres";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { jobStatusMessage, jobStatusText } from "@/lib/line-message";
 
 export const runtime = () => ({
   LINE_CHANNEL_ACCESS_TOKEN: process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -128,17 +129,24 @@ export async function ownedFiles(ids: any) {
   for (const id of ids) if (!(await one("SELECT id FROM files WHERE id=?", str(id)))) throw new Error("ไม่พบไฟล์แนบ");
   return ids;
 }
+const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
+const pushLine = (token: string, to: string, messages: unknown[]) => fetch("https://api.line.me/v2/bot/message/push", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+  body: JSON.stringify({ to, messages }),
+});
 export async function notifyJob(id: string) {
   const job: any = await one("SELECT * FROM jobs WHERE id=?", id);
   const token = runtime().LINE_CHANNEL_ACCESS_TOKEN;
   let state = "ยังไม่เชื่อม LINE";
   if (job?.line_user && token) {
     try {
-      const response = await fetch("https://api.line.me/v2/bot/message/push", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ to: job.line_user, messages: [{ type: "text", text: `สถานะไม้ ${job.racket}: ${job.status}\nเลขรับไม้ ${job.id.slice(0,8).toUpperCase()}${job.paid?'\nชำระเงินแล้ว':`\nยอดชำระ ${(job.amount/100).toFixed(2)} บาท`}` }] }),
-      });
+      const current = { ...job, status: normalizeJobStatus(job.status) };
+      let response = await pushLine(token, job.line_user, [jobStatusMessage(current, { steps: statuses, siteUrl: siteUrl() })]);
+      if (response.status === 400) {
+        console.error("LINE flex message rejected", (await response.text().catch(() => "")).slice(0, 300));
+        response = await pushLine(token, job.line_user, [jobStatusText(current)]);
+      }
       if (response.ok) state = "แจ้ง LINE แล้ว";
       else {
         const detail = (await response.text().catch(() => "")).slice(0, 300);

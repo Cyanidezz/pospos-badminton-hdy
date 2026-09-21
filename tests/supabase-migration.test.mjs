@@ -247,3 +247,15 @@ test("LINE push failures report the real cause instead of a generic message", as
   assert.match(notify, /state = `ส่งไม่สำเร็จ \(\$\{response\.status\}\): \$\{hint\}`/);
   assert.doesNotMatch(notify, /Authorization: Bearer \$\{token\}[^]*console\.(log|error)\([^)]*token/);
 });
+
+test("sends job status updates as a Flex card with a plain-text fallback", async () => {
+  const server = await read("lib/server.ts");
+  const card = await read("lib/line-message.ts");
+  const notify = server.slice(server.indexOf("export async function notifyJob"));
+  assert.match(notify, /jobStatusMessage\(current, \{ steps: statuses, siteUrl: siteUrl\(\) \}\)/);
+  assert.match(notify, /response\.status === 400[^]*jobStatusText\(current\)/);
+  assert.match(card, /type: "flex"/);
+  assert.match(card, /altText:/);
+  assert.match(card, /\/\^https:\\\/\\\/\/\.test\(siteUrl\)/);
+  assert.match(card, /"ยกเลิก": \{ color:/);
+});
