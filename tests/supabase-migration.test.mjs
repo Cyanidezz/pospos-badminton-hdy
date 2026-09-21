@@ -327,3 +327,15 @@ test("the payment summary after saving a job shows the amount and payment choice
   assert.match(body, /form\.jobPay==='โอนเงิน'&&/);
   assert.match(body, /แนบสลิป/);
 });
+
+test("brand assets use the Wingpro colors instead of the old green/teal", async () => {
+  const offline = await read("public/offline.html");
+  const favicon = await read("public/favicon.svg");
+  const manifest = JSON.parse(await read("public/manifest.webmanifest"));
+  const css = await read("app/globals.css");
+  assert.match(offline, /id="badminton-offline-document"/, "the service worker checks for this id");
+  for (const old of ["#087fac", "#17644f", "#f5f7f8"]) assert.ok(!offline.includes(old), `offline page still uses ${old}`);
+  for (const old of ["#0C79D8", "#2E9EFF", "#68C4FF"]) assert.ok(!favicon.includes(old), `favicon still uses ${old}`);
+  assert.deepEqual(manifest.icons.map(i => i.src), ["/wingpro-icon.svg", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/maskable-512.png"]);
+  assert.match(css, /\.register-product-name\{background:linear-gradient\(145deg,#3a70d4,#5488e6\)\}/);
+});

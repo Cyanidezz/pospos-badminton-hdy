@@ -426,3 +426,9 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .attach-button:focus-within{outline:3px solid rgba(58,112,212,.25)}
 @media(max-width:560px){.job-form .field.wide{grid-column:1/-1}.job-dialog{padding:18px!important}.job-form{gap:9px 10px}}
 @media(max-width:560px){.job-dialog [data-slot=dialog-description],.job-form .job-hint{display:none}.job-dialog [data-slot=dialog-header]{margin-bottom:2px}.job-form .field>span{margin-bottom:3px}.job-dialog .dialog-actions{margin-top:8px;padding-top:10px}}
+
+/* POS product cards without a photo: bright Wingpro blue instead of dark navy. */
+.register-product-name{background:linear-gradient(145deg,#3a70d4,#5488e6)}
+.register-product-name:after{background:rgba(255,255,255,.18)}
+.register-product-name h3{font-weight:600}
+.register-product-name small{color:#e8f0ff}

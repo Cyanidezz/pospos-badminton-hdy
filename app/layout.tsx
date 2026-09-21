@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   appleWebApp: {capable: true, title: "Wingpro POS", statusBarStyle: "default"},
   formatDetection: {telephone: false},
   icons: {
-    apple: "/wingpro-logo.jpeg",
+    apple: "/icons/apple-touch-icon.png",
     icon: "/wingpro-icon.svg",
     shortcut: "/wingpro-icon.svg",
   },
