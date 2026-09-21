@@ -218,3 +218,15 @@ test("owners can step a stringing job back or cancel it", async () => {
   assert.match(track, /job\.status!=='ยกเลิก'&&<ol>/);
   assert.match(migration, /'ยกเลิก'/);
 });
+
+test("loads the POS snapshot in a single database round trip", async () => {
+  const route = await read("app/api/data/route.ts");
+  const server = await read("lib/server.ts");
+  const get = route.slice(route.indexOf("export async function GET()"), route.indexOf("export async function POST"));
+  assert.match(get, /allInOne\(\[/);
+  assert.doesNotMatch(get, /await all\(/);
+  assert.doesNotMatch(get, /await one\(/);
+  assert.doesNotMatch(get, /Promise\.all/);
+  assert.match(server, /json_build_object/);
+  assert.match(server, /coalesce\(json_agg\(t\),'\[\]'::json\)/);
+});

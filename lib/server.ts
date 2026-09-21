@@ -53,6 +53,17 @@ export const uid = () => crypto.randomUUID();
 export const now = () => new Date().toISOString();
 export const all = async (query: string, ...values: unknown[]) => (await db().prepare(query).bind(...values).all()).results;
 export const one = async (query: string, ...values: unknown[]) => db().prepare(query).bind(...values).first();
+// Runs several read-only queries as ONE statement (one round trip) and returns the rows of each, in order.
+export async function allInOne(queries: [string, ...unknown[]][]) {
+  const values: unknown[] = [];
+  const parts = queries.map(([query, ...params], index) => {
+    values.push(...params);
+    return `'q${index}',(SELECT coalesce(json_agg(t),'[]'::json) FROM (${query}) t)`;
+  });
+  const rows = await sql().unsafe(pgPlaceholders(`SELECT json_build_object(${parts.join(",")}) AS d`), values as never[]);
+  return queries.map((_, index) => (rows[0].d as any)[`q${index}`] as any[]);
+}
+
 export async function auth() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
