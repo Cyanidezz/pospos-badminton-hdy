@@ -601,3 +601,36 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .count-history-nums{display:flex;gap:14px;font-size:13px;flex-wrap:wrap}
 .count-detail{margin-top:16px}
 @media(max-width:900px){.count-layout{grid-template-columns:minmax(0,1fr)}.count-cards{grid-template-columns:minmax(0,1fr)}}
+
+/* "รับไม้ลูกค้า", grouped: three calm sections, quiet labels, red stars on required fields, scan button beside the string. */
+.job-dialog{max-width:720px!important}
+.job-form{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.job-section{padding:10px 14px 12px;border-radius:14px;background:#f7f9fe;border:1px solid #e3eaf7}
+.job-section.optional{background:#fbfcfe;border-style:dashed}
+.job-section>h4{display:flex;align-items:baseline;gap:8px;margin:0 0 8px;font-size:13px;font-weight:700;letter-spacing:.02em;color:#3a70d4}
+.job-section>h4 small{font-size:11px;font-weight:500;color:#8a97b2}
+.job-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px 12px;align-items:start}
+.job-grid>.f-wide{grid-column:span 7}
+.job-grid>.f-narrow{grid-column:span 5}
+.job-grid>.f-full{grid-column:1/-1}
+.job-form .field{margin:0}
+.job-form .field>span{margin-bottom:4px;font-size:12.5px;font-weight:600;color:#5a6f95}
+.job-form .req{margin-left:3px;font-style:normal;font-weight:700;color:#cf4a44}
+.job-section input:not([type=checkbox]):not([type=file]),.job-section textarea{background:#fff;border-color:#d7e0f1}
+.with-scan{display:flex;gap:8px;align-items:center}
+.with-scan [data-slot=select-trigger]{flex:1;min-width:0}
+.scan-string{flex:none;width:46px;padding:0!important;border-radius:12px!important;color:#3a70d4!important}
+@media(max-width:560px){.job-grid>.f-wide,.job-grid>.f-narrow{grid-column:1/-1}.job-section{padding:10px 12px}}
+
+/* Keep the grouped form as short as the old one: one row for the optional part, slightly lower fields. */
+.job-grid>.f-s2{grid-column:span 2}.job-grid>.f-s3{grid-column:span 3}.job-grid>.f-s4{grid-column:span 4}
+.job-section{padding:8px 12px 10px}
+.job-section>h4{margin-bottom:6px}
+.job-grid{gap:6px 12px}
+.job-section input:not([type=checkbox]):not([type=file]),.job-section .choice{height:40px;min-height:40px}
+.job-section textarea{height:40px;min-height:40px}
+.job-section .attach-button{height:40px}
+.job-form{gap:8px}
+.job-dialog [data-slot=dialog-header]{margin-bottom:4px}
+@media(max-width:560px){.job-grid>.f-s2,.job-grid>.f-s3,.job-grid>.f-s4{grid-column:1/-1}}
+.job-section .attach-button{padding:0 8px;gap:5px;white-space:nowrap;font-size:13px}

@@ -441,7 +441,7 @@ test("member program: server rules, settings and screens", async () => {
   assert.match(route, /member_stamps_required',n\]/);
   assert.match(settings, /'member_stamps_required' in config/);
   assert.match(settings, /export function MemberPanel/);
-  assert.match(form, /className=\{'reward-box'/);
+  assert.match(form, /className=\{'reward-box f-full'/);
   assert.match(pos, /\['members','ลูกค้าสมาชิก',UserRound\]/);
   assert.match(pos, /<MembersPage jobs=\{jobs\}/);
   assert.match(pos, /<MemberPicker jobs=\{jobs\}/);
@@ -601,4 +601,15 @@ test("stock counting: server rules, migration and screens", async () => {
   assert.match(page, /pending\.current\?current:data\.items/, "a refresh never overwrites counts still on their way");
   assert.match(page, /requestId:crypto\.randomUUID\(\)/);
   assert.match(page, /ยืนยันปรับสต๊อก/);
+});
+
+test('new stringing job form: grouped sections and a barcode scan button for the string', async () => {
+  const form = await read('app/job-form.tsx'), pos = await read('app/pos.tsx'), css = await read('app/globals.css');
+  assert.equal((form.match(/<section className="job-section/g) || []).length, 3, 'customer / racket+string / optional');
+  assert.match(form, /aria-label="สแกนบาร์โค้ดเอ็น"[^>]*onClick=\{onScanString\}/);
+  assert.match(pos, /onScanString=\{\(\)=>setScanTarget\('jobString'\)\}/);
+  // scanned product must be a string, otherwise refused; a string fills in the price
+  assert.match(pos, /target==='jobString'[\s\S]*?category!=='เอ็นแบดมินตัน'[\s\S]*?ไม่ใช่เอ็น[\s\S]*?productId:p\.id,amount:\(p\.price\|\|0\)\/100/);
+  assert.match(css, /\.with-scan\{display:flex/);
+  assert.match(css, /\.scan-string\{/);
 });
