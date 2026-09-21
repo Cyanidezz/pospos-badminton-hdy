@@ -361,3 +361,18 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .pay-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .pay-option{min-height:52px!important;font-size:16px!important;font-weight:700!important;border-radius:14px!important;color:#2c4a86!important}
 .pay-option.is-active{background:linear-gradient(135deg,#4a7ddb,#3a70d4)!important;border-color:#3a70d4!important;color:#fff!important;box-shadow:0 8px 20px rgba(58,112,212,.28)!important}
+
+/* Expenses: date range as one tidy card, with the day/month/year switch aligned to the date fields. */
+.expense-date-controls{align-items:flex-end;gap:14px;padding:14px 16px;background:#fff;border:1px solid #dae1ed;border-radius:18px;box-shadow:var(--wing-shadow)}
+.expense-date-controls [data-slot=tabs-list]{height:50px;padding:5px;gap:4px;background:#eef2fa;border:1px solid #dfe6f3;border-radius:14px}
+.expense-date-controls [data-slot=tabs-trigger]{height:100%;min-width:78px;border-radius:10px;font-size:15px;font-weight:700;color:#5a6f95;transition:background .16s,color .16s,box-shadow .16s}
+.expense-date-controls [data-slot=tabs-trigger]:after{display:none}
+.expense-date-controls [data-slot=tabs-trigger]:hover:not([data-state=active]){background:rgba(255,255,255,.85);color:#2c5fc4}
+.expense-date-controls label>span{font-size:12px;font-weight:700;letter-spacing:.02em;color:#4c6699}
+.expense-date-controls input{height:50px;padding:0 14px;border-radius:14px;border-color:#d3def5;background:#f8faff;color:#24406f;font-weight:600}
+.expense-date-controls input:hover{border-color:#a9c1f0}
+.expense-date-controls input::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.7;border-radius:6px;padding:4px}
+.expense-date-controls input::-webkit-calendar-picker-indicator:hover{opacity:1;background:#e3ecfc}
+.date-range-separator{height:50px;padding:0;display:flex;align-items:center;color:#8da8de}
+@media(min-width:761px){.expense-date-controls input{width:210px}.expenses-main>.expense-date-controls{width:fit-content;margin-left:auto}}
+@media(max-width:760px){.expense-date-controls{padding:12px}.expense-date-controls input{width:100%}}
