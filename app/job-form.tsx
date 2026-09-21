@@ -24,7 +24,7 @@ export function JobFormFields({form,setForm,products,members,jobs,sales,config,u
   const req=<i className="req" aria-hidden="true">*</i>;
   return <div className="job-form">
     <section className="job-section" aria-label="ลูกค้า"><h4>ลูกค้า</h4>
-      <div className="job-grid">
+      <div className="job-fields">
         <Field className="f-wide" label={<>ชื่อลูกค้า{req}</>}><CustomerInput required value={form.customer||''} onChange={(customer:string)=>setForm((f:any)=>({...f,customer}))} onPick={pick} suggestions={matchCustomers(customers,form.customer||'','name')} placeholder="พิมพ์ชื่อหรือเบอร์เพื่อค้นหาลูกค้าเดิม"/></Field>
         <Field className="f-narrow" label={<>เบอร์โทร{req}</>}><CustomerInput required type="tel" inputMode="tel" value={form.phone||''} onChange={setPhone} onPick={pick} suggestions={matchCustomers(customers,form.phone||'','phone')}/></Field>
         {member&&<div className="member-pill f-full"><UserCheck size={16}/><b>ลูกค้าเดิม</b><span>มาแล้ว {member.visits} ครั้ง · สะสม {member.progress}/{member.need} · ล่าสุด {thaiDate(member.last)}</span>{member.note&&<span className="member-note-inline">📝 {member.note}</span>}</div>}
@@ -32,7 +32,7 @@ export function JobFormFields({form,setForm,products,members,jobs,sales,config,u
       </div>
     </section>
     <section className="job-section" aria-label="ไม้และเอ็น"><h4>ไม้และเอ็น</h4>
-      <div className="job-grid">
+      <div className="job-fields">
         <Field className="f-wide" label={<>ยี่ห้อ / รุ่นไม้{req}</>}>
           <input required list="known-rackets" value={form.racket||''} onChange={e=>setForm({...form,racket:e.target.value})}/>
           <datalist id="known-rackets">{rackets.map(r=><option key={r} value={r}/>)}</datalist>
@@ -44,7 +44,7 @@ export function JobFormFields({form,setForm,products,members,jobs,sales,config,u
       </div>
     </section>
     <section className="job-section optional" aria-label="เพิ่มเติม"><h4>เพิ่มเติม <small>ไม่บังคับ</small></h4>
-      <div className="job-grid">
+      <div className="job-fields">
         <Field className="f-s3" label="พนักงานขึ้นเอ็น"><Choice value={form.stringerId} onChange={(v:string)=>setForm({...form,stringerId:v})} options={members.filter((m:any)=>m.active)}/></Field>
         <div className="field attach f-s2"><span>รูปสภาพไม้</span>
           <label className={'attach-button secondary'+(photos?' has-photos':'')} title="สูงสุด 8 รูป รูปละ 8 MB"><ImagePlus size={18}/>{photos?`แนบแล้ว ${photos} รูป`:'แนบรูป'}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>{upload(e.target.files,'photos');e.target.value=''}}/></label>

@@ -611,5 +611,10 @@ test('new stringing job form: grouped sections and a barcode scan button for the
   // scanned product must be a string, otherwise refused; a string fills in the price
   assert.match(pos, /target==='jobString'[\s\S]*?category!=='เอ็นแบดมินตัน'[\s\S]*?ไม่ใช่เอ็น[\s\S]*?productId:p\.id,amount:\(p\.price\|\|0\)\/100/);
   assert.match(css, /\.with-scan\{display:flex/);
+  // regression: the form grid once shared the name `.job-grid` with the job card list and squeezed every card into 12 columns
+  assert.doesNotMatch(form, /job-grid/);
+  assert.match(css, /\.job-fields\{display:grid;grid-template-columns:repeat\(12/);
+  assert.match(pos, /className="job-grid"/, 'the card list keeps its own class');
+  assert.doesNotMatch(css.slice(css.indexOf('.job-fields{display:grid')), /\.job-grid\{[^}]*repeat\(12/);
   assert.match(css, /\.scan-string\{/);
 });
