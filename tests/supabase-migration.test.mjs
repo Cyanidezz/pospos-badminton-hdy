@@ -644,6 +644,8 @@ test("sidebar can be hidden from a small button, and the POS bar has a stringing
   assert.match(pos, /<SidebarHide\/><\/SidebarHeader>/);
   // shortcut: only for accounts that may use stringing, sits before the pay button and goes through the same page switch as the menu
   assert.match(pos, /can\('stringing'\)&&<button type="button" className="register-stringing"[\s\S]*?setPage\('stringing'\)[\s\S]*?<button className="register-total"/);
+  // and the other way round: the stringing page has a POS button before "รับไม้ใหม่", only for accounts that may sell
+  assert.match(pos, /page==='stringing'\?<div className="actions">\{can\('pos'\)&&<button type="button" className="secondary" onClick=\{\(\)=>\{setPage\('pos'\)[\s\S]*?ขายหน้าร้าน \(POS\)<\/button>\}<button onClick=\{\(\)=>open\('job'/);
   // when the sidebar is hidden the fixed pay bar must not leave a gap where the menu used to be
   assert.match(css, /body:has\(\[data-slot=sidebar\]\[data-state=collapsed\]\) \.register-bottom\{left:0\}/);
 });
