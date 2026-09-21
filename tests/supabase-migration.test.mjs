@@ -273,3 +273,45 @@ test("customer tracking page has a prominent LINE button and the shop contact de
   assert.match(page, /timeZone:'Asia\/Bangkok'/);
   assert.match(css, /\.line-cta\{/);
 });
+
+test("returning customers are found from job history by name or phone", async t => {
+  let customers;
+  try { customers = await import("../lib/customers.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const job = (customer, phone, racket, tension, created, status = "คืนไม้แล้ว") => ({ customer, phone, racket, tension, created, status });
+  const jobs = [
+    job("สมชาย ใจดี", "081-234-5678", "Yonex Astrox 88D", "26 lbs", "2026-09-19T10:00:00Z"),
+    job("สมชาย ใจดี", "0812345678", "yonex astrox 88d", "27 lbs", "2026-08-01T10:00:00Z"),
+    job("สมชาย ใจดี", "0812345678", "Li-Ning Windstorm 72", "25 lbs", "2026-06-01T10:00:00Z"),
+    job("สมหญิง รักดี", "0899999999", "Victor Thruster K", "24 lbs", "2026-09-10T10:00:00Z"),
+    job("คนยกเลิก", "0811111111", "Yonex X", "24 lbs", "2026-09-11T10:00:00Z", "ยกเลิก"),
+  ];
+  const list = customers.buildCustomers(jobs);
+  assert.equal(list.length, 2);
+  const som = list.find(c => c.name === "สมชาย ใจดี");
+  assert.equal(som.visits, 3);
+  assert.deepEqual(som.rackets.map(r => r.name), ["Yonex Astrox 88D", "Li-Ning Windstorm 72"]);
+  assert.equal(som.rackets[0].tension, "26 lbs");
+  assert.ok(!list.some(c => c.name === "คนยกเลิก"));
+  assert.deepEqual(customers.matchCustomers(list, "สม", "name").map(c => c.name), ["สมชาย ใจดี", "สมหญิง รักดี"]);
+  assert.deepEqual(customers.matchCustomers(list, "0899", "phone").map(c => c.name), ["สมหญิง รักดี"]);
+  assert.deepEqual(customers.matchCustomers(list, "08", "phone"), []);
+  assert.deepEqual(customers.knownRackets(jobs)[0], "Yonex Astrox 88D");
+});
+
+test("the job form is compact, has no default condition text, and condition is optional", async () => {
+  const pos = await read("app/pos.tsx");
+  const form = await read("app/job-form.tsx");
+  const route = await read("app/api/data/route.ts");
+  const css = await read("app/globals.css");
+  assert.doesNotMatch(pos, /ไม่มีตำหนิที่พบ/);
+  assert.match(pos, /<JobFormFields form=\{form\}/);
+  assert.match(pos, /modal==='job'\?'job-dialog'/);
+  assert.match(pos, /act\('job',\{\.\.\.form,member:undefined\},false\)/);
+  assert.match(form, /className="job-form"/);
+  assert.match(form, /สภาพไม้ \/ จุดตำหนิ \(ถ้ามี\)/);
+  assert.doesNotMatch(form, /<textarea required/);
+  assert.match(form, /attach-button/);
+  assert.match(route, /String\(b\.condition\|\|''\)\.trim\(\)\.slice\(0,2000\)/);
+  assert.match(css, /\.job-form\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+});
