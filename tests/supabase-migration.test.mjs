@@ -187,11 +187,11 @@ test("stringing jobs start at waiting and offer payment right after saving", asy
   assert.match(server, /export const statuses = \["รอขึ้นเอ็น","กำลังขึ้นเอ็น","พร้อมรับไม้","คืนไม้แล้ว"\]/);
   assert.match(pos, /const statuses=\['รอขึ้นเอ็น','กำลังขึ้นเอ็น','พร้อมรับไม้','คืนไม้แล้ว'\]/);
   assert.doesNotMatch(track, /'รับไม้'/);
-  assert.match(route, /JSON\.stringify\(photos\),amount,'รอขึ้นเอ็น',me\.id/);
+  assert.match(route, /JSON\.stringify\(photos\),amount,'รอขึ้นเอ็น'\],jobTail=\[me\.id/);
   assert.match(route, /statuses\.indexOf\(normalizeJobStatus\(j\.status\)\)/);
   assert.match(pos, /open\('jobPay'/);
   assert.match(pos, /act\('payJob',\{id:form\.id,method:form\.jobPay/);
-  assert.match(pos, /modal==='jobPay'\?'ชำระภายหลัง':/);
+  assert.match(pos, /modal==='jobPay'&&!\(form\.reward&&form\.amount===0\)\?'ชำระภายหลัง':/);
 });
 
 test("owners can step a stringing job back or cancel it", async () => {
@@ -332,18 +332,6 @@ test("the payment summary after saving a job shows the amount and payment choice
   assert.match(body, /แนบสลิป/);
 });
 
-test("brand assets use the Wingpro colors instead of the old green/teal", async () => {
-  const offline = await read("public/offline.html");
-  const favicon = await read("public/favicon.svg");
-  const manifest = JSON.parse(await read("public/manifest.webmanifest"));
-  const css = await read("app/globals.css");
-  assert.match(offline, /id="badminton-offline-document"/, "the service worker checks for this id");
-  for (const old of ["#087fac", "#17644f", "#f5f7f8"]) assert.ok(!offline.includes(old), `offline page still uses ${old}`);
-  for (const old of ["#0C79D8", "#2E9EFF", "#68C4FF"]) assert.ok(!favicon.includes(old), `favicon still uses ${old}`);
-  assert.deepEqual(manifest.icons.map(i => i.src), ["/wingpro-icon.svg", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/maskable-512.png"]);
-  assert.match(css, /\.register-product-name\{background:linear-gradient\(145deg,#3a70d4,#5488e6\)\}/);
-});
-
 test("opening hours: validation, grouping and open-now use Thailand time", async t => {
   let hours;
   try { hours = await import("../lib/shop-hours.ts"); }
@@ -387,4 +375,75 @@ test("shop contact and bank settings are stored, validated and shown", async () 
   assert.equal((pos.match(/<BankTransfer /g) || []).length, 2, "transfer QR at checkout/payJob and after saving a job");
   assert.match(pos, /method==='โอนเงิน'&&<BankTransfer/);
   assert.match(pos, /form\.jobPay==='โอนเงิน'&&<><BankTransfer/);
+});
+
+test("brand assets use the Wingpro colors instead of the old green/teal", async () => {
+  const offline = await read("public/offline.html");
+  const favicon = await read("public/favicon.svg");
+  const manifest = JSON.parse(await read("public/manifest.webmanifest"));
+  const css = await read("app/globals.css");
+  assert.match(offline, /id="badminton-offline-document"/, "the service worker checks for this id");
+  for (const old of ["#087fac", "#17644f", "#f5f7f8"]) assert.ok(!offline.includes(old), `offline page still uses ${old}`);
+  for (const old of ["#0C79D8", "#2E9EFF", "#68C4FF"]) assert.ok(!favicon.includes(old), `favicon still uses ${old}`);
+  assert.deepEqual(manifest.icons.map(i => i.src), ["/wingpro-icon.svg", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/maskable-512.png"]);
+  assert.match(css, /\.register-product-name\{background:linear-gradient\(145deg,#3a70d4,#5488e6\)\}/);
+});
+
+test("member stamps: one per paid job, a reward every N, free jobs earn no stamp", async t => {
+  let customers;
+  try { customers = await import("../lib/customers.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const paid = (i, extra = {}) => ({ id: "j" + i, customer: "สมชาย", phone: "081-234-5678", racket: "R", tension: "25", created: `2026-09-${String(10 + i).padStart(2, "0")}T10:00:00Z`, status: "คืนไม้แล้ว", paid: 1, amount: 40000, reward_used: 0, ...extra });
+  const jobs = [paid(1), paid(2), paid(3), paid(4), paid(5), paid(6, { paid: 0, status: "รอขึ้นเอ็น" })];
+  let [c] = customers.buildCustomers(jobs, { stampsRequired: 3 });
+  assert.equal(c.visits, 6);
+  assert.equal(c.stamps, 5, "the unpaid job has no stamp yet");
+  assert.equal(c.earned, 1);
+  assert.equal(c.progress, 2);
+  assert.equal(c.available, 1);
+  // using the reward: the free job (reward_used) does not earn a stamp and consumes the reward
+  [c] = customers.buildCustomers([...jobs, paid(7, { reward_used: 1, amount: 0, created: "2026-09-25T10:00:00Z" })], { stampsRequired: 3 });
+  assert.equal(c.stamps, 5);
+  assert.equal(c.used, 1);
+  assert.equal(c.available, 0);
+  // a cancelled free job gives the reward back
+  [c] = customers.buildCustomers([...jobs, paid(7, { reward_used: 1, amount: 0, status: "ยกเลิก" })], { stampsRequired: 3 });
+  assert.equal(c.available, 1);
+  // POS bills linked to the member count towards spend but not stamps; voided ones are ignored
+  const sales = [{ id: "s1", created: "2026-09-20T10:00:00Z", total: 129000, customer_key: "0812345678", status: "active" }, { id: "s2", created: "2026-09-21T10:00:00Z", total: 5000, customer_key: "0812345678", status: "voided" }];
+  [c] = customers.buildCustomers(jobs, { stampsRequired: 3, sales });
+  assert.equal(c.sales.length, 1);
+  assert.equal(c.spent, 5 * 40000 + 129000);
+  assert.equal(c.stamps, 5);
+  assert.equal(customers.rewardDiscount(40000, null), 40000);
+  assert.equal(customers.rewardDiscount(40000, 10000), 10000);
+  assert.equal(customers.rewardDiscount(5000, 10000), 5000);
+});
+
+test("member program: server rules, settings and screens", async () => {
+  const migration = await read("supabase/migrations/20260922010000_members.sql");
+  const route = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  const settings = await read("app/shop-settings.tsx");
+  const form = await read("app/job-form.tsx");
+  for (const column of ["member_stamps_required", "member_reward_cap", "reward_used", "reward_discount", "customer_key", "customer_name"]) assert.match(migration, new RegExp(`add column if not exists ${column}`));
+  assert.match(migration, /'สิทธิ์สมาชิก'/);
+  const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
+  assert.match(job, /Math\.floor\(Number\(stat\.stamps\)\/need\)-Number\(stat\.used\)<1/, "server re-checks the reward is available");
+  assert.match(job, /paid=1 AND reward_used=0/);
+  assert.match(job, /b\.useReward\?q\('INSERT INTO jobs\(.*reward_used,reward_discount\)/, "new columns only used when a reward is redeemed");
+  const pay = route.slice(route.indexOf("else if(action==='payJob')"), route.indexOf("else if(action==='jobStatus')"));
+  assert.match(pay, /freeReward=j\.reward_used===1&&j\.amount===0/);
+  const sale = route.slice(route.indexOf("else if(action==='sale')"), route.indexOf("else if(action==='editSale')"));
+  assert.match(sale, /memberKey\?q\('INSERT INTO sales\(.*customer_key,customer_name\)/);
+  assert.match(route, /member_stamps_required',n\]/);
+  assert.match(settings, /'member_stamps_required' in config/);
+  assert.match(settings, /export function MemberPanel/);
+  assert.match(form, /className=\{'reward-box'/);
+  assert.match(pos, /\['members','ลูกค้าสมาชิก',UserRound\]/);
+  assert.match(pos, /<MembersPage jobs=\{jobs\}/);
+  assert.match(pos, /<MemberPicker jobs=\{jobs\}/);
+  assert.match(pos, /customerKey:form\.member\?\.key,customerName:form\.member\?\.name/);
+  assert.match(pos, /form\.reward&&form\.amount===0/);
+  assert.match(pos, /ยืนยันใช้สิทธิ์/);
 });

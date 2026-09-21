@@ -2,14 +2,24 @@
 // Pure functions (no imports) so the matching rules are easy to test.
 
 export type CustomerRacket = { name: string; tension: string; last: string };
-export type Customer = { key: string; name: string; phone: string; visits: number; last: string; rackets: CustomerRacket[] };
+export type Customer = {
+  key: string; name: string; phone: string;
+  visits: number; last: string; rackets: CustomerRacket[];
+  // Stamp card: one stamp per paid stringing job (free reward jobs do not earn stamps).
+  stamps: number; need: number; earned: number; used: number; available: number; progress: number;
+  spent: number; // satang: paid stringing jobs + linked POS bills
+  jobs: any[]; sales: any[]; // newest first
+};
 
 const digitsOf = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
+export const DEFAULT_STAMPS_REQUIRED = 10;
+
 // One entry per phone number (or per name when a job has no phone), newest activity first.
 // Cancelled jobs are ignored: they never became a visit.
-export function buildCustomers(jobs: any[]): Customer[] {
+export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_REQUIRED, sales = [] }: { stampsRequired?: number; sales?: any[] } = {}): Customer[] {
+  const need = Math.max(1, Math.round(Number(stampsRequired)) || DEFAULT_STAMPS_REQUIRED);
   const customers = new Map<string, Customer>();
   const newestFirst = [...jobs].sort((a, b) => String(b.created).localeCompare(String(a.created)));
   for (const job of newestFirst) {
@@ -19,16 +29,37 @@ export function buildCustomers(jobs: any[]): Customer[] {
     const key = digitsOf(job.phone) || `name:${name.toLowerCase()}`;
     let customer = customers.get(key);
     if (!customer) {
-      customer = { key, name, phone: String(job.phone ?? "").trim(), visits: 0, last: String(job.created ?? ""), rackets: [] };
+      customer = { key, name, phone: String(job.phone ?? "").trim(), visits: 0, last: String(job.created ?? ""), rackets: [], stamps: 0, need, earned: 0, used: 0, available: 0, progress: 0, spent: 0, jobs: [], sales: [] };
       customers.set(key, customer);
     }
     customer.visits += 1;
+    customer.jobs.push(job);
+    if (job.reward_used === 1) customer.used += 1;
+    else if (job.paid) customer.stamps += 1;
+    if (job.paid) customer.spent += Number(job.amount) || 0;
     const racket = String(job.racket ?? "").trim();
     if (racket && !customer.rackets.some(r => same(r.name, racket))) {
       customer.rackets.push({ name: racket, tension: String(job.tension ?? "").trim(), last: String(job.created ?? "") });
     }
   }
-  return [...customers.values()];
+  for (const sale of [...sales].sort((a, b) => String(b.created).localeCompare(String(a.created)))) {
+    const customer = sale.customer_key ? customers.get(String(sale.customer_key)) : undefined;
+    if (!customer || sale.status === "voided") continue;
+    customer.sales.push(sale);
+    customer.spent += Number(sale.total) || 0;
+    if (String(sale.created) > customer.last) customer.last = String(sale.created);
+  }
+  for (const customer of customers.values()) {
+    customer.earned = Math.floor(customer.stamps / need);
+    customer.progress = customer.stamps % need;
+    customer.available = Math.max(0, customer.earned - customer.used);
+  }
+  return [...customers.values()].sort((a, b) => b.last.localeCompare(a.last));
+}
+
+// What a free-stringing reward takes off a job price (satang). `cap` is null/undefined for the whole job.
+export function rewardDiscount(price: number, cap?: number | null) {
+  return cap === null || cap === undefined ? price : Math.min(price, cap);
 }
 
 // Suggestions for what staff are typing in the name or phone box.

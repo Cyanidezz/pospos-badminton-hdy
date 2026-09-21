@@ -457,3 +457,49 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .bank-no{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .bank-no code{font-size:18px;font-weight:700;letter-spacing:.5px;color:#24406f;word-break:break-all}
 @media(max-width:560px){.hours-edit-row{grid-template-columns:70px auto minmax(0,1fr) auto minmax(0,1fr);gap:6px;padding:8px}.bank-qr{width:100%;height:auto;max-width:260px;margin:0 auto}}
+
+/* Member program: reward toggle, stamp card, members page, POS member picker. */
+.reward-box{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;border:1px dashed #9fd8b9;background:#f0faf5;color:#16794a;cursor:pointer}
+.reward-box.is-on{border-style:solid;background:#e0f6ea;box-shadow:0 6px 16px rgba(34,160,107,.16)}
+.reward-box input{width:20px!important;height:20px;padding:0;accent-color:#22a06b;flex:none}
+.reward-box small{display:block;color:#3d8b66;font-size:12px}
+.reward-notice{display:flex;align-items:center;gap:8px;justify-content:center;margin:0 0 14px;padding:10px 14px;border-radius:12px;background:#e0f6ea;color:#16794a;font-weight:700}
+.member-pill.picked{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.member-pill.picked .small{margin-left:auto;min-height:32px!important}
+.members-layout{display:grid;grid-template-columns:minmax(280px,380px) minmax(0,1fr);gap:20px;align-items:start}
+.members-list{padding-bottom:8px}
+.members-list .panel-tools{padding:16px 16px 4px;margin:0}
+.members-summary{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 18px 10px;font-size:13px;color:#6f84a8}
+.members-rows{list-style:none;margin:0;padding:0 8px 8px;max-height:640px;overflow:auto}
+.member-row{display:flex!important;justify-content:space-between;align-items:center;gap:10px;width:100%;padding:12px 12px!important;margin:2px 0;border-radius:12px!important;background:transparent!important;color:#24406f!important;box-shadow:none!important;text-align:left;font-weight:400!important}
+.member-row:hover{background:#f0f5fe!important;transform:none!important}
+.member-row.is-active{background:#e6eefc!important}
+.member-row b{display:block;font-size:15px}
+.member-row small{color:#6f84a8;font-size:12px}
+.stamp-mini{padding:3px 9px;border-radius:999px;background:#eef2fa;color:#4c6699;font-size:12px;font-weight:700}
+.members-detail{padding:22px}
+.member-title{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.member-title h2{margin:0 0 8px}
+.member-title .contact-link{display:inline-flex;padding:8px 14px}
+.member-figures{display:flex;gap:10px;flex-wrap:wrap}
+.member-figures>div{padding:8px 14px;border-radius:12px;background:#f4f8ff;border:1px solid #d9e4f7;min-width:96px}
+.member-figures span{display:block;font-size:12px;color:#6f84a8}
+.member-figures b{font-size:16px;color:#24406f}
+.stamp-card{margin:18px 0;padding:16px;border-radius:16px;background:linear-gradient(135deg,#f4f8ff,#fff);border:1px solid #d3def5}
+.stamp-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#24406f;margin-bottom:12px}
+.stamp-head span{font-size:13px;color:#6f84a8}
+.stamp-dots{display:flex;flex-wrap:wrap;gap:8px}
+.stamp-dots span{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;border:2px dashed #b9c9e8;color:#9aaacb;font-size:13px;font-weight:700}
+.stamp-dots span.is-filled{background:linear-gradient(135deg,#4d7ed7,#3a70d4);border:2px solid #3a70d4;color:#fff;box-shadow:0 5px 12px rgba(58,112,212,.3)}
+.stamp-bar{height:12px;border-radius:999px;background:#e3e8f2;overflow:hidden}
+.stamp-bar i{display:block;height:100%;background:linear-gradient(90deg,#3a70d4,#6b95e6)}
+.stamp-reward{display:flex;align-items:center;gap:8px;margin-top:14px;padding:10px 12px;border-radius:12px;background:#eef2fa;color:#4c6699;font-size:14px}
+.stamp-reward.is-ready{background:#e0f6ea;color:#16794a}
+.member-block{margin-top:18px}
+.member-block h3{margin:0 0 8px;font-size:15px;color:#24406f}
+.chip{display:inline-block;padding:4px 12px;border-radius:999px;background:#e3ecfc;color:#2c5fc4;font-size:12px;font-weight:600}
+.table-scroll{overflow-x:auto}
+.member-table{width:100%;border-collapse:collapse;font-size:14px}
+.member-table th{padding:8px 10px;background:#e6eefc;color:#2c4a86;text-align:left;font-size:12px;white-space:nowrap}
+.member-table td{padding:9px 10px;border-bottom:1px solid #edf0f6;color:#2d3a53;vertical-align:top}
+@media(max-width:900px){.members-layout{grid-template-columns:minmax(0,1fr)}.members-rows{max-height:320px}}

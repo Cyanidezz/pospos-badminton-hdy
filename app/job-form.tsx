@@ -1,10 +1,10 @@
 'use client';
 import {useMemo,useState} from 'react';
-import {ImagePlus,UserCheck} from 'lucide-react';
-import {buildCustomers,knownRackets,matchCustomers,phoneDigits,type Customer} from '@/lib/customers';
+import {Gift,ImagePlus,UserCheck} from 'lucide-react';
+import {buildCustomers,knownRackets,matchCustomers,phoneDigits,rewardDiscount,type Customer} from '@/lib/customers';
 
 // A text box that suggests returning customers while staff type.
-function CustomerInput({value,onChange,onPick,suggestions,...input}:any){
+export function CustomerInput({value,onChange,onPick,suggestions,...input}:any){
   const [open,setOpen]=useState(false);
   return <div className="suggest-wrap">
     <input {...input} value={value} autoComplete="off" onChange={e=>{onChange(e.target.value);setOpen(true)}} onFocus={()=>setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),150)}/>
@@ -15,14 +15,15 @@ function CustomerInput({value,onChange,onPick,suggestions,...input}:any){
 const thaiDate=(iso:string)=>iso?new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',timeZone:'Asia/Bangkok'}):'';
 
 // The compact "รับไม้ลูกค้า" form body. Field and Choice come from the POS screen so the look stays in one place.
-export function JobFormFields({form,setForm,products,members,jobs,upload,Field,Choice}:any){
-  const customers=useMemo(()=>buildCustomers(jobs),[jobs]),rackets=useMemo(()=>knownRackets(jobs),[jobs]);
+export function JobFormFields({form,setForm,products,members,jobs,config,upload,Field,Choice}:any){
+  const customers=useMemo(()=>buildCustomers(jobs,{stampsRequired:config?.member_stamps_required}),[jobs,config?.member_stamps_required]),rackets=useMemo(()=>knownRackets(jobs),[jobs]);
   const member:Customer|undefined=form.member,photos=(form.photos||[]).length;
-  const pick=(c:Customer)=>setForm((f:any)=>({...f,member:c,customer:c.name,phone:c.phone||f.phone,racket:f.racket||c.rackets[0]?.name||'',tension:f.tension||(f.racket?'':c.rackets[0]?.tension)||''}));
+  const pick=(c:Customer)=>setForm((f:any)=>({...f,member:c,useReward:false,customer:c.name,phone:c.phone||f.phone,racket:f.racket||c.rackets[0]?.name||'',tension:f.tension||(f.racket?'':c.rackets[0]?.tension)||''}));
   const pickRacket=(r:{name:string;tension:string})=>setForm((f:any)=>({...f,racket:r.name,tension:r.tension||f.tension}));
-  const setPhone=(phone:string)=>setForm((f:any)=>({...f,phone,member:f.member&&phoneDigits(phone)!==phoneDigits(f.member.phone)?undefined:f.member}));
+  const setPhone=(phone:string)=>setForm((f:any)=>({...f,phone,member:f.member&&phoneDigits(phone)!==phoneDigits(f.member.phone)?undefined:f.member,useReward:f.member&&phoneDigits(phone)!==phoneDigits(f.member.phone)?false:f.useReward}));
   return <div className="job-form">
-    {member&&<div className="member-pill"><UserCheck size={16}/><b>ลูกค้าเดิม</b><span>มาแล้ว {member.visits} ครั้ง · ล่าสุด {thaiDate(member.last)}</span></div>}
+    {member&&<div className="member-pill"><UserCheck size={16}/><b>ลูกค้าเดิม</b><span>มาแล้ว {member.visits} ครั้ง · สะสม {member.progress}/{member.need} · ล่าสุด {thaiDate(member.last)}</span></div>}
+    {member&&member.available>0&&<label className={'reward-box'+(form.useReward?' is-on':'')}><input type="checkbox" checked={!!form.useReward} onChange={e=>setForm({...form,useReward:e.target.checked})}/><Gift size={18}/><span><b>มีสิทธิ์ขึ้นเอ็นฟรี {member.available} ครั้ง</b> <small>{form.useReward?`ใช้สิทธิ์ครั้งนี้ · ลด ฿${(rewardDiscount(Math.round(Number(form.amount||0)*100),config?.member_reward_cap)/100).toLocaleString('th-TH')}`:'ติ๊กเพื่อใช้สิทธิ์กับงานนี้'}</small></span></label>}
     <Field label="ชื่อลูกค้า"><CustomerInput required value={form.customer||''} onChange={(customer:string)=>setForm((f:any)=>({...f,customer}))} onPick={pick} suggestions={matchCustomers(customers,form.customer||'','name')} placeholder="พิมพ์ชื่อหรือเบอร์เพื่อค้นหาลูกค้าเดิม"/></Field>
     <Field label="เบอร์โทร"><CustomerInput required type="tel" inputMode="tel" value={form.phone||''} onChange={setPhone} onPick={pick} suggestions={matchCustomers(customers,form.phone||'','phone')}/></Field>
     <Field label="ยี่ห้อ / รุ่นไม้" className="wide">

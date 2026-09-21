@@ -18,6 +18,10 @@ export function settingsPayload(form:any,config:any){
     payload.bankAccountNo=form.bankAccountNo??config.bank_account_no;
     payload.bankQr=form.bankQr??config.bank_qr??'';
   }
+  if('member_stamps_required' in config){
+    payload.memberStampsRequired=form.memberStampsRequired??config.member_stamps_required;
+    payload.memberRewardCap=form.memberRewardCap??(config.member_reward_cap===null||config.member_reward_cap===undefined?'':config.member_reward_cap/100);
+  }
   return payload;
 }
 
@@ -81,3 +85,17 @@ export function BankPanel({form,setForm,config,busy,uploading,upload,onSave,Fiel
     </form></div>;
 }
 
+export function MemberPanel({form,setForm,config,busy,onSave,Field}:any){
+  const ready='member_stamps_required' in config;
+  return <div className="panel report"><h2>ระบบสมาชิก</h2>
+    <p className="muted">ขึ้นเอ็นและชำระแล้ว 1 ครั้ง = 1 แต้ม ครบตามจำนวนที่ตั้ง ลูกค้าได้สิทธิ์ขึ้นเอ็นฟรี 1 ครั้ง (ลูกค้าจัดกลุ่มตามเบอร์โทรอัตโนมัติ)</p>
+    {!ready&&<div className="notice">ยังไม่ได้อัปเดตฐานข้อมูลสำหรับส่วนนี้ ให้รัน migration <code>20260922010000_members.sql</code> บน Supabase ก่อน</div>}
+    <form onSubmit={e=>{e.preventDefault();onSave()}}>
+      <div className="form-grid">
+        <Field label="ขึ้นเอ็นครบกี่ครั้งได้สิทธิ์ฟรี"><input type="number" min="1" max="100" step="1" disabled={!ready} value={form.memberStampsRequired??config.member_stamps_required??10} onChange={e=>setForm({...form,memberStampsRequired:e.target.value})}/></Field>
+        <Field label="ส่วนลดสูงสุดต่อสิทธิ์ (บาท)"><input type="number" min="0" step="0.01" disabled={!ready} placeholder="ว่าง = ฟรีทั้งงาน" value={form.memberRewardCap??(config.member_reward_cap===null||config.member_reward_cap===undefined?'':config.member_reward_cap/100)} onChange={e=>setForm({...form,memberRewardCap:e.target.value})}/></Field>
+      </div>
+      <p className="muted">ถ้าใส่ส่วนลดสูงสุด เช่น 100 บาท สิทธิ์จะลดให้ไม่เกิน 100 บาทต่องาน (ลูกค้าจ่ายส่วนที่เหลือ) ปล่อยว่างเพื่อให้ฟรีทั้งงาน</p>
+      <button disabled={busy||!ready}>บันทึกระบบสมาชิก</button>
+    </form></div>;
+}
