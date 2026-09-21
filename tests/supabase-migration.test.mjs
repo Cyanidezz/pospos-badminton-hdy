@@ -259,3 +259,17 @@ test("sends job status updates as a Flex card with a plain-text fallback", async
   assert.match(card, /\/\^https:\\\/\\\/\/\.test\(siteUrl\)/);
   assert.match(card, /"ยกเลิก": \{ color:/);
 });
+
+test("customer tracking page has a prominent LINE button and the shop contact details", async () => {
+  const page = await read("app/track/[token]/page.tsx");
+  const css = await read("app/globals.css");
+  assert.match(page, /className="line-cta"/);
+  assert.match(page, /phone:'080-539-0444'/);
+  assert.match(page, /href=\{'tel:'\+SHOP\.phone\.replaceAll\('-',''\)\}/);
+  assert.match(page, /facebook:'https:\/\/www\.facebook\.com\/profile\.php\?id=61583314268963'/);
+  assert.match(page, /days:\[1,2,3,4,5\],time:'15\.00 – 23\.00 น\.'/);
+  assert.match(page, /days:\[6\],time:'13\.00 – 21\.00 น\.'/);
+  assert.match(page, /days:\[0\],time:'หยุด'/);
+  assert.match(page, /timeZone:'Asia\/Bangkok'/);
+  assert.match(css, /\.line-cta\{/);
+});
