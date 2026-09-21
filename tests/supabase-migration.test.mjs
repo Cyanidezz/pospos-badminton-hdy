@@ -230,3 +230,11 @@ test("loads the POS snapshot in a single database round trip", async () => {
   assert.match(server, /json_build_object/);
   assert.match(server, /coalesce\(json_agg\(t\),'\[\]'::json\)/);
 });
+
+test("shows the new job's receipt with its QR code after the payment step", async () => {
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /useEffect\(\(\)=>\{if\(!openJobId\|\|!data\)return;const job=data\.jobs\.find\(\(j:any\)=>j\.id===openJobId\);setOpenJobId\(''\);if\(job\)showJob\(job\)\}/);
+  assert.match(pos, /if\(d\)setOpenJobId\(form\.id\)/);
+  assert.match(pos, /onClick=\{\(\)=>\{if\(modal==='jobPay'\)setOpenJobId\(form\.id\);setModal\(''\)\}\}/);
+  assert.match(pos, /onOpenChange=\{v=>\{if\(!busy&&!uploading&&!v\)\{if\(modal==='jobPay'\)setOpenJobId\(form\.id\)/);
+});
