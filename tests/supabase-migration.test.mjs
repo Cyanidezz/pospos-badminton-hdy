@@ -694,10 +694,15 @@ test("scanning an unrecognized barcode while counting offers to register the pro
   assert.match(scanNew, /INSERT INTO stock_count_items\(count_id,product_id,expected,counted,touched,staff_id,updated\) VALUES\(\?,\?,0,1,1,\?,\?\)/, "counted as 1 immediately, in the same step");
 
   // client: only a genuinely-unknown code (code:'not_found') opens the dialog; out-of-scope just shows the message
-  assert.match(page, /if\(e\.code==='not_found'\)setNewProduct\(\{code:value,name:'',price:'',category:categories\[0\]\|\|''\}\);/);
+  assert.match(page, /if\(e\.code==='not_found'\)setNewProduct\(\{code:value,name:'',price:'',category:session\.scope\|\|categories\[0\]\|\|''\}\);/);
   assert.match(page, /else toast\.error\(e\.message\);/);
   assert.match(page, /action:'scanNew',countId:session\.id,code:newProduct\.code,name:newProduct\.name,price:newProduct\.price,category:newProduct\.category/);
   assert.match(page, /function Counting\(\{data,isOwner,categories,reload\}:any\)/, "needs the category list to offer in the add-product form");
+});
+
+test("the add-product form defaults its category to the count's own scope, not just the first category", async () => {
+  const page = await read("app/stock-count.tsx");
+  assert.match(page, /category:session\.scope\|\|categories\[0\]\|\|''/, "a category-scoped count (e.g. \"Support\") suggests that same category; a whole-shop count falls back to the first one");
 });
 
 test("stock counting: server rules, migration and screens", async () => {

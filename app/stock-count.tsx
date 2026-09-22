@@ -85,7 +85,9 @@ function Counting({data,isOwner,categories,reload}:any){
       setLast(result.productId);
     }catch(e:any){
       feedback(false);
-      if(e.code==='not_found')setNewProduct({code:value,name:'',price:'',category:categories[0]||''});
+      // Default the category to whatever this count is scoped to (a barcode found during a "Support"-only count
+      // is almost certainly also "Support"); a whole-shop count has no such hint, so fall back to the first one.
+      if(e.code==='not_found')setNewProduct({code:value,name:'',price:'',category:session.scope||categories[0]||''});
       else toast.error(e.message);
     }
   };
