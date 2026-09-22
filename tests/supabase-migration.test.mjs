@@ -248,6 +248,15 @@ test("LINE push failures report the real cause instead of a generic message", as
   assert.doesNotMatch(notify, /Authorization: Bearer \$\{token\}[^]*console\.(log|error)\([^)]*token/);
 });
 
+test("a returning customer's linked LINE carries over to their new job automatically", async () => {
+  const route = await read("app/api/data/route.ts");
+  const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
+  assert.match(job, /SELECT line_user FROM jobs WHERE regexp_replace\(phone,'\\\\D','','g'\)=\? AND line_user IS NOT NULL ORDER BY created DESC LIMIT 1/);
+  assert.match(job, /INSERT INTO jobs\(id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,line_user,reward_used,reward_discount\)/, "carried over on the reward-redemption insert too");
+  assert.match(job, /INSERT INTO jobs\(id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,line_user\) VALUES/, "and the plain insert");
+  assert.match(job, /if\(existingLineUser\)result\.notifyId=id;/, "sends the status message right away, reusing the same post-transaction notifyJob hook as jobStatus/notify");
+});
+
 test("sends job status updates as a Flex card with a plain-text fallback", async () => {
   const server = await read("lib/server.ts");
   const card = await read("lib/line-message.ts");
