@@ -24,6 +24,22 @@ test("protects POS tables and uses a private image bucket", async () => {
   assert.match(sql, /references auth\.users\(id\)/);
 });
 
+test("product form shows a printable barcode label with a download button", async () => {
+  const pkg = JSON.parse(await read("package.json"));
+  const label = await read("app/barcode-label.tsx");
+  const pos = await read("app/pos.tsx");
+  const css = await read("app/globals.css");
+  assert.match(pkg.dependencies.jsbarcode, /^\^?\d+\.\d+\.\d+$/);
+  assert.match(label, /'use client'/);
+  assert.match(label, /JsBarcode\(canvasRef\.current,code,\{format:'CODE128'/, "one symbology reads back both a real manufacturer barcode and our own auto-generated wingpro-N codes");
+  assert.match(label, /if\(!code\.trim\(\)\)return null;/, "hidden until there is a code to show (a brand-new product with no barcode yet has nothing to print)");
+  assert.match(label, /ctx\.fillText\(name\|\|'สินค้า',/, "the product name is drawn into the downloaded image itself, not just shown on screen");
+  assert.match(label, /link\.download=`barcode-\$\{code\.trim\(\)\}\.png`/);
+  assert.match(pos, /import \{BarcodeLabel\} from '\.\/barcode-label';/);
+  assert.match(pos, /<BarcodeLabel name=\{form\.name\|\|''\} code=\{form\.barcode\|\|''\}\/>/, "wired into both the add-product and edit-product dialogs (they share this markup)");
+  assert.match(css, /\.barcode-label\{/);
+});
+
 test("keeps secrets server-side", async () => {
   const example = await read(".env.example");
   assert.match(example, /^NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/m);

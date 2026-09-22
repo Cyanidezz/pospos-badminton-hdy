@@ -701,3 +701,8 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
   .stamp-card-panel .stamp-dots span{width:34px;height:34px;font-size:12px}
   .stamp-card-panel .stamp-reward{margin-top:12px;padding:9px 13px;font-size:13.5px}
 }
+/* Printable barcode label shown next to the barcode field on the product form. */
+.barcode-label{display:flex;flex-direction:column;align-items:center;gap:10px;margin:2px 0 17px;padding:16px;border-radius:14px;background:#fff;border:1px solid #e0e6e6}
+.barcode-label-name{font-size:14px;font-weight:650;color:#202b40;text-align:center;overflow-wrap:anywhere}
+.barcode-label canvas{max-width:100%;height:auto}
+.barcode-download{align-self:center}
