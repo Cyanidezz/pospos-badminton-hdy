@@ -485,15 +485,15 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .member-figures>div{padding:8px 14px;border-radius:12px;background:#f4f8ff;border:1px solid #d9e4f7;min-width:96px}
 .member-figures span{display:block;font-size:12px;color:#6f84a8}
 .member-figures b{font-size:16px;color:#24406f}
-.stamp-card{margin:18px 0;padding:16px;border-radius:16px;background:linear-gradient(135deg,#f4f8ff,#fff);border:1px solid #d3def5}
-.stamp-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#24406f;margin-bottom:12px}
+.stamp-card{margin:18px 0;padding:22px 24px;border-radius:16px;background:linear-gradient(135deg,#f4f8ff,#fff);border:1px solid #d3def5}
+.stamp-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#24406f;margin-bottom:18px}
 .stamp-head span{font-size:13px;color:#6f84a8}
 .stamp-dots{display:flex;flex-wrap:wrap;gap:8px}
-.stamp-dots span{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;border:2px dashed #b9c9e8;color:#9aaacb;font-size:13px;font-weight:700}
+.stamp-dots span{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;border:2px dashed #b9c9e8;color:#9aaacb;font-size:13px;font-weight:700}
 .stamp-dots span.is-filled{background:linear-gradient(135deg,#4d7ed7,#3a70d4);border:2px solid #3a70d4;color:#fff;box-shadow:0 5px 12px rgba(58,112,212,.3)}
 .stamp-bar{height:12px;border-radius:999px;background:#e3e8f2;overflow:hidden}
 .stamp-bar i{display:block;height:100%;background:linear-gradient(90deg,#3a70d4,#6b95e6)}
-.stamp-reward{display:flex;align-items:center;gap:8px;margin-top:14px;padding:10px 12px;border-radius:12px;background:#eef2fa;color:#4c6699;font-size:14px}
+.stamp-reward{display:flex;align-items:center;gap:8px;margin-top:20px;padding:13px 15px;border-radius:12px;background:#eef2fa;color:#4c6699;font-size:14px}
 .stamp-reward.is-ready{background:#e0f6ea;color:#16794a}
 .member-block{margin-top:18px}
 .member-block h3{margin:0 0 8px;font-size:15px;color:#24406f}
@@ -531,7 +531,7 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 .member-note p{margin:2px 0 0;font-size:14px;line-height:1.6;white-space:pre-wrap}
 .member-edit{margin:14px 0 4px;padding:14px;border-radius:14px;background:#f8faff;border:1px solid #d9e4f7}
 .member-edit .actions{justify-content:flex-end}
-.stamp-sources{margin-top:10px;font-size:12px;color:#6f84a8}
+.stamp-sources{margin-top:14px;font-size:12px;color:#6f84a8}
 .member-note-inline{flex-basis:100%;font-size:12px;color:#7a5a12}
 .stamp-note{padding:2px 10px;border-radius:999px;background:#e0f6ea;color:#16794a;font-size:12px;font-weight:700}
 .stamp-note.none{background:#fff4dc;color:#99671b}
@@ -678,7 +678,7 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .member-stamps .stamp-card{margin:0}
 .member-stamps .stamp-reward{font-size:14.5px;line-height:1.5}
 /* Stamp dots always in rows of 5, on both the staff members page and the public tracking page. */
-.stamp-dots{display:grid;grid-template-columns:repeat(5,38px);gap:8px}
+.stamp-dots{display:grid;grid-template-columns:repeat(5,40px);gap:10px 12px}
 /* Pay-by-transfer section on the public tracking page: a clear call-to-action, then the QR + slip upload. */
 .track-pay{margin:22px 0}
 .pay-cta{width:100%;padding:15px;border-radius:16px;background:linear-gradient(135deg,#4a7ddb,#2f62c8);color:#fff!important;font-size:16px;font-weight:700;box-shadow:0 12px 28px rgba(42,99,204,.25)!important;border:0!important}

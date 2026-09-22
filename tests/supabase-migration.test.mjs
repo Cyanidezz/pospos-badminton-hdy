@@ -481,7 +481,7 @@ test("add a member directly from the ลูกค้าสมาชิก page, 
 
 test("stamp dots always sit five to a row", async () => {
   const css = await read("app/globals.css");
-  assert.match(css, /\.stamp-dots\{display:grid;grid-template-columns:repeat\(5,38px\)/);
+  assert.match(css, /\.stamp-dots\{display:grid;grid-template-columns:repeat\(5,/);
 });
 
 test("customer can pay from the tracking page: bank QR, slip upload, staff review", async () => {
@@ -764,4 +764,17 @@ test("on a narrow screen the pay button first shows the cart, and only pays once
   assert.match(pos, /narrowRegister=useNarrowRegister\(\)/);
   assert.match(pos, /onClick=\{\(\)=>\{if\(narrowRegister&&saleScreen==='catalog'\)setSaleScreen\('cart'\);else open\('checkout',\{\}\)\}\}/);
   assert.match(pos, /\{narrowRegister&&saleScreen==='catalog'\?'ดูตะกร้า':'ชำระเงิน'\}/);
+});
+
+test("staff can see the customer's uploaded slip directly in the job detail, not only inside the pay dialog", async () => {
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /\{!selected\.paid&&selected\.slip&&<Field label="สลิปที่ลูกค้าแนบมา \(ยังไม่ตรวจสอบ\)">/);
+  assert.match(pos, /alt="สลิปโอนเงินจากลูกค้า"/);
+});
+
+test("stamp card has room to breathe: bigger dots, more padding, more gap before the reward line", async () => {
+  const css = await read("app/globals.css");
+  assert.match(css, /\.stamp-card\{margin:18px 0;padding:22px 24px/);
+  assert.match(css, /\.stamp-dots\{display:grid;grid-template-columns:repeat\(5,40px\);gap:10px 12px\}/);
+  assert.match(css, /\.stamp-reward\{display:flex;align-items:center;gap:8px;margin-top:20px;padding:13px 15px/);
 });
