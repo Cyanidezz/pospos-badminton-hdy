@@ -649,3 +649,11 @@ test("sidebar can be hidden from a small button, and the POS bar has a stringing
   // when the sidebar is hidden the fixed pay bar must not leave a gap where the menu used to be
   assert.match(css, /body:has\(\[data-slot=sidebar\]\[data-state=collapsed\]\) \.register-bottom\{left:0\}/);
 });
+
+test("on a narrow screen the pay button first shows the cart, and only pays once it is on screen", async () => {
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /useNarrowRegister\(\)\{[\s\S]*?matchMedia\('\(max-width:1199px\)'\)/);
+  assert.match(pos, /narrowRegister=useNarrowRegister\(\)/);
+  assert.match(pos, /onClick=\{\(\)=>\{if\(narrowRegister&&saleScreen==='catalog'\)setSaleScreen\('cart'\);else open\('checkout',\{\}\)\}\}/);
+  assert.match(pos, /\{narrowRegister&&saleScreen==='catalog'\?'ดูตะกร้า':'ชำระเงิน'\}/);
+});
