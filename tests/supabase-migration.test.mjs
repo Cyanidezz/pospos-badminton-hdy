@@ -24,6 +24,23 @@ test("protects POS tables and uses a private image bucket", async () => {
   assert.match(sql, /references auth\.users\(id\)/);
 });
 
+test("bulk-select in inventory can download every selected product's barcode as one sheet", async () => {
+  const label = await read("app/barcode-label.tsx");
+  const pos = await read("app/pos.tsx");
+  assert.match(label, /export function downloadBarcodeSheet\(items:\{name:string;barcode:string\}:\[\]|export function downloadBarcodeSheet\(items:\{name:string;barcode:string\}\[\]\)/);
+  assert.match(label, /const MAX_SHEET_LABELS=200;/, "a generous cap so a huge selection can't freeze the browser or exceed canvas limits");
+  assert.match(label, /items\.slice\(0,MAX_SHEET_LABELS\)/);
+  assert.match(label, /\.filter\(\(c\):c is HTMLCanvasElement=>!!c\)/, "a product with no usable barcode is dropped, not left as a gap");
+  assert.match(label, /return \{printed:labels\.length,skipped:items\.length-labels\.length\}/);
+  assert.match(label, /triggerDownload\(sheet,`barcodes-\$\{new Date\(\)\.toISOString\(\)\.slice\(0,10\)\}\.png`\)/, "one combined download, not one popup per product");
+  assert.match(pos, /import \{BarcodeLabel,downloadBarcodeSheet\} from '\.\/barcode-label';/);
+  const bulkBar = pos.slice(pos.indexOf('bulk-edit-bar'), pos.indexOf('inventory-table-wrap'));
+  assert.match(bulkBar, /downloadBarcodeSheet\(items\)/);
+  assert.match(bulkBar, /inventorySelected\.map\(id=>allProducts\.find\(\(p:any\)=>p\.id===id\)\)/, "resolves against every product (including archived), not just the current filtered page");
+  assert.match(bulkBar, /if\(printed\)toast\.success/);
+  assert.match(bulkBar, /else toast\.error/, "a selection with no barcodes at all is reported, not a silent no-op");
+});
+
 test("product form shows a printable barcode label with a download button", async () => {
   const pkg = JSON.parse(await read("package.json"));
   const label = await read("app/barcode-label.tsx");
@@ -34,8 +51,8 @@ test("product form shows a printable barcode label with a download button", asyn
   assert.match(label, /JsBarcode\(canvasRef\.current,code,\{format:'CODE128'/, "one symbology reads back both a real manufacturer barcode and our own auto-generated wingpro-N codes");
   assert.match(label, /if\(!code\.trim\(\)\)return null;/, "hidden until there is a code to show (a brand-new product with no barcode yet has nothing to print)");
   assert.match(label, /ctx\.fillText\(name\|\|'สินค้า',/, "the product name is drawn into the downloaded image itself, not just shown on screen");
-  assert.match(label, /link\.download=`barcode-\$\{code\.trim\(\)\}\.png`/);
-  assert.match(pos, /import \{BarcodeLabel\} from '\.\/barcode-label';/);
+  assert.match(label, /triggerDownload\(label,`barcode-\$\{code\.trim\(\)\}\.png`\)/);
+  assert.match(pos, /import \{BarcodeLabel,downloadBarcodeSheet\} from '\.\/barcode-label';/);
   assert.match(pos, /<BarcodeLabel name=\{form\.name\|\|''\} code=\{form\.barcode\|\|''\}\/>/, "wired into both the add-product and edit-product dialogs (they share this markup)");
   assert.match(css, /\.barcode-label\{/);
   assert.match(label, /marginTop:2/, "the barcode's own top margin is trimmed so it sits close under the product name");
