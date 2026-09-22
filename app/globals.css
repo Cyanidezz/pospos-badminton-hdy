@@ -691,3 +691,13 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .notice.customer-slip p{margin:0 0 10px}
 .customer-slip-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .notice .attach-button{height:38px;font-size:13px;padding:0 12px}
+/* The staff-facing stamp card (ลูกค้าสมาชิก) sits in a roomy two-column desktop layout, where the mobile-sized
+   card (big dots, generous padding - tuned for the narrow public tracking page) reads as oversized. Compact it
+   down to a single row once the desktop layout is actually active; the public tracking page is unaffected. */
+@media(min-width:901px){
+  .stamp-card-panel{padding:16px 20px}
+  .stamp-card-panel .stamp-head{margin-bottom:10px}
+  .stamp-card-panel .stamp-dots{grid-template-columns:repeat(10,34px);gap:8px}
+  .stamp-card-panel .stamp-dots span{width:34px;height:34px;font-size:12px}
+  .stamp-card-panel .stamp-reward{margin-top:12px;padding:9px 13px;font-size:13.5px}
+}

@@ -791,3 +791,13 @@ test("stamp card has room to breathe: bigger dots, more padding, more gap before
   assert.match(css, /\.stamp-dots\{display:grid;grid-template-columns:repeat\(5,40px\);gap:10px 12px\}/);
   assert.match(css, /\.stamp-reward\{display:flex;align-items:center;gap:8px;margin-top:20px;padding:13px 15px/);
 });
+
+test("staff stamp card (ลูกค้าสมาชิก) is compact on desktop, unchanged on the public tracking page", async () => {
+  const membersPage = await read("app/members-page.tsx");
+  const trackPage = await read("app/track/[token]/page.tsx");
+  const css = await read("app/globals.css");
+  assert.match(membersPage, /className="stamp-card stamp-card-panel"/);
+  assert.doesNotMatch(trackPage, /stamp-card-panel/, "the public tracking page keeps the mobile-sized card");
+  assert.match(css, /@media\(min-width:901px\)\{\s*\.stamp-card-panel\{/);
+  assert.match(css, /\.stamp-card-panel \.stamp-dots\{grid-template-columns:repeat\(10,34px\);gap:8px\}/);
+});

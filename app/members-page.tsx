@@ -11,7 +11,7 @@ const options=(config:any,sales:any[])=>({stampsRequired:config?.member_stamps_r
 // The customer's stamp card: one circle per stamp needed for the next free stringing.
 export function StampCard({customer}:{customer:Customer}){
   const circles=customer.need<=20?Array.from({length:customer.need},(_,i)=>i):[];
-  return <div className="stamp-card">
+  return <div className="stamp-card stamp-card-panel">
     <div className="stamp-head"><b>บัตรสะสมแต้ม</b><span>{customer.progress}/{customer.need} ครั้ง · ครบแล้ว {customer.earned} รอบ</span></div>
     {circles.length>0?<div className="stamp-dots">{circles.map(i=><span key={i} className={i<customer.progress?'is-filled':''}>{i<customer.progress?'✓':i+1}</span>)}</div>:<div className="stamp-bar"><i style={{width:(customer.progress/customer.need*100)+'%'}}/></div>}
     <div className="stamp-sources">แต้มทั้งหมด {customer.stamps} · จากขึ้นเอ็น {customer.jobStamps} · จากซื้อหน้าร้าน {customer.posStamps}</div>
