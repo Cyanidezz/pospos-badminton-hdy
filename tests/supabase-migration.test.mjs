@@ -450,6 +450,35 @@ test("member program: server rules, settings and screens", async () => {
   assert.match(pos, /ยืนยันใช้สิทธิ์/);
 });
 
+test("add a member directly from the ลูกค้าสมาชิก page, before their first visit", async () => {
+  const migration = await read("supabase/migrations/20260922040000_manual_members.sql");
+  const route = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  const membersPage = await read("app/members-page.tsx");
+  assert.match(migration, /add column if not exists manual_members jsonb not null default '\{\}'::jsonb/);
+  const action = route.slice(route.indexOf("action==='memberAdd'"), route.indexOf("else if(action==='leave')"));
+  assert.match(action, /manual_members' in config/, "fails clearly before the migration is run");
+  assert.match(action, /key\.length<9\|\|key\.length>20/, "a real phone number is required, same as the POS's own +เพิ่มสมาชิกใหม่");
+  assert.match(action, /FROM jobs WHERE regexp_replace\(phone,'\\\\D','','g'\)=\? LIMIT 1.*FROM sales WHERE customer_key=\? LIMIT 1.*config\.manual_members&&config\.manual_members\[key\]!==undefined/s, "refuses a phone already used by a job, a sale, or another manual member");
+  assert.match(action, /manual_members=manual_members\|\|jsonb_build_object\(\?::text,\(\?::text\)::jsonb\)/);
+  assert.match(pos, /page==='members'\?<button onClick=\{\(\)=>open\('memberAdd',\{name:'',phone:'',note:''\}\)\}/);
+  assert.match(pos, /memberAdd:'เพิ่มสมาชิกใหม่'/);
+  assert.match(pos, /modal==='memberAdd'&&<><Field label="ชื่อลูกค้า">/);
+  assert.match(membersPage, /manualMembers:config\?\.manual_members/);
+  let lib;
+  try { lib = await import("../lib/customers.ts"); }
+  catch { return; }
+  const withManual = lib.buildCustomers([], { manualMembers: { "0899998888": { name: "ลูกค้าทดสอบ", phone: "0899998888" } } });
+  assert.equal(withManual.length, 1);
+  assert.deepEqual([withManual[0].visits, withManual[0].stamps, withManual[0].available], [0, 0, 0], "a manually added member starts with no history");
+  // real activity always wins: a manual entry never overwrites (or duplicates) a customer already seen in a job/sale
+  const job = { customer: "สมชาย", phone: "0899998888", racket: "Yonex", tension: "26", created: "2026-01-01", status: "คืนไม้แล้ว", paid: 1, amount: 40000 };
+  const merged = lib.buildCustomers([job], { manualMembers: { "0899998888": { name: "ชื่ออื่น", phone: "0899998888" } } });
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].name, "สมชาย");
+  assert.equal(merged[0].visits, 1);
+});
+
 test("payment dialogs default to transfer with a large QR and no repeated amount", async () => {
   const pos = await read("app/pos.tsx");
   const bank = await read("app/bank-transfer.tsx");

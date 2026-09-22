@@ -26,7 +26,7 @@ export function formatPhone(value: string) {
   return digits.length === 10 ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}` : digits;
 }
 
-type Options = { stampsRequired?: number; sales?: any[]; posMinAmount?: number; notes?: Record<string, string> | null };
+type Options = { stampsRequired?: number; sales?: any[]; posMinAmount?: number; notes?: Record<string, string> | null; manualMembers?: Record<string, { name: string; phone: string }> | null };
 
 function emptyCustomer(key: string, name: string, phone: string, last: string, need: number, note: string): Customer {
   return { key, name, phone, visits: 0, last, rackets: [], stamps: 0, jobStamps: 0, posStamps: 0, need, earned: 0, used: 0, available: 0, progress: 0, spent: 0, jobs: [], sales: [], note };
@@ -34,7 +34,7 @@ function emptyCustomer(key: string, name: string, phone: string, last: string, n
 
 // One entry per phone number (or per name when a job has no phone), newest activity first.
 // Cancelled jobs and voided bills are ignored: they never became a visit.
-export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_REQUIRED, sales = [], posMinAmount = 0, notes = {} }: Options = {}): Customer[] {
+export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_REQUIRED, sales = [], posMinAmount = 0, notes = {}, manualMembers = {} }: Options = {}): Customer[] {
   const need = Math.max(1, Math.round(Number(stampsRequired)) || DEFAULT_STAMPS_REQUIRED);
   const minAmount = Math.max(0, Number(posMinAmount) || 0);
   const noteOf = (key: string) => String((notes || {})[key] ?? "");
@@ -77,6 +77,13 @@ export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_RE
     customer.spent += total;
     if (!sale.job_id && total >= minAmount) { customer.stamps += 1; customer.posStamps += 1; }
     if (String(sale.created) > customer.last) customer.last = String(sale.created);
+  }
+
+  // Members added by hand before they ever had a job or a sale (see the "เพิ่มสมาชิกใหม่" button): they show up
+  // with no visits yet. Real activity always wins, so this never overwrites a customer already built above.
+  for (const [key, member] of Object.entries(manualMembers || {})) {
+    if (customers.has(key)) continue;
+    customers.set(key, emptyCustomer(key, String(member?.name ?? "").trim() || key, String(member?.phone ?? "").trim(), "", need, noteOf(key)));
   }
 
   for (const customer of customers.values()) {

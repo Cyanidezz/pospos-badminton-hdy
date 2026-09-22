@@ -6,7 +6,7 @@ import {CustomerInput} from './job-form';
 
 const baht=(satang:number)=>'฿'+(satang/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const day=(iso:string)=>iso?new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit',timeZone:'Asia/Bangkok'}):'—';
-const options=(config:any,sales:any[])=>({stampsRequired:config?.member_stamps_required,sales,posMinAmount:Number(config?.member_pos_min_amount)||0,notes:config?.customer_notes});
+const options=(config:any,sales:any[])=>({stampsRequired:config?.member_stamps_required,sales,posMinAmount:Number(config?.member_pos_min_amount)||0,notes:config?.customer_notes,manualMembers:config?.manual_members});
 
 // The customer's stamp card: one circle per stamp needed for the next free stringing.
 export function StampCard({customer}:{customer:Customer}){
