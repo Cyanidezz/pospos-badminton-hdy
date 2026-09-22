@@ -479,6 +479,23 @@ test("add a member directly from the ลูกค้าสมาชิก page, 
   assert.equal(merged[0].visits, 1);
 });
 
+test("tracking page shows the customer's own stamp progress and reward", async () => {
+  const route = await read("app/api/track/[token]/route.ts");
+  const page = await read("app/track/[token]/page.tsx");
+  const css = await read("app/globals.css");
+  assert.match(route, /import \{buildCustomers\} from '@\/lib\/customers'/);
+  assert.match(route, /if\(!\('member_stamps_required' in config\)\)return null/, "works before the members migration is run");
+  assert.match(route, /regexp_replace\(phone,'\\\\D','','g'\)=\?",key\)/, "matches the same phone-digits key used everywhere else");
+  assert.match(route, /FROM sales WHERE customer_key=\?/);
+  assert.doesNotMatch(route, /customer_notes|\.note\b/, "the staff-only customer note is never sent to the public tracking page");
+  assert.match(route, /rewardCap:config\.member_reward_cap\?\?null/);
+  assert.match(page, /function MemberStamps\(/);
+  assert.match(page, /job\.status!=='ยกเลิก'&&<MemberStamps member=\{job\.member\}\/>/, "hidden once the job is cancelled");
+  assert.match(page, /available>0\?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี/);
+  assert.match(page, /cap===null\|\|cap===undefined\?'ฟรีค่าขึ้นเอ็นทั้งหมด'/);
+  assert.match(css, /\.member-stamps\{margin:22px 0\}/);
+});
+
 test("payment dialogs default to transfer with a large QR and no repeated amount", async () => {
   const pos = await read("app/pos.tsx");
   const bank = await read("app/bank-transfer.tsx");

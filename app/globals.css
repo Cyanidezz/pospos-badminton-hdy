@@ -672,3 +672,8 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 @media(max-width:767px){.register-bottom .register-stringing{min-height:60px;padding:0 14px;flex:0 0 auto}}
 /* the bottom pay bar spans the full width when the sidebar is hidden */
 body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
+/* Customer-facing stamp card on the tracking page: same look as the staff members page, less side padding to sit
+   flush inside the tracking card, and a plain background for the reward line instead of the emerald "picked" tint. */
+.member-stamps{margin:22px 0}
+.member-stamps .stamp-card{margin:0}
+.member-stamps .stamp-reward{font-size:14.5px;line-height:1.5}

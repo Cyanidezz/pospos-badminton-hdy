@@ -4,6 +4,26 @@ import {useParams} from 'next/navigation';
 import {DEFAULT_SHOP,bangkokNow,groupHours,isOpenNow,parseHours} from '@/lib/shop-hours';
 
 const steps=['รอขึ้นเอ็น','กำลังขึ้นเอ็น','พร้อมรับไม้','คืนไม้แล้ว'];
+const baht=(satang:number)=>(satang/100).toLocaleString('th-TH',{maximumFractionDigits:0});
+
+// The reward text matches the shop's setting: a capped amount, or the whole job when there is no cap.
+const rewardText=(cap:number|null)=>cap===null||cap===undefined?'ฟรีค่าขึ้นเอ็นทั้งหมด':`เอ็นมูลค่าไม่เกิน ฿${baht(cap)}`;
+
+// Customer-facing stamp card: same idea as the staff page, worded for the customer reading their own link.
+function MemberStamps({member}:{member:any}){
+  if(!member)return null;
+  const dots=member.need<=20?Array.from({length:member.need},(_,i)=>i):[];
+  return <section className="member-stamps" aria-label="สะสมแต้มขึ้นเอ็น">
+    <div className="stamp-card">
+      <div className="stamp-head"><b>สะสมแต้มขึ้นเอ็น</b><span>{member.progress}/{member.need} ครั้ง · ครบแล้ว {member.earned} รอบ</span></div>
+      {dots.length>0?<div className="stamp-dots">{dots.map(i=><span key={i} className={i<member.progress?'is-filled':''}>{i<member.progress?'✓':i+1}</span>)}</div>:<div className="stamp-bar"><i style={{width:(member.progress/member.need*100)+'%'}}/></div>}
+      <div className={'stamp-reward'+(member.available>0?' is-ready':'')}>
+        {member.available>0?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี {member.available} ครั้ง!</b> แจ้งพนักงานตอนมาส่งไม้ครั้งถัดไปเพื่อใช้สิทธิ์ ({rewardText(member.rewardCap)})</span>
+        :<span>สะสมอีก {member.need-member.progress} ครั้ง รับสิทธิ์ขึ้นเอ็นฟรี 1 ครั้ง ({rewardText(member.rewardCap)})</span>}
+      </div>
+    </div>
+  </section>;
+}
 
 // Shop contact details come from "ตั้งค่าร้าน" via the tracking API (defaults are used until the owner saves them).
 function ShopContact({shop}:any){
@@ -44,6 +64,7 @@ export default function Track(){
       <div className="track-status">{job.status}</div>
       {job.status!=='ยกเลิก'&&<ol>{steps.map((s,i)=><li className={i<=steps.indexOf(job.status)?'done':''} key={s}>{s}</li>)}</ol>}
       {job.status==='ยกเลิก'?<p>งานนี้ถูกยกเลิก หากมีข้อสงสัยกรุณาติดต่อร้าน</p>:<p>{job.paid?'ชำระเงินแล้ว':`ชำระวันรับไม้ ${(job.amount/100).toLocaleString('th-TH')} บาท`}</p>}
+      {job.status!=='ยกเลิก'&&<MemberStamps member={job.member}/>}
       {job.lineOa&&<>
         <a className="line-cta" href={'https://line.me/R/oaMessage/'+encodeURIComponent(job.lineOa)+'/?'+encodeURIComponent('LINK '+token)} target="_blank" rel="noreferrer">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.9-.9L3 21l1.9-5A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 11.5h7M8.5 14.5h4.5"/></svg>
