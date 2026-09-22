@@ -686,3 +686,8 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .track-pay .attach-button{width:100%;justify-content:center;margin-top:4px}
 .track-pay .attach-button.is-busy{opacity:.7;pointer-events:none}
 .track-pay .notice{margin-top:10px}
+/* The pay dialog's "customer already attached a slip" notice: view it, or attach a different one instead of a
+   plain re-upload field sitting right under it (that read as if the first upload hadn't registered). */
+.notice.customer-slip p{margin:0 0 10px}
+.customer-slip-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.notice .attach-button{height:38px;font-size:13px;padding:0 12px}

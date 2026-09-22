@@ -537,7 +537,7 @@ test("customer can pay from the tracking page: bank QR, slip upload, staff revie
   assert.match(dataRoute, /status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,to_jsonb\(jobs\)->>'slip' AS slip FROM jobs/);
   assert.match(pos, /\{!j\.paid&&j\.slip&&<span className="badge amber">มีสลิปรอตรวจ<\/span>\}/);
   assert.match(pos, /if\(selected\.slip\)setMethod\('โอนเงิน'\);open\('payJob',\{id:selected\.id,slip:selected\.slip\}\)/);
-  assert.match(pos, /modal==='payJob'&&selected\?\.slip&&form\.slip===selected\.slip&&<p className="notice">ลูกค้าแนบสลิปมาจากหน้าติดตามสถานะ/);
+  assert.match(pos, /modal==='payJob'&&selected\?\.slip&&form\.slip===selected\.slip\?<div className="notice customer-slip">/);
   assert.match(css, /\.pay-cta\{/);
 });
 
@@ -770,6 +770,19 @@ test("staff can see the customer's uploaded slip directly in the job detail, not
   const pos = await read("app/pos.tsx");
   assert.match(pos, /\{!selected\.paid&&selected\.slip&&<Field label="สลิปที่ลูกค้าแนบมา \(ยังไม่ตรวจสอบ\)">/);
   assert.match(pos, /alt="สลิปโอนเงินจากลูกค้า"/);
+});
+
+test("paying a job with a customer-uploaded slip doesn't offer a redundant re-upload field", async () => {
+  const pos = await read("app/pos.tsx");
+  const css = await read("app/globals.css");
+  // the customer's slip gets a view link + a compact "attach a different one" control, not a second bare file
+  // input sitting right under "the customer already sent one" - that read as if the upload hadn't registered
+  assert.match(pos, /modal==='payJob'&&selected\?\.slip&&form\.slip===selected\.slip\?<div className="notice customer-slip">/);
+  assert.match(pos, /ดูสลิปที่ลูกค้าแนบ ↗/);
+  assert.match(pos, /แนบสลิปใหม่แทน/);
+  // any other case (a staff-attached slip, or none yet) keeps the plain upload field as before
+  assert.match(pos, /:<><Field label="แนบสลิป \(ถ้ามี\)">/);
+  assert.match(css, /\.customer-slip-actions\{/);
 });
 
 test("stamp card has room to breathe: bigger dots, more padding, more gap before the reward line", async () => {
