@@ -479,6 +479,68 @@ test("add a member directly from the ลูกค้าสมาชิก page, 
   assert.equal(merged[0].visits, 1);
 });
 
+test("stamp dots always sit five to a row", async () => {
+  const css = await read("app/globals.css");
+  assert.match(css, /\.stamp-dots\{display:grid;grid-template-columns:repeat\(5,38px\)/);
+});
+
+test("customer can pay from the tracking page: bank QR, slip upload, staff review", async () => {
+  const migration = await read("supabase/migrations/20260922050000_job_slip.sql");
+  const server = await read("lib/server.ts");
+  const upload = await read("app/api/upload/route.ts");
+  const slipRoute = await read("app/api/track/[token]/slip/route.ts");
+  const qrRoute = await read("app/api/track/bank-qr/route.ts");
+  const trackRoute = await read("app/api/track/[token]/route.ts");
+  const dataRoute = await read("app/api/data/route.ts");
+  const bank = await read("app/bank-transfer.tsx");
+  const page = await read("app/track/[token]/page.tsx");
+  const pos = await read("app/pos.tsx");
+  const css = await read("app/globals.css");
+
+  assert.match(migration, /alter table public\.jobs add column if not exists slip text/);
+
+  // upload is now a single shared helper, used by both the staff-only route and the public one
+  assert.match(server, /export async function saveUploadedFile/);
+  assert.match(upload, /saveUploadedFile\(file,me\.id\)/);
+  assert.doesNotMatch(upload, /storage\.upload|INSERT INTO files/, "the validation/storage logic lives in one place now");
+
+  // the public slip route: no login, scoped by token, fails clearly before the migration, refuses a paid/cancelled job
+  assert.doesNotMatch(slipRoute, /\bauth\(\)/, "no login required - it is reached from the public tracking link");
+  assert.match(slipRoute, /information_schema\.columns[\s\S]*?column_name='slip'/);
+  assert.match(slipRoute, /status==='ยกเลิก'/);
+  assert.match(slipRoute, /if\(job\.paid\)throw/);
+  assert.match(slipRoute, /saveUploadedFile\(file,job\.staff_id\)/, "attributed to the staff who created the job - a customer is not a member");
+  assert.match(slipRoute, /WHERE token=\? AND paid=0 RETURNING id/);
+
+  // the public bank-qr route: also no login, serves only the shop's one configured QR
+  assert.doesNotMatch(qrRoute, /\bauth\(\)/);
+  assert.match(qrRoute, /SELECT bank_qr FROM config WHERE id=1/);
+
+  // BankTransfer can point its <img> somewhere other than the authenticated /api/files/[id]
+  assert.match(bank, /src=\{qrSrc\|\|\('\/api\/files\/'\+qr\)\}/);
+
+  // /api/track/[token]: bank details + whether a slip is already pending are only sent while the job is payable,
+  // and the new "slip" column is read defensively (a missing column must never break the whole endpoint)
+  assert.match(trackRoute, /to_jsonb\(jobs\)->>'slip' AS slip/);
+  assert.match(trackRoute, /payable=!j\.paid&&j\.status!=='ยกเลิก'/);
+  assert.match(trackRoute, /bank=payable\?\{name:config\?\.bank_name/);
+
+  // the tracking page: a pay button reveals the QR + upload, and shows a persisted "already sent" state
+  assert.match(page, /function PaySection/);
+  assert.match(page, /if\(job\.paid\|\|job\.status==='ยกเลิก'\)return null/);
+  assert.match(page, /if\(job\.slipUploaded\)return.*ส่งสลิปแล้ว/);
+  assert.match(page, /fetch\('\/api\/track\/'\+token\+'\/slip'/);
+  assert.match(page, /qrSrc="\/api\/track\/bank-qr"/);
+
+  // staff side: the main jobs query also reads reward_used (a stamp-card display bug - it was missing entirely,
+  // so "available" free rewards never accounted for ones already used) and the same defensive slip column
+  assert.match(dataRoute, /status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,to_jsonb\(jobs\)->>'slip' AS slip FROM jobs/);
+  assert.match(pos, /\{!j\.paid&&j\.slip&&<span className="badge amber">มีสลิปรอตรวจ<\/span>\}/);
+  assert.match(pos, /if\(selected\.slip\)setMethod\('โอนเงิน'\);open\('payJob',\{id:selected\.id,slip:selected\.slip\}\)/);
+  assert.match(pos, /modal==='payJob'&&selected\?\.slip&&form\.slip===selected\.slip&&<p className="notice">ลูกค้าแนบสลิปมาจากหน้าติดตามสถานะ/);
+  assert.match(css, /\.pay-cta\{/);
+});
+
 test("tracking page shows the customer's own stamp progress and reward", async () => {
   const route = await read("app/api/track/[token]/route.ts");
   const page = await read("app/track/[token]/page.tsx");

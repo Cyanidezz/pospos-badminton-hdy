@@ -1,5 +1,6 @@
 import postgres, { type Sql, type TransactionSql } from "postgres";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { jobStatusMessage, jobStatusText } from "@/lib/line-message";
 
 export const runtime = () => ({
@@ -123,6 +124,25 @@ export async function transaction(id: string, member: any, action: string, revis
     ...statements,
     db().prepare("UPDATE config SET revision=revision+1 WHERE id=1"),
   ]);
+}
+// Validate, sniff the real image type from its bytes, and store an uploaded file (shared by the staff-only
+// /api/upload and the token-scoped, unauthenticated slip upload from the public tracking page). The caller
+// picks who the file is attributed to: /api/upload uses the signed-in staff member, the tracking page uses
+// the job's own staff_id (a customer is not a member, and the files table requires one).
+export async function saveUploadedFile(file: File, staffId: string) {
+  if (!(file instanceof File) || file.size > 8 * 1024 * 1024) throw new Error("รูปต้องมีขนาดไม่เกิน 8 MB");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const mime = bytes[0] === 255 && bytes[1] === 216 ? "image/jpeg"
+    : bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71 ? "image/png"
+    : String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP" ? "image/webp"
+    : null;
+  if (!mime) throw new Error("รองรับรูป JPG, PNG หรือ WebP");
+  const id = uid(), storage = createSupabaseAdminClient().storage.from("wingpro-files");
+  const uploaded = await storage.upload(id, bytes, { contentType: mime, upsert: false });
+  if (uploaded.error) throw new Error("อัปโหลดรูปไม่สำเร็จ");
+  try { await db().prepare("INSERT INTO files(id,staff_id,mime,name) VALUES(?,?,?,?)").bind(id, staffId, mime, file.name.slice(0, 200)).run(); }
+  catch (e) { await storage.remove([id]); throw e; }
+  return { id };
 }
 export async function ownedFiles(ids: any) {
   if (!Array.isArray(ids) || ids.length > 8) throw new Error("แนบได้ไม่เกิน 8 รูป");

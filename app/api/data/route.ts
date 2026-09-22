@@ -8,7 +8,9 @@ const [[config],products,receipts,jobRows,members,leaves,sales,items,expenses,su
 ['SELECT * FROM config WHERE id=1'],
 [`SELECT id,name,barcode,category,price,${cost},image,scan_code,low_stock,active,stock,unit,(SELECT COUNT(*) FROM jobs WHERE product_id=products.id AND paid=0 AND returned IS NULL AND status<>'ยกเลิก') reserved FROM products ORDER BY name`],
 [`SELECT id,product_id,qty,${cost},staff_id,created FROM receipts ORDER BY created DESC`],
-access.stringing?['SELECT id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,completed,returned,notify FROM jobs ORDER BY created DESC']:none,
+// reward_used is a base member-program column (always present once that migration ran); slip is read through
+// to_jsonb so a not-yet-migrated "slip" column (see 20260922050000_job_slip.sql) is just null, not a query error.
+access.stringing?[`SELECT id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,to_jsonb(jobs)->>'slip' AS slip FROM jobs ORDER BY created DESC`]:none,
 ['SELECT id,email,name,role,active,permissions FROM members ORDER BY name'],
 access.leave?['SELECT * FROM leaves'+(isOwner?'':' WHERE staff_id=?')+' ORDER BY start DESC',...mine]:none,
 access.pos||access.earnings?['SELECT * FROM sales'+(isOwner?'':' WHERE staff_id=?')+' ORDER BY created DESC',...mine]:none,

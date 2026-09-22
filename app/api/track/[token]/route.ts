@@ -19,9 +19,13 @@ async function memberStatus(config:any,phone:string){
 
 export async function GET(req:Request,{params}:any){
   const {token}=await params;
-  const j=await one('SELECT id,racket,status,paid,amount,phone,created FROM jobs WHERE token=?',token);
+  // to_jsonb(jobs)->>'slip' reads the new "slip" column without erroring when the migration adding it has not
+  // run yet (a missing jsonb key is just null, unlike naming the column directly in the SELECT list).
+  const j:any=await one("SELECT id,racket,status,paid,amount,phone,created,to_jsonb(jobs)->>'slip' AS slip FROM jobs WHERE token=?",token);
   if(!j)return Response.json({error:'ไม่พบใบรับไม้'},{status:404});
   const config:any=await one("SELECT * FROM config WHERE id=1");
   const member=await memberStatus(config,j.phone);
-  return Response.json({id:j.id,racket:j.racket,paid:j.paid,amount:j.amount,created:j.created,status:j.status==='รับไม้'?'รอขึ้นเอ็น':j.status,lineOa:config?.line_oa||'',member,shop:{phone:config?.contact_phone??DEFAULT_SHOP.phone,facebook:config?.contact_facebook??DEFAULT_SHOP.facebook,hours:parseHours(config?.opening_hours)}},{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
+  const payable=!j.paid&&j.status!=='ยกเลิก';
+  const bank=payable?{name:config?.bank_name||'',accountName:config?.bank_account_name||'',accountNo:config?.bank_account_no||'',hasQr:!!config?.bank_qr}:null;
+  return Response.json({id:j.id,racket:j.racket,paid:j.paid,amount:j.amount,created:j.created,status:j.status==='รับไม้'?'รอขึ้นเอ็น':j.status,lineOa:config?.line_oa||'',member,bank,slipUploaded:payable&&!!j.slip,shop:{phone:config?.contact_phone??DEFAULT_SHOP.phone,facebook:config?.contact_facebook??DEFAULT_SHOP.facebook,hours:parseHours(config?.opening_hours)}},{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
 }

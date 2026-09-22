@@ -2,6 +2,7 @@
 import {useEffect,useState} from 'react';
 import {useParams} from 'next/navigation';
 import {DEFAULT_SHOP,bangkokNow,groupHours,isOpenNow,parseHours} from '@/lib/shop-hours';
+import {BankTransfer} from '@/app/bank-transfer';
 
 const steps=['รอขึ้นเอ็น','กำลังขึ้นเอ็น','พร้อมรับไม้','คืนไม้แล้ว'];
 const baht=(satang:number)=>(satang/100).toLocaleString('th-TH',{maximumFractionDigits:0});
@@ -23,6 +24,34 @@ function MemberStamps({member}:{member:any}){
       </div>
     </div>
   </section>;
+}
+
+// Lets the customer pay before staff process the job in person: shows the shop's transfer QR and takes a photo
+// of the slip. This never marks the job paid by itself - the shop still reviews the slip before confirming.
+function PaySection({job,token,onUploaded}:{job:any;token:string;onUploaded:()=>void}){
+  const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  if(job.paid||job.status==='ยกเลิก')return null;
+  if(job.slipUploaded)return <div className="track-pay"><p className="notice">ส่งสลิปแล้ว ร้านจะตรวจสอบและอัปเดตสถานะการชำระเงินให้เร็วๆ นี้ หากส่งผิดรูปหรือต้องการแก้ไข ติดต่อร้านได้เลย</p></div>;
+  const upload=async(files:FileList|null)=>{
+    if(!files?.[0])return;
+    setBusy(true);setError('');
+    try{
+      const body=new FormData();body.append('file',files[0]);
+      const r=await fetch('/api/track/'+token+'/slip',{method:'POST',body});
+      const d:any=await r.json();
+      if(!r.ok)throw new Error(d.error||'อัปโหลดไม่สำเร็จ');
+      onUploaded();
+    }catch(e:any){setError(e.message||'อัปโหลดไม่สำเร็จ')}
+    finally{setBusy(false)}
+  };
+  return <div className="track-pay">
+    {!open?<button type="button" className="pay-cta" onClick={()=>setOpen(true)}>จ่ายเงิน</button>:<>
+      <BankTransfer config={{bank_name:job.bank?.name,bank_account_name:job.bank?.accountName,bank_account_no:job.bank?.accountNo,bank_qr:job.bank?.hasQr?'ready':null}} qrSrc="/api/track/bank-qr"/>
+      <label className={'attach-button'+(busy?' is-busy':'')}>{busy?'กำลังอัปโหลด…':'แนบรูปสลิปโอนเงิน'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{upload(e.target.files);e.target.value=''}}/></label>
+      {error&&<p role="alert" className="notice">{error}</p>}
+      <p className="muted">ร้านจะตรวจสอบยอดในสลิปอีกครั้งก่อนยืนยันการชำระเงิน</p>
+    </>}
+  </div>;
 }
 
 // Shop contact details come from "ตั้งค่าร้าน" via the tracking API (defaults are used until the owner saves them).
@@ -64,6 +93,7 @@ export default function Track(){
       <div className="track-status">{job.status}</div>
       {job.status!=='ยกเลิก'&&<ol>{steps.map((s,i)=><li className={i<=steps.indexOf(job.status)?'done':''} key={s}>{s}</li>)}</ol>}
       {job.status==='ยกเลิก'?<p>งานนี้ถูกยกเลิก หากมีข้อสงสัยกรุณาติดต่อร้าน</p>:<p>{job.paid?'ชำระเงินแล้ว':`ชำระวันรับไม้ ${(job.amount/100).toLocaleString('th-TH')} บาท`}</p>}
+      <PaySection job={job} token={String(token)} onUploaded={()=>setJob((j:any)=>({...j,slipUploaded:true}))}/>
       {job.status!=='ยกเลิก'&&<MemberStamps member={job.member}/>}
       {job.lineOa&&<>
         <a className="line-cta" href={'https://line.me/R/oaMessage/'+encodeURIComponent(job.lineOa)+'/?'+encodeURIComponent('LINK '+token)} target="_blank" rel="noreferrer">
