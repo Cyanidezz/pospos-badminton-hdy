@@ -670,6 +670,27 @@ test("stock count rules: missing/surplus, wrong-barcode swaps, blind counting pr
   assert.equal(p.units, 10);
 });
 
+test("scanning an unrecognized barcode while counting offers to register the product", async () => {
+  const route = await read("app/api/count/route.ts");
+  const page = await read("app/stock-count.tsx");
+
+  // server: distinguishes "exists but out of this count's scope" from "genuinely unknown", only the latter is
+  // offered as an add-on-the-spot; the new product starts untracked (stock/expected 0) and is counted right away
+  const scanNew = route.slice(route.indexOf("if(action==='scanNew')"), route.indexOf("if(action==='set')"));
+  assert.match(route, /exists\?'สินค้านี้ไม่อยู่ในขอบเขตรอบนับนี้':'ไม่พบสินค้าจากบาร์โค้ดนี้',400,exists\?'out_of_scope':'not_found'/);
+  assert.match(scanNew, /getCategories\(\)\)\.includes\(category\)/);
+  assert.match(scanNew, /SELECT id FROM products WHERE barcode=\? OR scan_code=\?/, "refuses if the barcode was registered in the meantime");
+  assert.match(scanNew, /status='counting'/, "only while the count is still open");
+  assert.match(scanNew, /INSERT INTO products\(id,name,barcode,category,price,active,stock,unit\) VALUES\(\?,\?,\?,\?,\?,1,0,\?\)/, "stock starts at 0 - it was never tracked before");
+  assert.match(scanNew, /INSERT INTO stock_count_items\(count_id,product_id,expected,counted,touched,staff_id,updated\) VALUES\(\?,\?,0,1,1,\?,\?\)/, "counted as 1 immediately, in the same step");
+
+  // client: only a genuinely-unknown code (code:'not_found') opens the dialog; out-of-scope just shows the message
+  assert.match(page, /if\(e\.code==='not_found'\)setNewProduct\(\{code:value,name:'',price:'',category:categories\[0\]\|\|''\}\);/);
+  assert.match(page, /else toast\.error\(e\.message\);/);
+  assert.match(page, /action:'scanNew',countId:session\.id,code:newProduct\.code,name:newProduct\.name,price:newProduct\.price,category:newProduct\.category/);
+  assert.match(page, /function Counting\(\{data,isOwner,categories,reload\}:any\)/, "needs the category list to offer in the add-product form");
+});
+
 test("stock counting: server rules, migration and screens", async () => {
   const migration = await read("supabase/migrations/20260922030000_stock_counts.sql");
   const route = await read("app/api/count/route.ts");
@@ -683,8 +704,9 @@ test("stock counting: server rules, migration and screens", async () => {
   assert.match(migration, /status text not null check \(status in \('counting','review','closed','cancelled'\)\)/);
   // who can do what
   assert.match(route, /const canCount=\(me:any\)=>me\.role==='owner'\|\|!!permissions\(me\)\.inventory/);
-  const beforeOwner = route.slice(route.indexOf("if(action==='scan'||action==='set')"), route.indexOf("owner(me); // everything below"));
-  assert.doesNotMatch(beforeOwner, /owner\(me\)/, "counting itself is open to staff with inventory access");
+  const beforeOwner = route.slice(route.indexOf("if(action==='scan'||action==='set'||action==='scanNew')"), route.indexOf("owner(me); // everything below"));
+  assert.notEqual(beforeOwner.length, 0, "the anchor text must actually be found in the source, or this check is vacuous");
+  assert.doesNotMatch(beforeOwner, /owner\(me\)/, "counting itself (including registering a new product while counting) is open to staff with inventory access");
   const afterOwner = route.slice(route.indexOf("owner(me); // everything below"));
   for (const action of ["start", "finish", "reopen", "cancel", "apply"]) assert.match(afterOwner, new RegExp(`action==='${action}'`), `${action} is owner-only`);
   // blind counting

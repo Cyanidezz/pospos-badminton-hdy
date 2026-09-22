@@ -1,10 +1,10 @@
-import {auth,permissions,owner,db,all,one,now,str,integer,getCategories,transaction} from '@/lib/server';
+import {auth,permissions,owner,db,all,one,now,str,integer,money,uid,getCategories,transaction} from '@/lib/server';
 import {COUNT_REASONS} from '@/lib/stock-count';
 
 // Stock counting ("รอบนับสต๊อก"). Kept apart from /api/data so a scan is one small request instead of a full reload.
 export const dynamic='force-dynamic';
 const noStore={'Cache-Control':'no-store'};
-const fail=(message:string,status=400)=>Response.json({error:message},{status});
+const fail=(message:string,status=400,code?:string)=>Response.json({error:message,...(code?{code}:{})},{status});
 const canCount=(me:any)=>me.role==='owner'||!!permissions(me).inventory;
 const ready=async()=>!!((await one("SELECT to_regclass('public.stock_counts') AS t") as any)?.t);
 const MIGRATION='ต้องรัน migration 20260922030000_stock_counts.sql บน Supabase ก่อนจึงจะใช้ระบบนับสต๊อกได้';
@@ -43,7 +43,7 @@ export async function POST(req:Request){
     if(!(await ready()))return fail(MIGRATION);
     const b:any=await req.json(),action=str(b.action);
 
-    if(action==='scan'||action==='set'){
+    if(action==='scan'||action==='set'||action==='scanNew'){
       const countId=str(b.countId,60),actor=me.id,stamp=now();
       if(action==='scan'){
         const code=str(b.code,80),qty=integer(b.qty??1,1);
@@ -51,7 +51,24 @@ export async function POST(req:Request){
         if(rows.length)return Response.json({ok:true,productId:rows[0].product_id,counted:rows[0].counted},{headers:noStore});
         const session:any=await one('SELECT status FROM stock_counts WHERE id=?',countId);
         if(!session||session.status!=='counting')return fail('รอบนับนี้ปิดการนับแล้ว');
-        return fail((await one('SELECT id FROM products WHERE (barcode=? OR scan_code=?) AND active=1',code,code))?'สินค้านี้ไม่อยู่ในขอบเขตรอบนับนี้':'ไม่พบสินค้าจากบาร์โค้ดนี้');
+        const exists=await one('SELECT id FROM products WHERE (barcode=? OR scan_code=?) AND active=1',code,code);
+        return fail(exists?'สินค้านี้ไม่อยู่ในขอบเขตรอบนับนี้':'ไม่พบสินค้าจากบาร์โค้ดนี้',400,exists?'out_of_scope':'not_found');
+      }
+      if(action==='scanNew'){
+        // The scanned barcode matches nothing in the catalog at all - register it as a new product and count the
+        // first one found in the same step. It starts at 0 in the system, so whatever gets counted here (and any
+        // more of it found later in this round) shows up as "surplus" once the owner reviews the count.
+        const code=str(b.code,80),name=str(b.name,200),category=str(b.category,60),price=money(b.price);
+        if(!(await getCategories()).includes(category))return fail('หมวดสินค้าไม่ถูกต้อง');
+        if(await one('SELECT id FROM products WHERE barcode=? OR scan_code=?',code,code))return fail('มีสินค้านี้ในระบบอยู่แล้ว กรุณาลองสแกนใหม่');
+        const session:any=await one("SELECT status FROM stock_counts WHERE id=? AND status='counting'",countId);
+        if(!session)return fail('รอบนับนี้ปิดการนับแล้ว');
+        const productId=uid();
+        await db().batch([
+          db().prepare('INSERT INTO products(id,name,barcode,category,price,active,stock,unit) VALUES(?,?,?,?,?,1,0,?)').bind(productId,name,code,category,price,'ชิ้น'),
+          db().prepare('INSERT INTO stock_count_items(count_id,product_id,expected,counted,touched,staff_id,updated) VALUES(?,?,0,1,1,?,?)').bind(countId,productId,actor,stamp),
+        ]);
+        return Response.json({ok:true,productId,counted:1},{headers:noStore});
       }
       const productId=str(b.productId,60),qty=integer(b.qty,0);
       const rows=await all("UPDATE stock_count_items i SET counted=?,touched=1,staff_id=?,updated=? FROM stock_counts c WHERE i.count_id=? AND i.product_id=? AND c.id=i.count_id AND c.status='counting' RETURNING i.product_id,i.counted",qty,actor,stamp,countId,productId);

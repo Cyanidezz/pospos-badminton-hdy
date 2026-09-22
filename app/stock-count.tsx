@@ -4,6 +4,7 @@ import {toast} from 'sonner';
 import {Camera,ClipboardCheck,Minus,Plus,ScanLine,Search,TriangleAlert} from 'lucide-react';
 import {CountScanner} from './count-scanner';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {COUNT_REASONS,classify,defaultReason,diffOf,diffValue,possibleSwaps,progress,scopeStats,type CountItem,type ScopeStat} from '@/lib/stock-count';
 
 const baht=(satang:number)=>'฿'+(satang/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -13,7 +14,7 @@ const dateTime=(iso:string)=>iso?new Date(iso).toLocaleString('th-TH',{day:'nume
 async function call(method:'GET'|'POST',path:string,body?:any){
   const response=await fetch(path,{method,cache:'no-store',headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined});
   const data:any=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(data.error||'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง');
+  if(!response.ok){const err:any=new Error(data.error||'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง');err.code=data.code;throw err}
   return data;
 }
 
@@ -37,9 +38,10 @@ function Stepper({value,onChange,label}:{value:number;onChange:(n:number)=>void;
 }
 
 // ---------------------------------------------------------------- counting (everyone with inventory access)
-function Counting({data,isOwner,reload}:any){
+function Counting({data,isOwner,categories,reload}:any){
   const [items,setItems]=useState<CountItem[]>(data.items);
   const [code,setCode]=useState(''),[camera,setCamera]=useState(false),[tab,setTab]=useState<'done'|'todo'>('todo'),[search,setSearch]=useState(''),[last,setLast]=useState<string>(''),[confirming,setConfirming]=useState(''),[busy,setBusy]=useState(false);
+  const [newProduct,setNewProduct]=useState<{code:string;name:string;price:string;category:string}|null>(null),[addBusy,setAddBusy]=useState(false);
   const pending=useRef(0),queue=useRef<Promise<unknown>>(Promise.resolve()),input=useRef<HTMLInputElement>(null);
   const session=data.session;
 
@@ -69,11 +71,36 @@ function Counting({data,isOwner,reload}:any){
     setLast(productId);
     send(absolute!==undefined||delta<0?{action:'set',productId,qty:next}:{action:'scan',code:before.barcode,qty:delta},()=>setItems(list=>list.map(i=>i.product_id===productId?before:i)));
   };
-  const scan=(raw:string)=>{
+  // A barcode not in this count's item list (either it belongs to a product outside the count's scope, or the
+  // product was never registered at all) is checked against the server, which can tell the two apart; a genuinely
+  // unknown one offers to register it on the spot instead of a dead end.
+  const scan=async(raw:string)=>{
     const value=raw.trim();if(!value)return;
     const item=byCode.get(value);
-    if(!item){feedback(false);toast.error('ไม่พบสินค้านี้ในรอบนับ (อาจไม่อยู่ในขอบเขต หรือเป็นสินค้าใหม่): '+value);return}
-    feedback(true);change(item.product_id,1);
+    if(item){feedback(true);change(item.product_id,1);return}
+    try{
+      const result=await call('POST','/api/count',{action:'scan',countId:session.id,code:value,qty:1});
+      feedback(true);
+      setItems(list=>list.map(i=>i.product_id===result.productId?{...i,counted:result.counted,touched:1}:i));
+      setLast(result.productId);
+    }catch(e:any){
+      feedback(false);
+      if(e.code==='not_found')setNewProduct({code:value,name:'',price:'',category:categories[0]||''});
+      else toast.error(e.message);
+    }
+  };
+  const addNew=async(e:any)=>{
+    e.preventDefault();if(!newProduct)return;
+    setAddBusy(true);
+    try{
+      const result=await call('POST','/api/count',{action:'scanNew',countId:session.id,code:newProduct.code,name:newProduct.name,price:newProduct.price,category:newProduct.category});
+      feedback(true);
+      setItems(list=>[...list,{product_id:result.productId,name:newProduct.name,category:newProduct.category,barcode:newProduct.code,scan_code:null,expected:0,counted:result.counted,touched:1,applied:0,reason:null,has_stock:false,cost:null,unit:'ชิ้น'}]);
+      setLast(result.productId);
+      setNewProduct(null);
+      toast.success('เพิ่มสินค้าและนับแล้ว');
+    }catch(e:any){toast.error(e.message)}
+    finally{setAddBusy(false)}
   };
 
   const stats=progress(items),done=items.filter(i=>i.touched),todo=items.filter(i=>!i.touched&&i.has_stock);
@@ -113,6 +140,22 @@ function Counting({data,isOwner,reload}:any){
         </div>
       </div>:<p className="muted">นับเสร็จแล้วแจ้งเจ้าของร้านให้กด “จบการนับ”</p>}
     </section>
+    {newProduct&&<Dialog open onOpenChange={v=>{if(!v&&!addBusy)setNewProduct(null)}}><DialogContent className="pos-dialog">
+      <DialogHeader><DialogTitle>เพิ่มสินค้าใหม่จากบาร์โค้ด</DialogTitle><DialogDescription>ยังไม่พบสินค้านี้ในระบบ กรอกข้อมูลเพื่อเพิ่มเข้าสต๊อกและนับเป็นของที่เจอ 1 ชิ้นเลย</DialogDescription></DialogHeader>
+      <form onSubmit={addNew}>
+        <div className="field"><span>บาร์โค้ดที่สแกน</span><input readOnly value={newProduct.code}/></div>
+        <div className="field"><span>ชื่อสินค้า</span><input autoFocus required maxLength={200} value={newProduct.name} onChange={e=>setNewProduct({...newProduct,name:e.target.value})}/></div>
+        <div className="field"><span>ราคาขาย (บาท)</span><input required type="number" inputMode="decimal" min="0" step="0.01" value={newProduct.price} onChange={e=>setNewProduct({...newProduct,price:e.target.value})}/></div>
+        <div className="field"><span id="new-product-category">หมวดหมู่</span>
+          <Select value={newProduct.category} onValueChange={v=>setNewProduct({...newProduct,category:v})}>
+            <SelectTrigger className="choice" aria-labelledby="new-product-category"><SelectValue placeholder="เลือกหมวดหมู่"/></SelectTrigger>
+            <SelectContent>{categories.map((c:string)=><SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <p className="muted">เพิ่มเป็นสินค้าใหม่ ยอดในระบบเริ่มที่ 0 เพราะไม่เคยมีในสต๊อกมาก่อน จำนวนที่นับได้ในรอบนี้จะขึ้นเป็น "เกิน" ให้ตรวจสอบตอนปิดรอบนับ</p>
+        <div className="dialog-actions"><button type="button" className="secondary" disabled={addBusy} onClick={()=>setNewProduct(null)}>ยกเลิก</button><button disabled={addBusy||!newProduct.name.trim()||!newProduct.category}>{addBusy?'กำลังบันทึก…':'เพิ่มและนับเลย'}</button></div>
+      </form>
+    </DialogContent></Dialog>}
   </div>;
 }
 
@@ -210,5 +253,5 @@ export function StockCountPage({isOwner,categories,products,onStockChanged}:any)
   if(!data)return <div className="panel report"><p>กำลังโหลด…</p></div>;
   if(!data.ready)return <div className="panel report"><div className="notice">ระบบนับสต๊อกต้องอัปเดตฐานข้อมูลก่อน ให้รัน migration <code>20260922030000_stock_counts.sql</code> บน Supabase แล้วรีเฟรชหน้านี้</div></div>;
   if(!data.session)return <Start data={data} isOwner={isOwner} categories={categories} products={products} reload={reload}/>;
-  return data.session.status==='counting'?<Counting key={data.session.id} data={data} isOwner={isOwner} reload={reload}/>:<Review key={data.session.id+data.session.status} data={data} isOwner={isOwner} reload={reload} onStockChanged={onStockChanged}/>;
+  return data.session.status==='counting'?<Counting key={data.session.id} data={data} isOwner={isOwner} categories={categories} reload={reload}/>:<Review key={data.session.id+data.session.status} data={data} isOwner={isOwner} reload={reload} onStockChanged={onStockChanged}/>;
 }
