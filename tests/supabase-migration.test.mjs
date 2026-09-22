@@ -38,6 +38,8 @@ test("product form shows a printable barcode label with a download button", asyn
   assert.match(pos, /import \{BarcodeLabel\} from '\.\/barcode-label';/);
   assert.match(pos, /<BarcodeLabel name=\{form\.name\|\|''\} code=\{form\.barcode\|\|''\}\/>/, "wired into both the add-product and edit-product dialogs (they share this markup)");
   assert.match(css, /\.barcode-label\{/);
+  assert.match(label, /marginTop:2/, "the barcode's own top margin is trimmed so it sits close under the product name");
+  assert.match(css, /\.barcode-label\{display:flex;flex-direction:column;align-items:center;gap:4px/);
 });
 
 test("keeps secrets server-side", async () => {

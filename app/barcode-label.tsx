@@ -11,7 +11,9 @@ export function BarcodeLabel({name,code}:{name:string;code:string}){
   const canvasRef=useRef<HTMLCanvasElement>(null);
   useEffect(()=>{
     if(!canvasRef.current||!code.trim())return;
-    try{JsBarcode(canvasRef.current,code,{format:'CODE128',width:2,height:56,fontSize:15,margin:10,displayValue:true});}
+    // JsBarcode pads all four sides equally by default; the top margin alone is trimmed down so the barcode sits
+    // close under the product name above it instead of floating with a big gap.
+    try{JsBarcode(canvasRef.current,code,{format:'CODE128',width:2,height:56,fontSize:15,margin:10,marginTop:2,displayValue:true});}
     catch{/* an empty canvas is a harmless no-op if the code can't be encoded */}
   },[code]);
   if(!code.trim())return null;
