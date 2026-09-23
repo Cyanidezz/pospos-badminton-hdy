@@ -26,7 +26,29 @@ export function formatPhone(value: string) {
   return digits.length === 10 ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}` : digits;
 }
 
-type Options = { stampsRequired?: number; sales?: any[]; posMinAmount?: number; notes?: Record<string, string> | null; manualMembers?: Record<string, { name: string; phone: string }> | null };
+export type Promo = { enabled?: boolean; start?: string | null; end?: string | null } | null;
+type Options = { stampsRequired?: number; sales?: any[]; posMinAmount?: number; notes?: Record<string, string> | null; manualMembers?: Record<string, { name: string; phone: string }> | null; promo?: Promo };
+
+// Does a visit on this date earn a stamp under the shop's promotion window ("1 ต.ค. 2569 - 31 ธ.ค. 2569", say)? No
+// `promo` at all means the feature isn't configured (or the caller didn't pass it) - unrestricted, same as before
+// this existed. `enabled: false` stops every new stamp outright; a set start/end only counts visits inside it.
+// A reward already earned is unaffected either way - this only gates new stamps, never takes one back.
+export function withinPromo(dateIso: string, promo?: Promo): boolean {
+  if (!promo) return true;
+  if (promo.enabled === false) return false;
+  const day = String(dateIso ?? "").slice(0, 10);
+  if (promo.start && day < promo.start) return false;
+  if (promo.end && day > promo.end) return false;
+  return true;
+}
+
+// Reads the promo window straight off the config row (however it was fetched: SELECT * on the server, or the
+// `config` the client already has). Before the migration is run the columns are simply missing, which this reads
+// the same as "not configured" - unrestricted, exactly the behavior before this feature existed.
+export function promoOf(config: any): Promo {
+  if (!config || !("member_promo_enabled" in config)) return null;
+  return { enabled: config.member_promo_enabled !== 0, start: config.member_promo_start || null, end: config.member_promo_end || null };
+}
 
 function emptyCustomer(key: string, name: string, phone: string, last: string, need: number, note: string): Customer {
   return { key, name, phone, visits: 0, last, rackets: [], stamps: 0, jobStamps: 0, posStamps: 0, need, earned: 0, used: 0, available: 0, progress: 0, spent: 0, jobs: [], sales: [], note };
@@ -34,7 +56,7 @@ function emptyCustomer(key: string, name: string, phone: string, last: string, n
 
 // One entry per phone number (or per name when a job has no phone), newest activity first.
 // Cancelled jobs and voided bills are ignored: they never became a visit.
-export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_REQUIRED, sales = [], posMinAmount = 0, notes = {}, manualMembers = {} }: Options = {}): Customer[] {
+export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_REQUIRED, sales = [], posMinAmount = 0, notes = {}, manualMembers = {}, promo = null }: Options = {}): Customer[] {
   const need = Math.max(1, Math.round(Number(stampsRequired)) || DEFAULT_STAMPS_REQUIRED);
   const minAmount = Math.max(0, Number(posMinAmount) || 0);
   const noteOf = (key: string) => String((notes || {})[key] ?? "");
@@ -54,7 +76,7 @@ export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_RE
     customer.visits += 1;
     customer.jobs.push(job);
     if (job.reward_used === 1) customer.used += 1;
-    else if (job.paid) { customer.stamps += 1; customer.jobStamps += 1; }
+    else if (job.paid && withinPromo(job.created, promo)) { customer.stamps += 1; customer.jobStamps += 1; }
     if (job.paid) customer.spent += Number(job.amount) || 0;
     const racket = String(job.racket ?? "").trim();
     if (racket && !customer.rackets.some(r => same(r.name, racket))) {
@@ -75,7 +97,7 @@ export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_RE
     customer.sales.push(sale);
     customer.visits += 1;
     customer.spent += total;
-    if (!sale.job_id && total >= minAmount) { customer.stamps += 1; customer.posStamps += 1; }
+    if (!sale.job_id && total >= minAmount && withinPromo(sale.created, promo)) { customer.stamps += 1; customer.posStamps += 1; }
     if (String(sale.created) > customer.last) customer.last = String(sale.created);
   }
 
@@ -94,9 +116,9 @@ export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_RE
   return [...customers.values()].sort((a, b) => b.last.localeCompare(a.last));
 }
 
-// Does a POS bill earn a stamp? (linked to a member, not a job payment, and big enough)
-export function billEarnsStamp(sale: any, posMinAmount = 0) {
-  return !!sale.customer_key && sale.status !== "voided" && !sale.job_id && (Number(sale.total) || 0) >= Math.max(0, Number(posMinAmount) || 0);
+// Does a POS bill earn a stamp? (linked to a member, not a job payment, big enough, and within the promo window)
+export function billEarnsStamp(sale: any, posMinAmount = 0, promo: Promo = null) {
+  return !!sale.customer_key && sale.status !== "voided" && !sale.job_id && (Number(sale.total) || 0) >= Math.max(0, Number(posMinAmount) || 0) && withinPromo(sale.created, promo);
 }
 
 // What a free-stringing reward takes off a job price (satang). `cap` is null/undefined for the whole job.

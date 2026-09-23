@@ -615,7 +615,7 @@ test("tracking page shows the customer's own stamp progress and reward", async (
   const route = await read("app/api/track/[token]/route.ts");
   const page = await read("app/track/[token]/page.tsx");
   const css = await read("app/globals.css");
-  assert.match(route, /import \{buildCustomers\} from '@\/lib\/customers'/);
+  assert.match(route, /import \{buildCustomers,promoOf\} from '@\/lib\/customers'/);
   assert.match(route, /if\(!\('member_stamps_required' in config\)\)return null/, "works before the members migration is run");
   assert.match(route, /regexp_replace\(phone,'\\\\D','','g'\)=\?",key\)/, "matches the same phone-digits key used everywhere else");
   assert.match(route, /FROM sales WHERE customer_key=\?/);
@@ -644,6 +644,70 @@ test("payment dialogs default to transfer with a large QR and no repeated amount
   assert.match(pos, /payWide\?'pay-dialog'/);
   assert.match(css, /\.pay-body\.with-qr\{display:grid;grid-template-columns:minmax\(0,340px\)/);
   assert.match(css, /\.pay-body \.bank-qr\{[^}]*max-height:calc\(90dvh - 270px\)/);
+});
+
+test("member stamp promotion has an optional date window and an on/off switch", async () => {
+  const migration = await read("supabase/migrations/20260923010000_member_promo_window.sql");
+  const dataRoute = await read("app/api/data/route.ts");
+  const trackRoute = await read("app/api/track/[token]/route.ts");
+  const membersPage = await read("app/members-page.tsx");
+  const settings = await read("app/shop-settings.tsx");
+
+  assert.match(migration, /add column if not exists member_promo_enabled smallint not null default 1/, "defaults to on, so an untouched shop keeps earning stamps exactly as before");
+  assert.match(migration, /add column if not exists member_promo_start text/);
+  assert.match(migration, /add column if not exists member_promo_end text/);
+
+  // server: the reward-eligibility count is date/enabled-filtered the same way the display logic is
+  const job = dataRoute.slice(dataRoute.indexOf("if(b.useReward){"), dataRoute.indexOf("const cap=config.member_reward_cap"));
+  assert.match(job, /promoOn=!\('member_promo_enabled' in config\)\|\|config\.member_promo_enabled!==0/, "the column may not exist yet (migration not run) - treated as on, not a hard failure");
+  assert.match(job, /dateFilter=promoOn\?"AND created>=COALESCE\(\?,'0000-01-01'\) AND created<=COALESCE\(\?,'9999-12-31'\)":'AND 1=0'/);
+  assert.match(job, /\$\{dateFilter\}\)\+\(SELECT COUNT\(\*\) FROM sales/, "the same window applies to both the job and the POS-bill half of the stamp count");
+
+  // server: settings validates the date format and that start doesn't come after end
+  const settingsAction = dataRoute.slice(dataRoute.indexOf("action==='settings'"), dataRoute.indexOf("else if(action==='expense')"));
+  assert.match(settingsAction, /if\(b\.memberPromoEnabled!==undefined\)sets\.push\(\['member_promo_enabled',b\.memberPromoEnabled\?1:0\]\)/);
+  assert.match(settingsAction, /if\(!\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(t\)\)throw new Error\(label\+'ไม่ถูกต้อง'\)/);
+  assert.match(settingsAction, /if\(newStart&&newEnd&&newStart>newEnd\)throw new Error\('วันที่เริ่มโปรโมชั่นต้องมาก่อนวันที่สิ้นสุด'\)/);
+
+  // client: lib/customers.ts's pure withinPromo() is what both buildCustomers() and the tracking page's own
+  // memberStatus() rely on, so the two can never disagree about whether a given visit counted
+  assert.match(trackRoute, /promo:promoOf\(config\)/);
+  assert.match(membersPage, /promo:promoOf\(config\)/);
+
+  // settings screen: the toggle and the two (optional) date fields
+  assert.match(settings, /payload\.memberPromoEnabled=form\.memberPromoEnabled\?\?!!config\.member_promo_enabled/);
+  assert.match(settings, /<Switch disabled=\{!\('member_promo_enabled' in config\)\} checked=\{form\.memberPromoEnabled\?\?!!config\.member_promo_enabled\}/);
+  assert.match(settings, /type="date"[^>]*value=\{form\.memberPromoStart\?\?\(config\.member_promo_start\|\|''\)\}/);
+  assert.match(settings, /type="date"[^>]*value=\{form\.memberPromoEnd\?\?\(config\.member_promo_end\|\|''\)\}/);
+
+  let customers;
+  try { customers = await import("../lib/customers.ts"); }
+  catch { return; }
+  const { withinPromo, buildCustomers, billEarnsStamp } = customers;
+  // withinPromo: the pure rule powering all of the above
+  assert.equal(withinPromo("2026-11-01", null), true, "unconfigured (no promo object at all) is unrestricted");
+  assert.equal(withinPromo("2026-11-01", { enabled: false }), false, "the switch alone stops it, dates or not");
+  assert.equal(withinPromo("2026-11-01", { enabled: true, start: "2026-10-01", end: "2026-12-31" }), true);
+  assert.equal(withinPromo("2026-09-30", { enabled: true, start: "2026-10-01", end: "2026-12-31" }), false, "before the window");
+  assert.equal(withinPromo("2027-01-01", { enabled: true, start: "2026-10-01", end: "2026-12-31" }), false, "after the window");
+  assert.equal(withinPromo("2026-11-01", { enabled: true, start: null, end: null }), true, "on with no dates set = unrestricted");
+
+  // buildCustomers: a job outside the window earns no stamp, but reward_used (already redeemed) is untouched by it
+  const job1 = { customer: "สมชาย", phone: "0812345678", racket: "R", created: "2026-09-01T00:00:00Z", status: "คืนไม้แล้ว", paid: 1, amount: 40000 };
+  const job2 = { customer: "สมชาย", phone: "0812345678", racket: "R", created: "2026-11-01T00:00:00Z", status: "คืนไม้แล้ว", paid: 1, amount: 40000 };
+  const promo = { enabled: true, start: "2026-10-01", end: "2026-12-31" };
+  const [outside] = buildCustomers([job1], { promo });
+  assert.equal(outside.stamps, 0, "a visit before the promo window earns nothing");
+  const [inside] = buildCustomers([job2], { promo });
+  assert.equal(inside.stamps, 1, "a visit inside the window still earns a stamp");
+  const [unconfigured] = buildCustomers([job1], {});
+  assert.equal(unconfigured.stamps, 1, "no promo passed at all: unrestricted, same as before this feature existed");
+
+  // billEarnsStamp: same rule, same default
+  const bill = (created) => ({ customer_key: "0812345678", status: "active", job_id: null, total: 50000, created });
+  assert.equal(billEarnsStamp(bill("2026-09-01"), 0, promo), false);
+  assert.equal(billEarnsStamp(bill("2026-11-01"), 0, promo), true);
+  assert.equal(billEarnsStamp(bill("2026-09-01"), 0), true, "no promo argument: unrestricted (back-compat default)");
 });
 
 test("POS bills earn stamps, POS-only members exist, and notes come from the config map", async t => {

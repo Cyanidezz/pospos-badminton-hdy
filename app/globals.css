@@ -718,3 +718,5 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .po-card-detail .member-table th{background:#f3f6fc}
 .po-card-note{margin:10px 0 0}
 .with-scan .suggest-wrap{flex:1;min-width:0}
+/* A light rule separating sub-sections within a settings panel (e.g. ระบบสมาชิก's promo window from the stamp rules above it). */
+.panel-divider{border:0;border-top:1px solid #e3e8f2;margin:22px 0 16px}

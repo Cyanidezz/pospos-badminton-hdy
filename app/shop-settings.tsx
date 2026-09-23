@@ -22,6 +22,11 @@ export function settingsPayload(form:any,config:any){
     payload.memberStampsRequired=form.memberStampsRequired??config.member_stamps_required;
     payload.memberRewardCap=form.memberRewardCap??(config.member_reward_cap===null||config.member_reward_cap===undefined?'':config.member_reward_cap/100);
   }
+  if('member_promo_enabled' in config){
+    payload.memberPromoEnabled=form.memberPromoEnabled??!!config.member_promo_enabled;
+    payload.memberPromoStart=form.memberPromoStart??(config.member_promo_start||'');
+    payload.memberPromoEnd=form.memberPromoEnd??(config.member_promo_end||'');
+  }
   if('member_pos_min_amount' in config)payload.memberPosMinAmount=form.memberPosMinAmount??(config.member_pos_min_amount||0)/100;
   return payload;
 }
@@ -99,6 +104,16 @@ export function MemberPanel({form,setForm,config,busy,onSave,Field}:any){
       <p className="muted">ถ้าใส่ส่วนลดสูงสุด เช่น 100 บาท สิทธิ์จะลดให้ไม่เกิน 100 บาทต่องาน (ลูกค้าจ่ายส่วนที่เหลือ) ปล่อยว่างเพื่อให้ฟรีทั้งงาน</p>
       {ready&&!('member_pos_min_amount' in config)&&<div className="notice">แต้มจากบิลหน้าร้านต้องรัน migration <code>20260922020000_member_notes_and_pos_stamps.sql</code> ก่อน</div>}
       <Field label="บิลหน้าร้าน (POS) ที่ผูกสมาชิก ได้ 1 แต้มเมื่อยอดตั้งแต่ (บาท)"><input type="number" min="0" step="0.01" disabled={!('member_pos_min_amount' in config)} placeholder="0 = ทุกบิลได้แต้ม" value={form.memberPosMinAmount??((config.member_pos_min_amount||0)/100)} onChange={e=>setForm({...form,memberPosMinAmount:e.target.value})}/></Field>
+      <hr className="panel-divider"/>
+      <h3>ช่วงเวลาโปรโมชั่น</h3>
+      <p className="muted">จำกัดให้สะสมแต้มได้เฉพาะบางช่วง เช่น 1 ต.ค. – 31 ธ.ค. หรือปิดโปรโมชั่นชั่วคราวโดยไม่ต้องลบวันที่ สิทธิ์ที่ลูกค้าสะสมครบแล้วยังใช้ได้ตามปกติ ไม่ถูกริบคืน</p>
+      {ready&&!('member_promo_enabled' in config)&&<div className="notice">ตั้งช่วงเวลาโปรโมชั่นต้องรัน migration <code>20260923010000_member_promo_window.sql</code> ก่อน</div>}
+      <div className="switch-row"><div><b>เปิดใช้งานการสะสมแต้ม</b><p>เมื่อปิด ลูกค้าจะไม่ได้แต้มใหม่จนกว่าจะเปิดอีกครั้ง</p></div><Switch disabled={!('member_promo_enabled' in config)} checked={form.memberPromoEnabled??!!config.member_promo_enabled} onCheckedChange={v=>setForm({...form,memberPromoEnabled:v})}/></div>
+      <div className="form-grid">
+        <Field label="เริ่มสะสม (ไม่บังคับ)"><input type="date" disabled={!('member_promo_enabled' in config)} value={form.memberPromoStart??(config.member_promo_start||'')} onChange={e=>setForm({...form,memberPromoStart:e.target.value})}/></Field>
+        <Field label="สิ้นสุด (ไม่บังคับ)"><input type="date" disabled={!('member_promo_enabled' in config)} value={form.memberPromoEnd??(config.member_promo_end||'')} onChange={e=>setForm({...form,memberPromoEnd:e.target.value})}/></Field>
+      </div>
+      <p className="muted">เว้นว่างทั้งสองช่องเพื่อสะสมแต้มได้ตลอดไป (ไม่จำกัดช่วงเวลา)</p>
       <button disabled={busy||!ready}>บันทึกระบบสมาชิก</button>
     </form></div>;
 }

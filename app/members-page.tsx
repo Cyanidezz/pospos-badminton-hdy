@@ -1,12 +1,12 @@
 'use client';
 import {useMemo,useState} from 'react';
 import {Gift,Pencil,Phone,Search} from 'lucide-react';
-import {billEarnsStamp,buildCustomers,matchCustomers,phoneDigits,type Customer} from '@/lib/customers';
+import {billEarnsStamp,buildCustomers,matchCustomers,phoneDigits,promoOf,type Customer} from '@/lib/customers';
 import {CustomerInput} from './job-form';
 
 const baht=(satang:number)=>'฿'+(satang/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const day=(iso:string)=>iso?new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit',timeZone:'Asia/Bangkok'}):'—';
-const options=(config:any,sales:any[])=>({stampsRequired:config?.member_stamps_required,sales,posMinAmount:Number(config?.member_pos_min_amount)||0,notes:config?.customer_notes,manualMembers:config?.manual_members});
+const options=(config:any,sales:any[])=>({stampsRequired:config?.member_stamps_required,sales,posMinAmount:Number(config?.member_pos_min_amount)||0,notes:config?.customer_notes,manualMembers:config?.manual_members,promo:promoOf(config)});
 
 // The customer's stamp card: one circle per stamp needed for the next free stringing.
 export function StampCard({customer}:{customer:Customer}){
@@ -32,7 +32,7 @@ function EditForm({customer,onSave,onDone}:any){
   </form>;
 }
 
-function Detail({customer,posMin,onSave,setKey}:any){
+function Detail({customer,posMin,promo,onSave,setKey}:any){
   const [editing,setEditing]=useState(false);
   return <div className="member-detail">
     <div className="member-title"><div><h2>{customer.name}</h2>{customer.phone&&<a className="contact-link" href={'tel:'+customer.phone.replace(/[^0-9+]/g,'')}><Phone size={16}/>{customer.phone}</a>}</div>
@@ -48,7 +48,7 @@ function Detail({customer,posMin,onSave,setKey}:any){
       </tbody></table></div></div>}
     {customer.sales.length>0&&<div className="member-block"><h3>ซื้อที่หน้าร้าน (POS)</h3>
       <div className="table-scroll"><table className="member-table"><thead><tr><th>วันที่</th><th>ชำระโดย</th><th>ยอด</th><th>แต้ม</th></tr></thead><tbody>
-        {customer.sales.map((s:any)=><tr key={s.id}><td>{day(s.created)}</td><td>{s.method}</td><td>{baht(s.total)}</td><td>{billEarnsStamp(s,posMin)?'+1':'—'}</td></tr>)}
+        {customer.sales.map((s:any)=><tr key={s.id}><td>{day(s.created)}</td><td>{s.method}</td><td>{baht(s.total)}</td><td>{billEarnsStamp(s,posMin,promo)?'+1':'—'}</td></tr>)}
       </tbody></table></div></div>}
   </div>;
 }
@@ -56,7 +56,7 @@ function Detail({customer,posMin,onSave,setKey}:any){
 export function MembersPage({jobs,sales,config,onSave}:any){
   const [query,setQuery]=useState(''),[key,setKey]=useState('');
   const posMin=Number(config?.member_pos_min_amount)||0;
-  const customers=useMemo(()=>buildCustomers(jobs,options(config,sales)),[jobs,sales,config?.member_stamps_required,config?.member_pos_min_amount,config?.customer_notes]);
+  const customers=useMemo(()=>buildCustomers(jobs,options(config,sales)),[jobs,sales,config?.member_stamps_required,config?.member_pos_min_amount,config?.customer_notes,config?.member_promo_enabled,config?.member_promo_start,config?.member_promo_end]);
   const text=query.trim().toLowerCase(),digits=phoneDigits(query);
   const shown=customers.filter(c=>!text||c.name.toLowerCase().includes(text)||(digits.length>=3&&phoneDigits(c.phone).includes(digits)));
   const selected=customers.find(c=>c.key===key)||shown[0]||null;
@@ -71,14 +71,14 @@ export function MembersPage({jobs,sales,config,onSave}:any){
         <div className="member-row-side">{c.available>0?<span className="badge green"><Gift size={12}/> ฟรี {c.available}</span>:<span className="stamp-mini">{c.progress}/{c.need}</span>}</div>
       </button></li>)}</ul>}
     </section>
-    <section className="panel members-detail">{selected?<Detail customer={selected} posMin={posMin} onSave={onSave} setKey={setKey}/>:<div className="empty"><h3>เลือกลูกค้าเพื่อดูรายละเอียด</h3></div>}</section>
+    <section className="panel members-detail">{selected?<Detail customer={selected} posMin={posMin} promo={promoOf(config)} onSave={onSave} setKey={setKey}/>:<div className="empty"><h3>เลือกลูกค้าเพื่อดูรายละเอียด</h3></div>}</section>
   </div>;
 }
 
 // Pick a member while checking out at the POS: the bill is linked to them (and earns a stamp).
 export function MemberPicker({jobs,sales,config,value,onChange,total}:any){
   const posMin=Number(config?.member_pos_min_amount)||0,need=Number(config?.member_stamps_required)||10;
-  const customers=useMemo(()=>buildCustomers(jobs,options(config,sales)),[jobs,sales,config?.member_stamps_required,config?.member_pos_min_amount,config?.customer_notes]);
+  const customers=useMemo(()=>buildCustomers(jobs,options(config,sales)),[jobs,sales,config?.member_stamps_required,config?.member_pos_min_amount,config?.customer_notes,config?.member_promo_enabled,config?.member_promo_start,config?.member_promo_end]);
   const [query,setQuery]=useState(''),[adding,setAdding]=useState(false),[newName,setNewName]=useState(''),[newPhone,setNewPhone]=useState('');
   const digits=phoneDigits(newPhone);
   if(value){

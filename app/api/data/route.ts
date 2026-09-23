@@ -58,7 +58,12 @@ else if(action==='voidSale'){owner(me);const sale:any=await one("SELECT * FROM s
 else if(action==='job'){const p=await one('SELECT * FROM products WHERE id=? AND active=1 AND category=?',b.productId,'เอ็นแบดมินตัน');if(!p)throw new Error('กรุณาเลือกเอ็น');const stringer=await one('SELECT id FROM members WHERE id=? AND active=1',b.stringerId);if(!stringer)throw new Error('กรุณาเลือกผู้ขึ้นเอ็น');const photos=await ownedFiles(b.photos||[]),token=uid()+uid().replaceAll('-','');const listed=money(b.amount);let amount=listed,rewardDiscount=0;
 if(b.useReward){const phone=str(b.phone,30),digits=phone.replace(/\D/g,''),need=Number(config.member_stamps_required)||10;if(!digits)throw new Error('ต้องมีเบอร์โทรเพื่อใช้สิทธิ์สมาชิก');
 const posMin=Number(config.member_pos_min_amount)||0;
-const stat:any=await one("SELECT (SELECT COUNT(*) FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND status<>'ยกเลิก' AND paid=1 AND reward_used=0)+(SELECT COUNT(*) FROM sales WHERE customer_key=? AND status='active' AND job_id IS NULL AND total>=?) AS stamps,(SELECT COUNT(*) FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND status<>'ยกเลิก' AND reward_used=1) AS used",digits,digits,posMin,digits);
+// Same rule as withinPromo() in lib/customers.ts: a visit only counts toward the reward while the promotion is on
+// (and, if set, inside its date window) - a reward already earned still redeems fine either way.
+const promoOn=!('member_promo_enabled' in config)||config.member_promo_enabled!==0;
+const dateFilter=promoOn?"AND created>=COALESCE(?,'0000-01-01') AND created<=COALESCE(?,'9999-12-31')":'AND 1=0';
+const dateArgs=promoOn?[config.member_promo_start||null,config.member_promo_end||null]:[];
+const stat:any=await one(`SELECT (SELECT COUNT(*) FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND status<>'ยกเลิก' AND paid=1 AND reward_used=0 ${dateFilter})+(SELECT COUNT(*) FROM sales WHERE customer_key=? AND status='active' AND job_id IS NULL AND total>=? ${dateFilter}) AS stamps,(SELECT COUNT(*) FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND status<>'ยกเลิก' AND reward_used=1) AS used`,digits,...dateArgs,digits,posMin,...dateArgs,digits);
 if(Math.floor(Number(stat.stamps)/need)-Number(stat.used)<1)throw new Error('ลูกค้ายังไม่มีสิทธิ์ขึ้นเอ็นฟรี');
 const cap=config.member_reward_cap;rewardDiscount=cap===null||cap===undefined?listed:Math.min(listed,Number(cap));amount=listed-rewardDiscount;}
 // A returning customer (matched by phone) who already linked LINE on an earlier job gets it carried over to this
@@ -110,6 +115,15 @@ if(b.bankAccountNo!==undefined){const no=text(b.bankAccountNo,40,'เลขท�
 if(b.memberStampsRequired!==undefined){const n=Math.round(Number(b.memberStampsRequired));if(!Number.isFinite(n)||n<1||n>100)throw new Error('จำนวนครั้งที่ครบสิทธิ์ต้องอยู่ระหว่าง 1–100');sets.push(['member_stamps_required',n]);}
 if(b.memberPosMinAmount!==undefined)sets.push(['member_pos_min_amount',b.memberPosMinAmount===''||b.memberPosMinAmount===null?0:money(b.memberPosMinAmount)]);
 if(b.memberRewardCap!==undefined)sets.push(['member_reward_cap',b.memberRewardCap===''||b.memberRewardCap===null?null:money(b.memberRewardCap)]);
+if(b.memberPromoEnabled!==undefined)sets.push(['member_promo_enabled',b.memberPromoEnabled?1:0]);
+const promoDate=(v:any,label:string)=>{if(v===undefined||v===''||v===null)return null;const t=String(v).trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(t))throw new Error(label+'ไม่ถูกต้อง');return t};
+if(b.memberPromoStart!==undefined||b.memberPromoEnd!==undefined){
+const newStart=b.memberPromoStart!==undefined?promoDate(b.memberPromoStart,'วันที่เริ่มโปรโมชั่น'):config.member_promo_start;
+const newEnd=b.memberPromoEnd!==undefined?promoDate(b.memberPromoEnd,'วันที่สิ้นสุดโปรโมชั่น'):config.member_promo_end;
+if(newStart&&newEnd&&newStart>newEnd)throw new Error('วันที่เริ่มโปรโมชั่นต้องมาก่อนวันที่สิ้นสุด');
+if(b.memberPromoStart!==undefined)sets.push(['member_promo_start',newStart]);
+if(b.memberPromoEnd!==undefined)sets.push(['member_promo_end',newEnd]);
+}
 if(b.bankQr!==undefined){const qr=String(b.bankQr||'');if(qr)await ownedFiles([qr]);sets.push(['bank_qr',qr||null]);}
 statements.push(q('UPDATE config SET '+sets.map(([column])=>column+'=?').join(',')+' WHERE id=1',...sets.map(([,value])=>value)));}
 else if(action==='expense'){const date=str(b.date,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error('วันที่ไม่ถูกต้อง');const rows=Array.isArray(b.items)?b.items:[b];if(!rows.length||rows.length>50)throw new Error('บันทึกได้ครั้งละ 1–50 รายการ');for(const [i,x] of rows.entries()){const photos=await ownedFiles(x.photos||[]);const amount=money(x.amount);if(amount<=0)throw new Error('จำนวนเงินค่าใช้จ่ายต้องมากกว่า 0');statements.push(q('INSERT INTO expenses(id,date,category,name,amount,photos) VALUES(?,?,?,?,?,?)',id+'-'+i,date,str(x.category||'อื่น ๆ',60),str(x.name),amount,JSON.stringify(photos)));}}

@@ -1,6 +1,6 @@
 import {all,one} from '@/lib/server';
 import {DEFAULT_SHOP,parseHours} from '@/lib/shop-hours';
-import {buildCustomers} from '@/lib/customers';
+import {buildCustomers,promoOf} from '@/lib/customers';
 
 // The customer's own stamp progress, shown on their tracking page. Only their numbers (not their whole job/sale
 // history, and not the staff-only note) - built the same way as the "ลูกค้าสมาชิก" page, from just their own rows.
@@ -12,7 +12,7 @@ async function memberStatus(config:any,phone:string){
     all("SELECT customer,phone,racket,tension,created,status,paid,amount,reward_used FROM jobs WHERE regexp_replace(phone,'\\D','','g')=?",key),
     all('SELECT created,total,customer_key,job_id,status FROM sales WHERE customer_key=?',key),
   ]);
-  const [customer]=buildCustomers(jobs,{stampsRequired:config.member_stamps_required,sales,posMinAmount:config.member_pos_min_amount});
+  const [customer]=buildCustomers(jobs,{stampsRequired:config.member_stamps_required,sales,posMinAmount:config.member_pos_min_amount,promo:promoOf(config)});
   if(!customer)return null;
   return {stamps:customer.stamps,need:customer.need,progress:customer.progress,earned:customer.earned,used:customer.used,available:customer.available,rewardCap:config.member_reward_cap??null};
 }
