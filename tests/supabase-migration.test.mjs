@@ -161,6 +161,39 @@ test("PO editor: adding a new product doesn't require a cost, and every past PO'
   assert.match(css, /\.po-card-detail\{grid-column:1\/-1/);
 });
 
+test("cashiers never see product cost, on the PO page or over the network", async () => {
+  const dataRoute = await read("app/api/data/route.ts");
+  const po = await read("app/purchase-orders.tsx");
+
+  // server: cost/total are nulled for anyone without owner access, the same way products.cost and receipts.cost
+  // already are - so a cashier session never receives the figures at all, not just a UI that hides them
+  const getBlock = dataRoute.slice(dataRoute.indexOf("export async function GET"), dataRoute.indexOf("export async function POST"));
+  assert.match(getBlock, /poTotal=isOwner\?'total':'NULL as total'/);
+  assert.match(getBlock, /SELECT id,date,supplier_id,note,evidence,\$\{poTotal\},status,created_by,created,updated,approved_by,approved_at,paid_at,received_at FROM purchase_orders/);
+  assert.match(getBlock, /SELECT id,purchase_order_id,product_id,name,qty,\$\{cost\} FROM purchase_order_items/);
+  assert.doesNotMatch(getBlock, /SELECT \* FROM purchase_orders/);
+  assert.doesNotMatch(getBlock, /SELECT \* FROM purchase_order_items/);
+
+  // server: saving a draft never trusts a submitted cost from a non-owner - it keeps whatever is already stored
+  // for a product already on the PO (a cashier's form only ever shows blank costs, so trusting it would silently
+  // zero out costs the owner had entered), and only a genuinely new line item defaults to 0
+  const saveAction = dataRoute.slice(dataRoute.indexOf("action==='purchaseOrderSave'"), dataRoute.indexOf("else if(action==='purchaseOrderStatus')"));
+  assert.match(saveAction, /oldCostByProduct:any=!isOwner&&existing\?Object\.fromEntries\(\(await all\('SELECT product_id,cost FROM purchase_order_items WHERE purchase_order_id=\?',poId\)\)/);
+  assert.match(saveAction, /const itemCost=isOwner\?money\(x\.cost\):\(oldCostByProduct\[product\.id\]\?\?0\);/);
+
+  // client: every cost/total display in the PO editor and history is owner-gated
+  assert.match(po, /<\/div>\{owner&&<strong>฿\{money\(total\)\}<\/strong>\}<\/header>/, "editor header total");
+  assert.match(po, /\{owner&&<input type="number" min="0" step="0\.01" placeholder="ต้นทุน \(ไม่บังคับ\)"/, "new-product mini-form cost field");
+  assert.match(po, /\{owner&&<label><span>ต้นทุน\/ชิ้น<\/span><input type="number" min="0" step="0\.01" value=\{item\.cost\}/, "per-item cost input");
+  assert.match(po, /\{owner&&<strong>฿\{money\(Number\(item\.qty\|\|0\)\*Math\.round\(Number\(item\.cost\|\|0\)\*100\)\)\}<\/strong>\}/, "per-item line total");
+  assert.match(po, /<footer className="po-editor-footer">\{owner&&<div><span>ยอดรวมใบ PO<\/span>/, "footer total");
+  assert.match(po, /\{owner&&<strong>฿\{money\(order\.total\)\}<\/strong>\}<div className="po-card-actions">/, "list card total");
+  assert.match(po, /<th>จำนวน<\/th>\{owner&&<><th>ต้นทุน\/ชิ้น<\/th><th>รวม<\/th><\/>\}/, "detail table columns");
+  assert.match(po, /<span>\{group\.length\} ใบ\{owner&&`/, "date-group heading total");
+  // editing an existing draft reads a masked (null) cost safely, same null-guard addProduct() already uses
+  assert.match(po, /cost:x\.cost==null\?'':x\.cost\/100/);
+});
+
 test("keeps purchase orders staged until inventory is received", async () => {
   const migration = await read("supabase/migrations/20260917001000_purchase_orders.sql");
   const approvalMigration = await read("supabase/migrations/20260917010000_purchase_order_approval.sql");
