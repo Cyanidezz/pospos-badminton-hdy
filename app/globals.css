@@ -720,29 +720,39 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .with-scan .suggest-wrap{flex:1;min-width:0}
 /* A light rule separating sub-sections within a settings panel (e.g. ระบบสมาชิก's promo window from the stamp rules above it). */
 .panel-divider{border:0;border-top:1px solid #e3e8f2;margin:22px 0 16px}
-/* Inventory list on iPad/tablet and phones: each product is a compact card (name + status + menu on top, the figures as
-   small labelled cells underneath) instead of a squeezed 9-column table or a 980px table scrolled sideways. The header
-   row stays as a wrap-around bar of sort buttons (and select-all). */
+/* Inventory list on iPad/tablet and phones: one short line per product (name, price, stock, status) instead of a
+   squeezed 9-column table or a 980px table scrolled sideways. The code, cost and category open under it with the
+   chevron button (two lines when the list itself is narrow). The header row stays as a wrap-around bar of sort buttons (and select-all). */
+.inventory-more-toggle{display:none!important}
 @media(max-width:1100px){
 .inventory-list-panel,.inventory-table-wrap{overflow:visible!important}
+.inventory-list-panel{container:invlist/inline-size}
 .inventory-list-table,.inventory-list-table thead,.inventory-list-table tbody{display:block;width:100%;min-width:0!important;table-layout:auto}
 .inventory-list-table thead tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;padding:9px 14px;background:#e6eefc;border-bottom:1px solid #c9d8f3}
 .inventory-list-table th{display:block;width:auto!important;padding:0!important;border:0!important;background:transparent;font-size:12.5px}
 .inventory-list-table th:empty{display:none}
-.inventory-list-table tbody tr{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;height:auto!important;padding:11px 14px;border-bottom:1px solid #e4e9f2}
+.inventory-list-table tbody tr{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:0 14px;height:auto!important;padding:9px 12px 9px 14px;border-bottom:1px solid #e4e9f2}
 .inventory-list-table.has-select tbody tr:has(.inv-sel){padding-left:46px}
 .inventory-list-table tbody td{display:block;width:auto!important;padding:0!important;border:0!important;overflow:visible!important;min-width:0}
-.inventory-list-table td.inv-sel{position:absolute!important;left:14px;top:22px}
-.inventory-list-table tbody tr:after{content:'';order:4;flex-basis:100%;height:0;margin-top:-8px}
-.inventory-list-table td.inv-product{order:1;flex:1 1 55%}
-.inventory-list-table td.inv-status{order:2}
+.inventory-list-table td.inv-sel{position:absolute!important;left:14px;top:20px}
+.inventory-list-table td.inv-product{order:1;flex:1 1 0}
+.inventory-list-table td.inv-price{order:2;width:104px!important;text-align:right}
+.inventory-list-table td.inv-stock{order:3;width:62px!important;text-align:right}
+.inventory-list-table td.inv-status{order:4;width:78px!important;min-width:0!important;text-align:center}
 .inventory-list-table td.inv-status .stock-state{margin:0;font-size:11px;padding:5px 9px!important;white-space:nowrap}
-.inventory-list-table td.inv-actions{order:3;width:36px!important}
-.inventory-row-actions{min-width:36px}
-.inventory-list-table td.inv-meta{order:5;flex:1 1 0;display:flex;flex-direction:column;gap:1px;font-size:13px;line-height:1.3;color:#34425b}
+.inventory-list-table td.inv-actions{order:5;width:auto!important}
+.inventory-row-actions{min-width:0;display:flex;gap:8px}
+.inventory-more-toggle{width:36px!important;height:36px!important;min-height:36px!important;padding:0!important;border:1px solid #d9dfeb!important;border-radius:10px!important;background:#fff!important;color:#59657c!important;display:grid!important;flex:none;place-items:center;box-shadow:none!important}
+.inventory-more-toggle svg{transition:transform .15s}
+.is-open .inventory-more-toggle{background:#eef3fd!important;color:#3a70d4!important;border-color:#c9d8f3!important}
+.is-open .inventory-more-toggle svg{transform:rotate(180deg)}
+.inventory-list-table td.inv-meta{display:flex;flex-direction:column;gap:1px;font-size:13px;line-height:1.3;color:#34425b}
 .inventory-list-table td.inv-meta:before{content:attr(data-label);font-size:11px;font-weight:600;color:#8391a7}
+.inventory-list-table td.inv-code,.inventory-list-table td.inv-cost,.inventory-list-table td.inv-cat{order:8;display:none}
+.inventory-list-table tbody tr.is-open:after{content:'';order:7;flex-basis:100%;height:0}
+.inventory-list-table tr.is-open td.inv-code,.inventory-list-table tr.is-open td.inv-cost,.inventory-list-table tr.is-open td.inv-cat{display:flex;margin-top:9px;padding:6px 10px!important;background:#f4f6fa;border-radius:8px;flex:0 1 auto;min-width:110px}
+.inventory-list-table tr.is-open td.inv-code{margin-left:51px}
 .inventory-list-table td.inv-meta code{font-size:12px;overflow-wrap:anywhere}
-.inventory-list-table td.inv-code{flex-grow:1.6;margin-left:51px}
 .inventory-list-product{min-width:0!important;gap:11px}
 .inventory-list-product>div{min-width:0}
 .inventory-list-product b{display:block;overflow-wrap:anywhere;line-height:1.3}
@@ -750,16 +760,29 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .inventory-list-table tbody tr:has(.inventory-row-menu){z-index:100}
 .inventory-row-more:has(.inventory-row-menu){z-index:110}
 }
-@media(max-width:760px){
-.inventory-list-table tbody tr{padding:10px 12px;gap:8px}
+/* two lines once the list itself is narrow: a phone, or a portrait tablet with the sidebar open */
+@container invlist (max-width:640px){
+.inventory-list-table tbody tr{padding:10px 12px;gap:0 8px}
 .inventory-list-table.has-select tbody tr:has(.inv-sel){padding-left:40px}
-.inventory-list-table td.inv-sel{left:12px;top:20px}
-.inventory-list-table td.inv-product{flex-basis:calc(100% - 150px)}
-.inventory-list-table tbody tr:before{content:'';order:6;flex-basis:100%;height:0;margin-top:-8px}
-.inventory-list-table td.inv-code,.inventory-list-table td.inv-cat{order:5;flex:0 1 auto;flex-direction:row;align-items:baseline;gap:5px;margin-left:0;font-size:12.5px;color:#56647c}
-.inventory-list-table td.inv-code:after{content:'·';margin-left:4px;color:#a3aec0}
-.inventory-list-table td.inv-meta:not(.inv-code):not(.inv-cat){order:7;padding:5px 9px!important;background:#f4f6fa;border-radius:8px}
+.inventory-list-table td.inv-sel{left:12px;top:18px}
+.inventory-list-table tbody tr:before{content:'';order:2;flex-basis:100%;height:0}
+.inventory-list-table td.inv-product{order:1}
+.inventory-list-table td.inv-actions{order:1}
+.inventory-list-table td.inv-price,.inventory-list-table td.inv-stock,.inventory-list-table td.inv-status{order:3;width:auto!important;text-align:left;margin-top:6px}
+.inventory-list-table td.inv-price,.inventory-list-table td.inv-stock{flex-direction:row;align-items:baseline;gap:5px}
+.inventory-list-table td.inv-price{margin-left:43px}
+.inventory-list-table td.inv-status{margin-left:auto}
+.inventory-list-table td.inv-status .stock-state{padding:4px 8px!important}
+.inventory-list-table tr.is-open td.inv-code{margin-left:0;flex-basis:100%}
+.inventory-list-table tr.is-open td.inv-cost,.inventory-list-table tr.is-open td.inv-cat{flex:1 1 40%;margin-top:6px}
+.inventory-list-table tr.is-open td.inv-code{margin-top:8px}
+.inventory-list-table tr.is-open td.inv-cost{margin-right:6px}
 .inventory-list-table thead tr{padding:8px 12px;gap:4px 10px}
 .inventory-list-table th{font-size:12px}
 .inventory-list-product{gap:9px}.inventory-list-product img,.inventory-list-product>span{width:34px;height:34px}
 }
+@container invlist (max-width:420px){.inventory-list-table td.inv-price{margin-left:0}}
+/* the filter bar follows the width it actually gets, so a portrait tablet with the sidebar open doesn't push the
+   last dropdown out of the frame */
+@media(max-width:1100px){.inventory-controls-row{container:invcontrols/inline-size}}
+@container invcontrols (max-width:640px){.inventory-toolbar{grid-template-columns:1fr 1fr}.inventory-toolbar .search-box{grid-column:1/-1}.inventory-toolbar label:last-child{grid-column:1/-1}}

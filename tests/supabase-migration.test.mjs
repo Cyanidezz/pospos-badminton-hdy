@@ -1042,17 +1042,21 @@ test("staff stamp card (ลูกค้าสมาชิก) is compact on desk
   assert.match(css, /\.stamp-card-panel \.stamp-dots\{grid-template-columns:repeat\(10,34px\);gap:8px\}/);
 });
 
-test("inventory list turns into compact cards on iPad/tablet and phones instead of a squeezed or side-scrolled table", async () => {
+test("inventory list on iPad/tablet and phones: one short line per product, details behind a toggle", async () => {
   const pos = await read("app/pos.tsx");
   const css = await read("app/globals.css");
-  for (const cls of ["inv-sel", "inv-product", "inv-meta inv-code", "inv-meta inv-cat", "inv-status", "inv-actions"]) assert.match(pos, new RegExp(`<td className="${cls}"`), cls);
-  assert.match(pos, /<td className="inv-meta" data-label="ราคา">/);
-  assert.match(pos, /\{owner&&<td className="inv-meta" data-label="ทุน">/, "cost stays owner-only");
+  for (const cls of ["inv-sel", "inv-product", "inv-meta inv-code", "inv-meta inv-price", "inv-meta inv-stock", "inv-meta inv-cat", "inv-status", "inv-actions"]) assert.match(pos, new RegExp(`<td className="${cls}"`), cls);
+  assert.match(pos, /\{owner&&<td className="inv-meta inv-cost" data-label="ทุน">/, "cost stays owner-only");
+  assert.match(pos, /<td className="inv-actions"><div className="inventory-row-actions"><button type="button" className="inventory-more-toggle" aria-expanded=\{inventoryOpen\.includes\(p\.id\)\}/, "toggle lives in the existing actions cell so desktop column counts (and nth-child widths) don't shift");
+  assert.match(pos, /inventoryOpen\.includes\(p\.id\)\?' is-open':''/);
+  assert.match(css, /^\.inventory-more-toggle\{display:none!important\}/m, "desktop table has no toggle");
   const tablet = css.slice(css.indexOf("@media(max-width:1100px){\n.inventory-list-panel,.inventory-table-wrap{overflow:visible!important}"));
-  assert.ok(tablet.length > 0);
   assert.match(tablet, /\.inventory-list-table,\.inventory-list-table thead,\.inventory-list-table tbody\{display:block;width:100%;min-width:0!important/, "overrides the 980px min-width that forced sideways scrolling");
-  assert.match(tablet, /\.inventory-list-table tbody tr:after\{content:'';order:4;flex-basis:100%/, "the figures always wrap under the product name");
-  assert.match(tablet, /td\.inv-meta:before\{content:attr\(data-label\)/);
-  assert.match(tablet, /tbody tr:has\(\.inventory-row-menu\)\{z-index:100\}/, "the row menu stays above the next card");
-  assert.match(tablet, /@media\(max-width:760px\)\{[^}]*\}[\s\S]*td\.inv-code,\.inventory-list-table td\.inv-cat\{order:5/);
+  assert.match(tablet, /td\.inv-code,\.inventory-list-table td\.inv-cost,\.inventory-list-table td\.inv-cat\{order:8;display:none\}/, "code, cost and category are hidden until opened");
+  assert.match(tablet, /tr\.is-open td\.inv-code,\.inventory-list-table tr\.is-open td\.inv-cost,\.inventory-list-table tr\.is-open td\.inv-cat\{display:flex/);
+  assert.match(tablet, /td\.inv-status\{order:4;width:78px!important;min-width:0!important/, "the old 150px nth-last-child(3) min-width must not push the badge onto its own line");
+  assert.match(css, /\.inventory-list-panel\{container:invlist\/inline-size\}/);
+  assert.match(css, /@container invlist \(max-width:640px\)\{/, "two-line layout follows the list's own width (portrait iPad with the sidebar open), not the viewport");
+  assert.match(css, /@container invcontrols \(max-width:640px\)\{\.inventory-toolbar\{grid-template-columns:1fr 1fr\}/, "the filter bar no longer pushes the last dropdown out of the frame");
+  assert.match(tablet, /tbody tr:has\(\.inventory-row-menu\)\{z-index:100\}/, "the row menu stays above the next row");
 });
