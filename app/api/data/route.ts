@@ -1,7 +1,7 @@
 import {auth,owner,permit,permissions,permissionKeys,defaultCashierPermissions,db,all,allInOne,one,uid,now,str,num,money,integer,categories,getCategories,statuses,normalizeJobStatus,transaction,ownedFiles,notifyJob,runtime} from '@/lib/server';
 import {createSupabaseAdminClient} from '@/lib/supabase/admin';
 import {normalizeHours} from '@/lib/shop-hours';
-import {availableRewardsSql} from '@/lib/member-reward';
+import {starsSql} from '@/lib/member-reward';
 import {REWARD_REASON,rewardDiscount as rewardOff} from '@/lib/customers';
 export const dynamic='force-dynamic';
 export async function GET(){try{const me=await auth(),isOwner=me.role==='owner',access=permissions(me),mine=isOwner?[]:[me.id],cost=isOwner?'cost':'NULL as cost',poTotal=isOwner?'total':'NULL as total',none:[string]=['SELECT 1 WHERE false'];
@@ -69,8 +69,9 @@ else if(action==='editSale'){owner(me);const sale:any=await one("SELECT * FROM s
 else if(action==='voidSale'){owner(me);const sale:any=await one("SELECT * FROM sales WHERE id=? AND status='active'",b.id);if(!sale)throw new Error('ไม่พบบิลหรือบิลถูกยกเลิกแล้ว');const reason=str(b.reason,500),rows:any[]=await all('SELECT product_id,qty FROM items WHERE sale_id=?',sale.id);statements.push(q("UPDATE sales SET status='voided',void_reason=?,voided_at=?,voided_by=? WHERE id=? AND status='active'",reason,now(),me.id,sale.id));for(const row of rows)if(row.product_id)statements.push(q('UPDATE products SET stock=stock+? WHERE id=?',row.qty,row.product_id));if(sale.job_id)statements.push(q('UPDATE jobs SET paid=0 WHERE id=?',sale.job_id));result={id:sale.id};}
 else if(action==='job'){const p=await one('SELECT * FROM products WHERE id=? AND active=1 AND category=?',b.productId,'เอ็นแบดมินตัน');if(!p)throw new Error('กรุณาเลือกเอ็น');const stringer=await one('SELECT id FROM members WHERE id=? AND active=1',b.stringerId);if(!stringer)throw new Error('กรุณาเลือกผู้ขึ้นเอ็น');const photos=await ownedFiles(b.photos||[]),token=uid()+uid().replaceAll('-','');const listed=money(b.amount);let amount=listed,rewardDiscount=0;
 if(b.useReward){const phone=str(b.phone,30),digits=phone.replace(/\D/g,'');if(!digits)throw new Error('ต้องมีเบอร์โทรเพื่อใช้สิทธิ์สมาชิก');
-const available=availableRewardsSql(config,digits),stat:any=await one(`SELECT ${available.sql} AS available`,...available.args);
-if(Number(stat.available)<1)throw new Error('ลูกค้ายังไม่มีสิทธิ์ขึ้นเอ็นฟรี');
+const stars=starsSql(config,digits),stat:any=await one(`SELECT ${stars.sql} AS stars`,...stars.args);
+if(Number(stat.stars)<(Number(config.member_stamps_required)||10))throw new Error('ลูกค้ายังไม่มีสิทธิ์ขึ้นเอ็นฟรี');
+statements.push(q('SELECT pg_advisory_xact_lock(hashtext(?))','member-reward:'+digits));
 rewardDiscount=rewardOff(listed,config.member_reward_cap);amount=listed-rewardDiscount;}
 // A returning customer (matched by phone) who already linked LINE on an earlier job gets it carried over to this
 // one automatically, so they get the status update right away instead of having to tap "LINK" again every visit.
@@ -131,6 +132,8 @@ if(b.bankName!==undefined)sets.push(['bank_name',text(b.bankName,60,'ชื่�
 if(b.bankAccountName!==undefined)sets.push(['bank_account_name',text(b.bankAccountName,100,'ชื่อบัญชี')]);
 if(b.bankAccountNo!==undefined){const no=text(b.bankAccountNo,40,'เลขที่บัญชี');if(!/^[0-9\-\s]*$/.test(no))throw new Error('เลขที่บัญชีใช้ได้เฉพาะตัวเลขและเครื่องหมาย -');sets.push(['bank_account_no',no]);}
 if(b.memberStampsRequired!==undefined){const n=Math.round(Number(b.memberStampsRequired));if(!Number.isFinite(n)||n<1||n>100)throw new Error('จำนวนครั้งที่ครบสิทธิ์ต้องอยู่ระหว่าง 1–100');sets.push(['member_stamps_required',n]);}
+if(b.memberSocksStampsRequired!==undefined){const n=Math.round(Number(b.memberSocksStampsRequired));if(!Number.isFinite(n)||n<1||n>100)throw new Error('จำนวนครั้งที่ครบสิทธิ์ถุงเท้าต้องอยู่ระหว่าง 1–100');sets.push(['member_socks_stamps_required',n]);}
+if(b.memberSocksProductId!==undefined){if(!b.memberSocksProductId)sets.push(['member_socks_product_id',null]);else{const p=await one('SELECT id FROM products WHERE id=? AND active=1',b.memberSocksProductId);if(!p)throw new Error('ไม่พบสินค้าที่เลือกเป็นของรางวัลถุงเท้า');sets.push(['member_socks_product_id',p.id]);}}
 if(b.memberPosMinAmount!==undefined)sets.push(['member_pos_min_amount',b.memberPosMinAmount===''||b.memberPosMinAmount===null?0:money(b.memberPosMinAmount)]);
 if(b.memberRewardCap!==undefined)sets.push(['member_reward_cap',b.memberRewardCap===''||b.memberRewardCap===null?null:money(b.memberRewardCap)]);
 if(b.memberPromoEnabled!==undefined)sets.push(['member_promo_enabled',b.memberPromoEnabled?1:0]);

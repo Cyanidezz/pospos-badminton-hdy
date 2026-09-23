@@ -803,3 +803,13 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .promo-window{margin:6px 0 0;font-size:12.5px;font-weight:600}
 .promo-window.active,.promo-window.upcoming{color:#4c6699}
 .promo-window.paused,.promo-window.ended{padding:8px 11px;border-radius:10px;background:#f3f0e4;color:#8a6d1f}
+/* Two reward tiers on one star bar: the socks milestone (5th dot) gets a small ring so it stands out from the
+   full-cycle (string reward) end of the bar, and the socks redeem button uses a different color from the string
+   one so the two "แลกได้" buttons (when both are available at once) are easy to tell apart at a glance. */
+.stamp-dots span.is-milestone{box-shadow:0 0 0 3px #ffd77a}
+.stamp-dots span.is-filled.is-milestone{box-shadow:0 0 0 3px #ffd77a,0 5px 12px rgba(58,112,212,.3)}
+.redeem-cta.socks{background:linear-gradient(135deg,#3a8fd7,#2c66c9)!important;box-shadow:0 10px 24px rgba(44,102,201,.24)!important}
+.stamp-both-notice{margin:10px 0 0;padding:8px 11px;border-radius:10px;background:#eef2fa;color:#4c6699;font-size:12.5px;font-weight:600}
+/* The confirm box now also appears nested inside a reward-tier box (socks/string side by side), which is narrower
+   than the full card - stack its two buttons instead of squeezing them side by side and wrapping their text. */
+.stamp-reward .redeem-confirm>div{grid-template-columns:1fr}

@@ -12,12 +12,14 @@ async function memberStatus(config:any,phone:string){
   if(key.length<9)return null;
   const [jobs,sales]=await Promise.all([
     all("SELECT customer,phone,racket,tension,created,status,paid,amount,reward_used FROM jobs WHERE regexp_replace(phone,'\\D','','g')=?",key),
-    all('SELECT created,total,customer_key,job_id,status FROM sales WHERE customer_key=?',key),
+    all('SELECT created,total,customer_key,job_id,status,discount_reason FROM sales WHERE customer_key=?',key),
   ]);
   const promo=promoOf(config);
-  const [customer]=buildCustomers(jobs,{stampsRequired:config.member_stamps_required,sales,posMinAmount:config.member_pos_min_amount,promo});
+  const [customer]=buildCustomers(jobs,{stampsRequired:config.member_stamps_required,socksStampsRequired:config.member_socks_stamps_required,sales,posMinAmount:config.member_pos_min_amount,promo});
   if(!customer)return null;
-  return {stamps:customer.stamps,need:customer.need,progress:customer.progress,earned:customer.earned,used:customer.used,available:customer.available,rewardCap:config.member_reward_cap??null,
+  // The socks reward stays off (even after the migration runs) until an owner actually picks a product for it.
+  const socksProduct=config.member_socks_product_id?await one('SELECT name FROM products WHERE id=? AND active=1',config.member_socks_product_id):null;
+  return {stars:customer.stars,stringNeed:customer.stringNeed,socksNeed:customer.socksNeed,stringAvailable:customer.stringAvailable,socksAvailable:customer.socksAvailable&&!!socksProduct,stringUsed:customer.stringUsed,socksUsed:customer.socksUsed,rewardCap:config.member_reward_cap??null,socksProductName:socksProduct?.name??null,
     promo:{phase:promoPhase(promo,bangkokToday()),start:promo?.start??null,end:promo?.end??null}};
 }
 
@@ -32,7 +34,7 @@ export async function GET(req:Request,{params}:any){
   const payable=!j.paid&&j.status!=='ยกเลิก';
   // The customer can spend a free stringing on this very job themselves (POST ./redeem) while it is still unpaid,
   // has a price, and no slip is waiting for the shop to check against the old amount.
-  const rewardUsed=j.reward_used==='1',canRedeem=payable&&!rewardUsed&&!j.slip&&j.amount>0&&(member?.available||0)>0;
+  const rewardUsed=j.reward_used==='1',canRedeem=payable&&!rewardUsed&&!j.slip&&j.amount>0&&!!member?.stringAvailable;
   const reward={used:rewardUsed,discount:rewardUsed?Number(j.reward_discount)||0:0,canRedeem,redeemOff:canRedeem?rewardDiscount(j.amount,config.member_reward_cap):0};
   const bank=payable&&j.amount>0?{name:config?.bank_name||'',accountName:config?.bank_account_name||'',accountNo:config?.bank_account_no||'',hasQr:!!config?.bank_qr}:null;
   return Response.json({id:j.id,racket:j.racket,paid:j.paid,amount:j.amount,created:j.created,status:j.status==='รับไม้'?'รอขึ้นเอ็น':j.status,lineOa:config?.line_oa||'',member,reward,bank,slipUploaded:payable&&!!j.slip,shop:{phone:config?.contact_phone??DEFAULT_SHOP.phone,facebook:config?.contact_facebook??DEFAULT_SHOP.facebook,hours:parseHours(config?.opening_hours)}},{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});

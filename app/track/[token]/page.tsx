@@ -25,38 +25,64 @@ function promoNotice(promo:{phase:string|null;start:string|null;end:string|null}
   return null;
 }
 
-// Customer-facing stamp card: same idea as the staff page, worded for the customer reading their own link.
+// Customer-facing stamp card: same idea as the staff page, worded for the customer reading their own link. Two
+// reward tiers share one star count - 5 stars for socks, 10 for a free stringing - and redeeming EITHER resets it
+// to zero, so at most one of the two boxes below can ever be "used" per cycle.
 function MemberStamps({member,reward,token,onRedeemed}:{member:any;reward:any;token:string;onRedeemed:()=>void}){
-  const [confirm,setConfirm]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [confirmString,setConfirmString]=useState(false),[busyString,setBusyString]=useState(false),[errorString,setErrorString]=useState('');
+  const [confirmSocks,setConfirmSocks]=useState(false),[busySocks,setBusySocks]=useState(false),[errorSocks,setErrorSocks]=useState(''),[socksDone,setSocksDone]=useState('');
   if(!member)return null;
-  const redeem=async()=>{
-    setBusy(true);setError('');
+  const redeemString=async()=>{
+    setBusyString(true);setErrorString('');
     try{
       const r=await fetch('/api/track/'+token+'/redeem',{method:'POST'});
       const d:any=await r.json();
       if(!r.ok)throw new Error(d.error||'ใช้สิทธิ์ไม่สำเร็จ');
-      setConfirm(false);onRedeemed();
-    }catch(e:any){setError(e.message||'ใช้สิทธิ์ไม่สำเร็จ')}
-    finally{setBusy(false)}
+      setConfirmString(false);onRedeemed();
+    }catch(e:any){setErrorString(e.message||'ใช้สิทธิ์ไม่สำเร็จ')}
+    finally{setBusyString(false)}
   };
-  const dots=member.need<=20?Array.from({length:member.need},(_,i)=>i):[];
+  const redeemSocks=async()=>{
+    setBusySocks(true);setErrorSocks('');
+    try{
+      const r=await fetch('/api/track/'+token+'/redeem-socks',{method:'POST'});
+      const d:any=await r.json();
+      if(!r.ok)throw new Error(d.error||'ใช้สิทธิ์ไม่สำเร็จ');
+      setConfirmSocks(false);setSocksDone(d.product||'ถุงเท้า');onRedeemed();
+    }catch(e:any){setErrorSocks(e.message||'ใช้สิทธิ์ไม่สำเร็จ')}
+    finally{setBusySocks(false)}
+  };
+  const dots=member.stringNeed<=20?Array.from({length:member.stringNeed},(_,i)=>i):[];
   const promo=promoNotice(member.promo);
+  const bothReady=member.socksAvailable&&member.stringAvailable;
   return <section className="member-stamps" aria-label="สะสมแต้มขึ้นเอ็น">
     <div className="stamp-card">
-      <div className="stamp-head"><b>สะสมแต้มขึ้นเอ็น</b><span>{member.progress}/{member.need} ครั้ง · ครบแล้ว {member.earned} รอบ</span></div>
+      <div className="stamp-head"><b>สะสมแต้มขึ้นเอ็น</b><span>{member.stars} ดาว · แลกไปแล้ว {member.stringUsed+member.socksUsed} ครั้ง</span></div>
       {promo&&<p className={'promo-window '+promo.tone}>{promo.text}</p>}
-      {dots.length>0?<div className="stamp-dots">{dots.map(i=><span key={i} className={i<member.progress?'is-filled':''}>{i<member.progress?'✓':i+1}</span>)}</div>:<div className="stamp-bar"><i style={{width:(member.progress/member.need*100)+'%'}}/></div>}
-      <div className={'stamp-reward'+(member.available>0?' is-ready':'')}>
-        {member.available>0?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี {member.available} ครั้ง!</b> {reward?.canRedeem?'กดใช้สิทธิ์กับไม้นี้ได้เลย':'ใช้ได้กับไม้ครั้งถัดไป'} ({rewardText(member.rewardCap)})</span>
-        :<span>สะสมอีก {member.need-member.progress} ครั้ง รับสิทธิ์ขึ้นเอ็นฟรี 1 ครั้ง ({rewardText(member.rewardCap)})</span>}
+      {dots.length>0?<div className="stamp-dots">{dots.map(i=><span key={i} className={(i<member.stars?'is-filled ':'')+(i===member.socksNeed-1?'is-milestone':'')}>{i<member.stars?'✓':i+1}</span>)}</div>:<div className="stamp-bar"><i style={{width:(member.stars/member.stringNeed*100)+'%'}}/></div>}
+      {bothReady&&<p className="stamp-both-notice">มีสิทธิ์แลกได้ 2 อย่าง เลือกแลกอย่างใดอย่างหนึ่ง ระบบจะเริ่มนับดาวใหม่หลังแลก</p>}
+      {member.socksProductName&&<div className={'stamp-reward'+(member.socksAvailable?' is-ready':'')}>
+        {member.socksAvailable?<span>🧦 <b>คุณมีสิทธิ์แลก{member.socksProductName}ฟรี!</b> (ครบ {member.socksNeed} ดาว)</span>
+        :<span>สะสมอีก {Math.max(0,member.socksNeed-member.stars)} ดาว แลก{member.socksProductName}ฟรีได้ (ครบ {member.socksNeed} ดาว)</span>}
+        {socksDone&&<p className="reward-done">✓ แลก{socksDone}ฟรีสำเร็จ!</p>}
+        {member.socksAvailable&&!socksDone&&(!confirmSocks?<button type="button" className="redeem-cta socks" onClick={()=>setConfirmSocks(true)}>🧦 แลก{member.socksProductName}ฟรี</button>
+        :<div className="redeem-confirm">
+          <p>แลก{member.socksProductName}ฟรี 1 ชิ้น? ดาวจะเริ่มนับใหม่จาก 0</p>
+          <div><button type="button" className="secondary" disabled={busySocks} onClick={()=>{setConfirmSocks(false);setErrorSocks('')}}>ยกเลิก</button><button type="button" disabled={busySocks} onClick={redeemSocks}>{busySocks?'กำลังใช้สิทธิ์…':'ยืนยันใช้สิทธิ์'}</button></div>
+        </div>)}
+        {errorSocks&&<p role="alert" className="notice">{errorSocks}</p>}
+      </div>}
+      <div className={'stamp-reward'+(member.stringAvailable?' is-ready':'')}>
+        {member.stringAvailable?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี!</b> {reward?.canRedeem?'กดใช้สิทธิ์กับไม้นี้ได้เลย':'ใช้ได้กับไม้ครั้งถัดไป'} (ครบ {member.stringNeed} ดาว · {rewardText(member.rewardCap)})</span>
+        :<span>สะสมอีก {Math.max(0,member.stringNeed-member.stars)} ดาว รับสิทธิ์ขึ้นเอ็นฟรี (ครบ {member.stringNeed} ดาว · {rewardText(member.rewardCap)})</span>}
       </div>
       {reward?.used&&<p className="reward-done">✓ ใช้สิทธิ์ขึ้นเอ็นฟรีกับไม้นี้แล้ว · ลด ฿{baht(reward.discount)}</p>}
-      {reward?.canRedeem&&(!confirm?<button type="button" className="redeem-cta" onClick={()=>setConfirm(true)}>🎁 แลกสิทธิ์ขึ้นเอ็นฟรี</button>
+      {reward?.canRedeem&&(!confirmString?<button type="button" className="redeem-cta" onClick={()=>setConfirmString(true)}>🎁 แลกสิทธิ์ขึ้นเอ็นฟรี</button>
       :<div className="redeem-confirm">
         <p>ใช้สิทธิ์ 1 ครั้งกับไม้นี้? ลด <b>฿{baht(reward.redeemOff)}</b> เหลือชำระ <b>฿{baht(reward.amount-reward.redeemOff)}</b></p>
-        <div><button type="button" className="secondary" disabled={busy} onClick={()=>{setConfirm(false);setError('')}}>ยกเลิก</button><button type="button" disabled={busy} onClick={redeem}>{busy?'กำลังใช้สิทธิ์…':'ยืนยันใช้สิทธิ์'}</button></div>
+        <div><button type="button" className="secondary" disabled={busyString} onClick={()=>{setConfirmString(false);setErrorString('')}}>ยกเลิก</button><button type="button" disabled={busyString} onClick={redeemString}>{busyString?'กำลังใช้สิทธิ์…':'ยืนยันใช้สิทธิ์'}</button></div>
       </div>)}
-      {error&&<p role="alert" className="notice">{error}</p>}
+      {errorString&&<p role="alert" className="notice">{errorString}</p>}
     </div>
   </section>;
 }

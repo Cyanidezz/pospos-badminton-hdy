@@ -507,33 +507,49 @@ test("brand assets use the Wingpro colors instead of the old green/teal", async 
   assert.match(css, /\.register-product-name\{background:linear-gradient\(145deg,#3a70d4,#5488e6\)\}/);
 });
 
-test("member stamps: one per paid job or linked POS bill, a reward every N, free jobs earn none", async t => {
+test("member stars: one per paid job or linked POS bill; redeeming EITHER of the two reward tiers resets the count", async t => {
   let customers;
   try { customers = await import("../lib/customers.ts"); }
   catch { t.skip("this Node version cannot import .ts files directly"); return; }
   const paid = (i, extra = {}) => ({ id: "j" + i, customer: "สมชาย", phone: "081-234-5678", racket: "R", tension: "25", created: `2026-09-${String(10 + i).padStart(2, "0")}T10:00:00Z`, status: "คืนไม้แล้ว", paid: 1, amount: 40000, reward_used: 0, ...extra });
   const jobs = [paid(1), paid(2), paid(3), paid(4), paid(5), paid(6, { paid: 0, status: "รอขึ้นเอ็น" })];
-  let [c] = customers.buildCustomers(jobs, { stampsRequired: 3 });
+  let [c] = customers.buildCustomers(jobs, { stampsRequired: 4, socksStampsRequired: 2 });
   assert.equal(c.visits, 6);
-  assert.equal(c.stamps, 5, "the unpaid job has no stamp yet");
-  assert.equal(c.earned, 1);
-  assert.equal(c.progress, 2);
-  assert.equal(c.available, 1);
-  // using the reward: the free job (reward_used) does not earn a stamp and consumes the reward
-  [c] = customers.buildCustomers([...jobs, paid(7, { reward_used: 1, amount: 0, created: "2026-09-25T10:00:00Z" })], { stampsRequired: 3 });
-  assert.equal(c.stamps, 5);
-  assert.equal(c.used, 1);
-  assert.equal(c.available, 0);
-  // a cancelled free job gives the reward back
-  [c] = customers.buildCustomers([...jobs, paid(7, { reward_used: 1, amount: 0, status: "ยกเลิก" })], { stampsRequired: 3 });
-  assert.equal(c.available, 1);
-  // POS bills linked to the member count towards spend but not stamps; voided ones are ignored
-  const sales = [{ id: "s1", created: "2026-09-20T10:00:00Z", total: 129000, customer_key: "0812345678", status: "active" }, { id: "s2", created: "2026-09-21T10:00:00Z", total: 5000, customer_key: "0812345678", status: "voided" }];
-  [c] = customers.buildCustomers(jobs, { stampsRequired: 3, sales });
-  assert.equal(c.sales.length, 1);
-  assert.equal(c.spent, 5 * 40000 + 129000);
-  assert.equal(c.stamps, 6, "the linked POS bill earns a stamp too");
-  assert.equal(c.posStamps, 1);
+  assert.equal(c.stars, 5, "the unpaid job has no star yet");
+  assert.equal(c.socksNeed, 2);
+  assert.equal(c.stringNeed, 4);
+  assert.equal(c.socksAvailable, true);
+  assert.equal(c.stringAvailable, true, "5 >= 4, so both tiers are available at once");
+  assert.equal(c.stringUsed, 0);
+  assert.equal(c.socksUsed, 0);
+  // redeeming the string reward: the free job (reward_used) does not earn a star, consumes the reward, and resets
+  // the whole star count to zero - not just a decrement by stringNeed
+  [c] = customers.buildCustomers([...jobs, paid(7, { reward_used: 1, amount: 0, created: "2026-09-25T10:00:00Z" })], { stampsRequired: 4, socksStampsRequired: 2 });
+  assert.equal(c.stars, 0);
+  assert.equal(c.stringUsed, 1);
+  assert.equal(c.stringAvailable, false);
+  assert.equal(c.socksAvailable, false, "redeeming EITHER tier resets both, even though socks wasn't the one used");
+  // a visit after the reset only counts stars earned since then, not the whole history again
+  [c] = customers.buildCustomers([...jobs, paid(7, { reward_used: 1, amount: 0, created: "2026-09-25T10:00:00Z" }), paid(8, { created: "2026-09-26T10:00:00Z" })], { stampsRequired: 4, socksStampsRequired: 2 });
+  assert.equal(c.stars, 1, "one visit after the reset, not 6");
+  // a cancelled free job gives the reward back (skipped entirely, same as before this feature existed)
+  [c] = customers.buildCustomers([...jobs, paid(7, { reward_used: 1, amount: 0, status: "ยกเลิก" })], { stampsRequired: 4, socksStampsRequired: 2 });
+  assert.equal(c.stringAvailable, true);
+  // redeeming the SOCKS reward (a sale with SOCK_REWARD_REASON) also resets the shared count
+  const sockSale = { id: "sock1", created: "2026-09-25T10:00:00Z", total: 0, customer_key: "0812345678", status: "active", discount_reason: customers.SOCK_REWARD_REASON };
+  [c] = customers.buildCustomers(jobs, { stampsRequired: 4, socksStampsRequired: 2, sales: [sockSale] });
+  assert.equal(c.stars, 0);
+  assert.equal(c.socksUsed, 1);
+  assert.equal(c.socksAvailable, false);
+  assert.equal(c.stringAvailable, false);
+  // POS bills linked to the member count towards spend and stars; voided ones are ignored; the socks-reward sale
+  // itself is never counted as a NEW star even when member_pos_min_amount is 0
+  const sales = [{ id: "s1", created: "2026-09-20T10:00:00Z", total: 129000, customer_key: "0812345678", status: "active" }, { id: "s2", created: "2026-09-21T10:00:00Z", total: 5000, customer_key: "0812345678", status: "voided" }, sockSale];
+  [c] = customers.buildCustomers(jobs, { stampsRequired: 4, socksStampsRequired: 2, sales });
+  assert.equal(c.sales.length, 2, "the voided sale never entered the customer's own list");
+  assert.equal(c.spent, 5 * 40000 + 129000, "spend still counts the socks giveaway's ฿0 total and the voided sale is excluded");
+  assert.equal(c.stars, 0, "reset by the socks redemption; the POS bill happened before it so doesn't count again");
+  assert.equal(c.posStamps, 1, "lifetime totals are unaffected by the reset");
   assert.equal(customers.rewardDiscount(40000, null), 40000);
   assert.equal(customers.rewardDiscount(40000, 10000), 10000);
   assert.equal(customers.rewardDiscount(5000, 10000), 5000);
@@ -549,8 +565,9 @@ test("member program: server rules, settings and screens", async () => {
   assert.match(migration, /'สิทธิ์สมาชิก'/);
   const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
   const rewardLib = await read("lib/member-reward.ts");
-  assert.match(job, /if\(Number\(stat\.available\)<1\)throw new Error\('ลูกค้ายังไม่มีสิทธิ์ขึ้นเอ็นฟรี'\)/, "server re-checks the reward is available");
-  assert.match(rewardLib, /\(FLOOR\(\(.*\)::numeric\/\?::numeric\)-\(SELECT COUNT\(\*\) FROM jobs WHERE .* AND reward_used=1\)\)/, "stamps / N, minus rewards used");
+  assert.match(job, /if\(Number\(stat\.stars\)<\(Number\(config\.member_stamps_required\)\|\|10\)\)throw new Error\('ลูกค้ายังไม่มีสิทธิ์ขึ้นเอ็นฟรี'\)/, "server re-checks the star count against the string threshold");
+  assert.match(rewardLib, /const sinceSql = `GREATEST\(COALESCE\(\(SELECT MAX\(created\) FROM jobs WHERE .* AND reward_used=1\),'1900-01-01'\),COALESCE\(\(SELECT MAX\(created\) FROM sales WHERE .* AND discount_reason=\?\),'1900-01-01'\)\)`;/, "the most recent redemption of EITHER reward tier");
+  assert.match(rewardLib, /WHERE e\.created>\$\{sinceSql\}\)/, "stars only count what was earned since that reset point, not a lifetime floor division");
   assert.match(rewardLib, /paid=1 AND reward_used=0/);
   assert.match(job, /if\(b\.useReward\)\{cols\.push\('reward_used','reward_discount'\);vals\.push\(1,rewardDiscount\);\}/, "new columns only used when a reward is redeemed");
   const pay = route.slice(route.indexOf("else if(action==='payJob')"), route.indexOf("else if(action==='jobStatus')"));
@@ -589,7 +606,7 @@ test("add a member directly from the ลูกค้าสมาชิก page, 
   catch { return; }
   const withManual = lib.buildCustomers([], { manualMembers: { "0899998888": { name: "ลูกค้าทดสอบ", phone: "0899998888" } } });
   assert.equal(withManual.length, 1);
-  assert.deepEqual([withManual[0].visits, withManual[0].stamps, withManual[0].available], [0, 0, 0], "a manually added member starts with no history");
+  assert.deepEqual([withManual[0].visits, withManual[0].stamps, withManual[0].stars, withManual[0].stringAvailable, withManual[0].socksAvailable], [0, 0, 0, false, false], "a manually added member starts with no history");
   // real activity always wins: a manual entry never overwrites (or duplicates) a customer already seen in a job/sale
   const job = { customer: "สมชาย", phone: "0899998888", racket: "Yonex", tension: "26", created: "2026-01-01", status: "คืนไม้แล้ว", paid: 1, amount: 40000 };
   const merged = lib.buildCustomers([job], { manualMembers: { "0899998888": { name: "ชื่ออื่น", phone: "0899998888" } } });
@@ -672,8 +689,9 @@ test("tracking page shows the customer's own stamp progress and reward", async (
   assert.match(route, /rewardCap:config\.member_reward_cap\?\?null/);
   assert.match(page, /function MemberStamps\(/);
   assert.match(page, /job\.status!=='ยกเลิก'&&<MemberStamps member=\{job\.member\} reward=/, "hidden once the job is cancelled");
-  assert.match(page, /available>0\?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี/);
+  assert.match(page, /stringAvailable\?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี!<\/b>/);
   assert.match(page, /cap===null\|\|cap===undefined\?'ฟรีค่าขึ้นเอ็นทั้งหมด'/);
+  assert.match(route, /socksAvailable:customer\.socksAvailable&&!!socksProduct/, "the socks tier stays off until an owner has actually picked a product for it");
   assert.match(css, /\.member-stamps\{margin:22px 0\}/);
 });
 
@@ -711,8 +729,8 @@ test("member stamp promotion has an optional date window and an on/off switch", 
   const rewardLib = await read("lib/member-reward.ts");
   assert.match(rewardLib, /promoOn = !\('member_promo_enabled' in config\) \|\| config\.member_promo_enabled !== 0/, "the column may not exist yet (migration not run) - treated as on, not a hard failure");
   assert.match(rewardLib, /dateFilter = promoOn \? "AND created>=COALESCE\(\?,'0000-01-01'\) AND created<=COALESCE\(\?,'9999-12-31'\)" : 'AND 1=0'/);
-  assert.match(rewardLib, /\$\{dateFilter\}\)\+\(SELECT COUNT\(\*\) FROM sales/, "the same window applies to both the job and the POS-bill half of the stamp count");
-  assert.match(dataRoute, /const available=availableRewardsSql\(config,digits\),stat:any=await one\(`SELECT \$\{available\.sql\} AS available`,\.\.\.available\.args\)/);
+  assert.match(rewardLib, /\$\{dateFilter\} UNION ALL SELECT created FROM sales/, "the same window applies to both the job and the POS-bill half of the star count");
+  assert.match(dataRoute, /const stars=starsSql\(config,digits\),stat:any=await one\(`SELECT \$\{stars\.sql\} AS stars`,\.\.\.stars\.args\)/);
 
   // server: settings validates the date format and that start doesn't come after end
   const settingsAction = dataRoute.slice(dataRoute.indexOf("action==='settings'"), dataRoute.indexOf("else if(action==='expense')"));
@@ -805,7 +823,7 @@ test("editing a member: server rules, migration and screens", async () => {
   assert.match(edit, /UPDATE sales SET customer_key=\?,customer_name=\?/);
   assert.match(edit, /'customer_notes' in config/, "notes need the migration");
   assert.match(edit, /jsonb_build_object/);
-  assert.match(await read("lib/member-reward.ts"), /SELECT COUNT\(\*\) FROM sales WHERE customer_key=\? AND status='active' AND job_id IS NULL AND total>=\?/, "the server counts POS stamps for the reward");
+  assert.match(await read("lib/member-reward.ts"), /SELECT created FROM sales WHERE customer_key=\? AND status='active' AND job_id IS NULL AND total>=\? AND COALESCE\(discount_reason,''\)<>\?/, "the server counts POS stamps for the reward - excluding the socks-reward giveaway sale itself");
   assert.match(route, /\^\(\\d\{6,20\}\|name:\.\{1,90\}\)\$/, "member key format is validated on sales");
   assert.match(route, /member_pos_min_amount',b\.memberPosMinAmount/);
   assert.match(page, /function EditForm/);
@@ -1078,12 +1096,12 @@ test("customers redeem a free stringing themselves on the tracking page; the rew
   // redeem: same-origin, token-scoped, entitlement re-checked inside the UPDATE under a per-phone lock
   assert.match(redeem, /req\.headers\.get\('origin'\)!==new URL\(req\.url\)\.origin/);
   assert.match(redeem, /pg_advisory_xact_lock\(hashtext\(\?\)\)'\)\.bind\('member-reward:'\+digits\)/, "a double tap or two jobs at once can't spend one reward twice");
-  assert.match(redeem, /UPDATE jobs SET reward_used=1,reward_discount=\?,amount=amount-\?.* WHERE token=\? AND paid=0 AND reward_used=0 AND status<>'ยกเลิก' AND amount=\? AND to_jsonb\(jobs\)->>'slip' IS NULL AND \$\{available\.sql\}>=1 RETURNING id/);
+  assert.match(redeem, /UPDATE jobs SET reward_used=1,reward_discount=\?,amount=amount-\?.* WHERE token=\? AND paid=0 AND reward_used=0 AND status<>'ยกเลิก' AND amount=\? AND to_jsonb\(jobs\)->>'slip' IS NULL AND \$\{stars\.sql\}>=\? RETURNING id/, "gated on the shared star count meeting the string threshold");
   assert.match(redeem, /rewardDiscount\(job\.amount,config\.member_reward_cap\)/, "same cap as staff intake");
   // tracking API + page
-  assert.match(trackApi, /canRedeem=payable&&!rewardUsed&&!j\.slip&&j\.amount>0&&\(member\?\.available\|\|0\)>0/);
+  assert.match(trackApi, /canRedeem=payable&&!rewardUsed&&!j\.slip&&j\.amount>0&&!!member\?\.stringAvailable/);
   assert.match(trackPage, /fetch\('\/api\/track\/'\+token\+'\/redeem',\{method:'POST'\}\)/);
-  assert.match(trackPage, /reward\?\.canRedeem&&\(!confirm\?<button type="button" className="redeem-cta"/, "a confirm step before spending the reward");
+  assert.match(trackPage, /reward\?\.canRedeem&&\(!confirmString\?<button type="button" className="redeem-cta" onClick=\{\(\)=>setConfirmString\(true\)\}/, "a confirm step before spending the reward");
   assert.match(trackPage, /if\(job\.paid\|\|job\.status==='ยกเลิก'\|\|!\(job\.amount>0\)\)return null;/, "no pay button once the job is free");
   // POS: the waived amount is the bill's discount, the item keeps its list price with a line discount
   assert.match(dataRoute, /const rewardOffAmount=j\.reward_used===1\?Number\(j\.reward_discount\)\|\|0:0;/);
@@ -1204,4 +1222,62 @@ test("job intake: when the customer brings their own string (บริการ�
   assert.match(job, /if\(hasCustomerString\)\{cols\.push\('customer_string'\);vals\.push\(String\(b\.customerString\|\|''\)\.trim\(\)\.slice\(0,200\)\|\|null\);\}/);
   assert.match(route, /to_jsonb\(jobs\)->>'customer_string' AS customer_string FROM jobs/, "read defensively too, so the jobs list never errors before the migration runs");
   assert.match(pos, /\{selected\.customer_string&&<p>เอ็นที่ลูกค้านำมาเอง: \{selected\.customer_string\}<\/p>\}/, "staff see it later in the job detail");
+});
+
+test("second reward tier: 5 stars redeems free socks (a real POS discount), redeeming either tier resets the star count", async () => {
+  const migration = await read("supabase/migrations/20260924030000_member_socks_reward.sql");
+  const lib = await read("lib/customers.ts");
+  const settings = await read("app/shop-settings.tsx");
+  const dataRoute = await read("app/api/data/route.ts");
+  const redeemSocks = await read("app/api/track/[token]/redeem-socks/route.ts");
+  const trackApi = await read("app/api/track/[token]/route.ts");
+  const trackPage = await read("app/track/[token]/page.tsx");
+  const membersPage = await read("app/members-page.tsx");
+  const pos = await read("app/pos.tsx");
+
+  assert.match(migration, /add column if not exists member_socks_stamps_required integer not null default 5/);
+  assert.match(migration, /add column if not exists member_socks_product_id text references public\.products\(id\);/);
+
+  assert.match(lib, /export const SOCK_REWARD_REASON = "สิทธิ์สมาชิก: ถุงเท้าฟรี";/);
+  assert.match(lib, /if \(sale\.discount_reason === SOCK_REWARD_REASON\) customer\.socksUsed \+= 1;/, "counted as a redemption, never as a new star");
+  assert.match(lib, /const since = \[/, "the reset point is the most recent redemption of either tier");
+  assert.match(lib, /customer\.socksAvailable = customer\.stars >= socksNeed;/);
+  assert.match(lib, /customer\.stringAvailable = customer\.stars >= stringNeed;/);
+
+  // settings: two new fields, and the panel stays off until BOTH the migration ran and a product is picked
+  assert.match(settings, /if\('member_socks_stamps_required' in config\)\{[\s\S]{0,200}payload\.memberSocksProductId=form\.memberSocksProductId\?\?\(config\.member_socks_product_id\|\|''\);/);
+  assert.match(settings, /const socksReady=ready&&'member_socks_stamps_required' in config;/);
+  assert.match(settings, /<select value=\{form\.memberSocksProductId\?\?\(config\.member_socks_product_id\|\|''\)\}/);
+  const settingsAction = dataRoute.slice(dataRoute.indexOf("action==='settings'"), dataRoute.indexOf("else if(action==='expense')"));
+  assert.match(settingsAction, /if\(!Number\.isFinite\(n\)\|\|n<1\|\|n>100\)throw new Error\('จำนวนครั้งที่ครบสิทธิ์ถุงเท้าต้องอยู่ระหว่าง 1–100'\)/);
+  assert.match(settingsAction, /const p=await one\('SELECT id FROM products WHERE id=\? AND active=1',b\.memberSocksProductId\);if\(!p\)throw new Error\('ไม่พบสินค้าที่เลือกเป็นของรางวัลถุงเท้า'\)/, "the chosen product must actually exist and be active");
+
+  // staff job-intake still redeems only the string tier, gated on the shared star count meeting stringNeed, with
+  // an advisory lock now too (three redemption paths share one star pool and must serialize against each other)
+  const job = dataRoute.slice(dataRoute.indexOf("else if(action==='job')"), dataRoute.indexOf("else if(action==='payJob')"));
+  assert.match(job, /statements\.push\(q\('SELECT pg_advisory_xact_lock\(hashtext\(\?\)\)','member-reward:'\+digits\)\);/);
+
+  // the new customer-facing redeem-socks endpoint: same-origin, token-scoped, gated by an INSERT...SELECT...WHERE
+  // (mirrors /redeem's gated UPDATE) under the SAME per-phone lock, a real stock decrement and a real cost
+  assert.match(redeemSocks, /req\.headers\.get\('origin'\)!==new URL\(req\.url\)\.origin/);
+  assert.match(redeemSocks, /pg_advisory_xact_lock\(hashtext\(\?\)\)'\)\.bind\('member-reward:'\+digits\)/, "same lock name as /redeem and job intake - one shared star pool");
+  assert.match(redeemSocks, /INSERT INTO sales\(id,staff_id,created,total,discount,discount_reason,method,customer_key,customer_name\) SELECT \?,\?,\?,0,\?,\?,'สิทธิ์สมาชิก',\?,\? WHERE \$\{stars\.sql\}>=\? RETURNING id/, "total is really 0 baht, the listed price is booked as the discount");
+  assert.match(redeemSocks, /INSERT INTO items\(id,sale_id,product_id,name,category,qty,price,original,net,cost,note,line_discount\) VALUES\(\?,\?,\?,\?,\?,1,\?,\?,0,\?,\?,\?\)/, "real cost recorded, net is 0");
+  assert.match(redeemSocks, /UPDATE products SET stock=stock-1 WHERE id=\?/, "a real stock decrement, not just a marker");
+  assert.match(redeemSocks, /if\(String\(e\.message\|\|''\)\.includes\('foreign key'\)\)return \[\];/, "0 rows from the gated insert makes the dependent items insert fail its FK, aborting the whole batch atomically");
+  assert.match(redeemSocks, /job\.staff_id/, "attributed to the job's own staff (a customer isn't a member), same reason the uploaded slip is");
+
+  // tracking API + page: the socks tier stays hidden unless a product is actually configured, and both CTAs can
+  // show at once (10 stars qualifies for both, since redeeming either resets both)
+  assert.match(trackApi, /const socksProduct=config\.member_socks_product_id\?await one\('SELECT name FROM products WHERE id=\? AND active=1',config\.member_socks_product_id\):null;/);
+  assert.match(trackPage, /fetch\('\/api\/track\/'\+token\+'\/redeem-socks',\{method:'POST'\}\)/);
+  assert.match(trackPage, /const bothReady=member\.socksAvailable&&member\.stringAvailable;/);
+  assert.match(trackPage, /\{bothReady&&<p className="stamp-both-notice">/);
+  assert.match(trackPage, /member\.socksProductName&&<div className=\{'stamp-reward'\+\(member\.socksAvailable\?' is-ready':''\)\}>/, "hidden entirely when no product is configured");
+
+  // staff-facing members page and dashboard
+  assert.match(membersPage, /socksProductName=config\?\.member_socks_product_id\?\(products\|\|\[\]\)\.find\(\(p:any\)=>p\.id===config\.member_socks_product_id\)\?\.name:null;/);
+  assert.match(membersPage, /i===customer\.socksNeed-1\?'is-milestone':''/, "the socks threshold is marked on the shared star bar");
+  assert.match(pos, /sockSales=sales\.filter\(\(x:any\)=>x\.discount_reason===SOCK_REWARD_REASON\)/);
+  assert.match(pos, /<MembersPage jobs=\{jobs\} sales=\{data\.sales\|\|\[\]\} config=\{data\.config\} products=\{allProducts\}/);
 });

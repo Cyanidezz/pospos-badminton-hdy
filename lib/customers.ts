@@ -6,9 +6,13 @@ export type Customer = {
   key: string; name: string; phone: string;
   visits: number; last: string; rackets: CustomerRacket[];
   // Stamp card: one stamp per paid stringing job and per POS bill linked to the member
-  // (free reward jobs earn no stamp; POS bills below the minimum amount earn none).
+  // (free reward jobs earn no stamp; POS bills below the minimum amount earn none). Lifetime totals - never reset.
   stamps: number; jobStamps: number; posStamps: number;
-  need: number; earned: number; used: number; available: number; progress: number;
+  // Two reward tiers share ONE star count: redeeming EITHER one resets it to zero, so `stars` only counts stamps
+  // earned since the most recent redemption of either kind (see the reset-point logic in buildCustomers()).
+  // stringUsed/socksUsed are lifetime totals (for "แลกไปแล้ว N ครั้ง"), unaffected by the reset.
+  stars: number; socksNeed: number; stringNeed: number;
+  socksAvailable: boolean; stringAvailable: boolean; stringUsed: number; socksUsed: number;
   spent: number; // satang: paid stringing jobs + linked POS bills
   jobs: any[]; sales: any[]; // newest first
   note: string;
@@ -18,6 +22,7 @@ const digitsOf = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 export const DEFAULT_STAMPS_REQUIRED = 10;
+export const DEFAULT_SOCKS_STAMPS_REQUIRED = 5;
 export const phoneDigits = digitsOf;
 
 // 0812345678 -> 081-234-5678 (other lengths are left as digits)
@@ -27,7 +32,7 @@ export function formatPhone(value: string) {
 }
 
 export type Promo = { enabled?: boolean; start?: string | null; end?: string | null } | null;
-type Options = { stampsRequired?: number; sales?: any[]; posMinAmount?: number; notes?: Record<string, string> | null; manualMembers?: Record<string, { name: string; phone: string }> | null; promo?: Promo };
+type Options = { stampsRequired?: number; socksStampsRequired?: number; sales?: any[]; posMinAmount?: number; notes?: Record<string, string> | null; manualMembers?: Record<string, { name: string; phone: string }> | null; promo?: Promo };
 
 // Does a visit on this date earn a stamp under the shop's promotion window ("1 ต.ค. 2569 - 31 ธ.ค. 2569", say)? No
 // `promo` at all means the feature isn't configured (or the caller didn't pass it) - unrestricted, same as before
@@ -63,14 +68,15 @@ export function promoPhase(promo: Promo, today: string): PromoPhase {
   return "during";
 }
 
-function emptyCustomer(key: string, name: string, phone: string, last: string, need: number, note: string): Customer {
-  return { key, name, phone, visits: 0, last, rackets: [], stamps: 0, jobStamps: 0, posStamps: 0, need, earned: 0, used: 0, available: 0, progress: 0, spent: 0, jobs: [], sales: [], note };
+function emptyCustomer(key: string, name: string, phone: string, last: string, socksNeed: number, stringNeed: number, note: string): Customer {
+  return { key, name, phone, visits: 0, last, rackets: [], stamps: 0, jobStamps: 0, posStamps: 0, stars: 0, socksNeed, stringNeed, socksAvailable: false, stringAvailable: false, stringUsed: 0, socksUsed: 0, spent: 0, jobs: [], sales: [], note };
 }
 
 // One entry per phone number (or per name when a job has no phone), newest activity first.
 // Cancelled jobs and voided bills are ignored: they never became a visit.
-export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_REQUIRED, sales = [], posMinAmount = 0, notes = {}, manualMembers = {}, promo = null }: Options = {}): Customer[] {
-  const need = Math.max(1, Math.round(Number(stampsRequired)) || DEFAULT_STAMPS_REQUIRED);
+export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_REQUIRED, socksStampsRequired = DEFAULT_SOCKS_STAMPS_REQUIRED, sales = [], posMinAmount = 0, notes = {}, manualMembers = {}, promo = null }: Options = {}): Customer[] {
+  const stringNeed = Math.max(1, Math.round(Number(stampsRequired)) || DEFAULT_STAMPS_REQUIRED);
+  const socksNeed = Math.max(1, Math.round(Number(socksStampsRequired)) || DEFAULT_SOCKS_STAMPS_REQUIRED);
   const minAmount = Math.max(0, Number(posMinAmount) || 0);
   const noteOf = (key: string) => String((notes || {})[key] ?? "");
   const customers = new Map<string, Customer>();
@@ -83,12 +89,12 @@ export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_RE
     const key = digitsOf(job.phone) || `name:${name.toLowerCase()}`;
     let customer = customers.get(key);
     if (!customer) {
-      customer = emptyCustomer(key, name, String(job.phone ?? "").trim(), String(job.created ?? ""), need, noteOf(key));
+      customer = emptyCustomer(key, name, String(job.phone ?? "").trim(), String(job.created ?? ""), socksNeed, stringNeed, noteOf(key));
       customers.set(key, customer);
     }
     customer.visits += 1;
     customer.jobs.push(job);
-    if (job.reward_used === 1) customer.used += 1;
+    if (job.reward_used === 1) customer.stringUsed += 1;
     else if (job.paid && withinPromo(job.created, promo)) { customer.stamps += 1; customer.jobStamps += 1; }
     if (job.paid) customer.spent += Number(job.amount) || 0;
     const racket = String(job.racket ?? "").trim();
@@ -103,14 +109,15 @@ export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_RE
     let customer = customers.get(key);
     if (!customer) { // a member who has only shopped at the POS
       const name = String(sale.customer_name ?? "").trim() || key;
-      customer = emptyCustomer(key, name, /^\d+$/.test(key) ? formatPhone(key) : "", String(sale.created ?? ""), need, noteOf(key));
+      customer = emptyCustomer(key, name, /^\d+$/.test(key) ? formatPhone(key) : "", String(sale.created ?? ""), socksNeed, stringNeed, noteOf(key));
       customers.set(key, customer);
     }
     const total = Number(sale.total) || 0;
     customer.sales.push(sale);
     customer.visits += 1;
     customer.spent += total;
-    if (!sale.job_id && total >= minAmount && withinPromo(sale.created, promo)) { customer.stamps += 1; customer.posStamps += 1; }
+    if (sale.discount_reason === SOCK_REWARD_REASON) customer.socksUsed += 1;
+    else if (!sale.job_id && total >= minAmount && withinPromo(sale.created, promo)) { customer.stamps += 1; customer.posStamps += 1; }
     if (String(sale.created) > customer.last) customer.last = String(sale.created);
   }
 
@@ -118,13 +125,22 @@ export function buildCustomers(jobs: any[], { stampsRequired = DEFAULT_STAMPS_RE
   // with no visits yet. Real activity always wins, so this never overwrites a customer already built above.
   for (const [key, member] of Object.entries(manualMembers || {})) {
     if (customers.has(key)) continue;
-    customers.set(key, emptyCustomer(key, String(member?.name ?? "").trim() || key, String(member?.phone ?? "").trim(), "", need, noteOf(key)));
+    customers.set(key, emptyCustomer(key, String(member?.name ?? "").trim() || key, String(member?.phone ?? "").trim(), "", socksNeed, stringNeed, noteOf(key)));
   }
 
   for (const customer of customers.values()) {
-    customer.earned = Math.floor(customer.stamps / need);
-    customer.progress = customer.stamps % need;
-    customer.available = Math.max(0, customer.earned - customer.used);
+    // The two reward tiers share one star count: redeeming EITHER resets it to zero, so only stamps earned after
+    // the most recent redemption of either kind count toward the next one (stringUsed/socksUsed above stay
+    // lifetime totals - already counted regardless of this reset point).
+    const since = [
+      ...customer.jobs.filter(j => j.reward_used === 1).map(j => String(j.created)),
+      ...customer.sales.filter(s => s.discount_reason === SOCK_REWARD_REASON).map(s => String(s.created)),
+    ].sort().pop() || "";
+    const jobStars = customer.jobs.filter(j => j.reward_used !== 1 && j.paid && withinPromo(j.created, promo) && String(j.created) > since).length;
+    const posStars = customer.sales.filter(s => !s.job_id && s.discount_reason !== SOCK_REWARD_REASON && (Number(s.total) || 0) >= minAmount && withinPromo(s.created, promo) && String(s.created) > since).length;
+    customer.stars = jobStars + posStars;
+    customer.socksAvailable = customer.stars >= socksNeed;
+    customer.stringAvailable = customer.stars >= stringNeed;
   }
   return [...customers.values()].sort((a, b) => b.last.localeCompare(a.last));
 }
@@ -134,8 +150,11 @@ export function billEarnsStamp(sale: any, posMinAmount = 0, promo: Promo = null)
   return !!sale.customer_key && sale.status !== "voided" && !sale.job_id && (Number(sale.total) || 0) >= Math.max(0, Number(posMinAmount) || 0) && withinPromo(sale.created, promo);
 }
 
-// The discount reason on the bill of a job paid with a member reward (the POS dashboard totals these up).
+// The discount reasons on a bill paid with a member reward (the POS dashboard totals each of these up). A job's
+// bill gets REWARD_REASON when the free-stringing (10-star) reward paid for it; a POS sale gets SOCK_REWARD_REASON
+// when it's the free socks (5-star) giveaway - never both, since redeeming either one resets the star count.
 export const REWARD_REASON = "สิทธิ์สมาชิก: ขึ้นเอ็นฟรี";
+export const SOCK_REWARD_REASON = "สิทธิ์สมาชิก: ถุงเท้าฟรี";
 
 // What a free-stringing reward takes off a job price (satang). `cap` is null/undefined for the whole job.
 export function rewardDiscount(price: number, cap?: number | null) {

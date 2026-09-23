@@ -6,16 +6,18 @@ import {CustomerInput} from './job-form';
 
 const baht=(satang:number)=>'฿'+(satang/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const day=(iso:string)=>iso?new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit',timeZone:'Asia/Bangkok'}):'—';
-const options=(config:any,sales:any[])=>({stampsRequired:config?.member_stamps_required,sales,posMinAmount:Number(config?.member_pos_min_amount)||0,notes:config?.customer_notes,manualMembers:config?.manual_members,promo:promoOf(config)});
+const options=(config:any,sales:any[])=>({stampsRequired:config?.member_stamps_required,socksStampsRequired:config?.member_socks_stamps_required,sales,posMinAmount:Number(config?.member_pos_min_amount)||0,notes:config?.customer_notes,manualMembers:config?.manual_members,promo:promoOf(config)});
 
-// The customer's stamp card: one circle per stamp needed for the next free stringing.
-export function StampCard({customer}:{customer:Customer}){
-  const circles=customer.need<=20?Array.from({length:customer.need},(_,i)=>i):[];
+// The customer's stamp card: one circle per star needed for the free-stringing reward (the bigger of the two
+// tiers), with the socks-reward milestone marked partway along. Redeeming EITHER resets the star count to zero.
+export function StampCard({customer,socksProductName}:{customer:Customer;socksProductName?:string|null}){
+  const circles=customer.stringNeed<=20?Array.from({length:customer.stringNeed},(_,i)=>i):[];
   return <div className="stamp-card stamp-card-panel">
-    <div className="stamp-head"><b>บัตรสะสมแต้ม</b><span>{customer.progress}/{customer.need} ครั้ง · ครบแล้ว {customer.earned} รอบ</span></div>
-    {circles.length>0?<div className="stamp-dots">{circles.map(i=><span key={i} className={i<customer.progress?'is-filled':''}>{i<customer.progress?'✓':i+1}</span>)}</div>:<div className="stamp-bar"><i style={{width:(customer.progress/customer.need*100)+'%'}}/></div>}
+    <div className="stamp-head"><b>บัตรสะสมแต้ม</b><span>{customer.stars} ดาว · แลกไปแล้ว {customer.stringUsed+customer.socksUsed} ครั้ง</span></div>
+    {circles.length>0?<div className="stamp-dots">{circles.map(i=><span key={i} className={(i<customer.stars?'is-filled ':'')+(i===customer.socksNeed-1?'is-milestone':'')}>{i<customer.stars?'✓':i+1}</span>)}</div>:<div className="stamp-bar"><i style={{width:(customer.stars/customer.stringNeed*100)+'%'}}/></div>}
     <div className="stamp-sources">แต้มทั้งหมด {customer.stamps} · จากขึ้นเอ็น {customer.jobStamps} · จากซื้อหน้าร้าน {customer.posStamps}</div>
-    <div className={'stamp-reward'+(customer.available>0?' is-ready':'')}><Gift size={18}/><span>{customer.available>0?<><b>ใช้สิทธิ์ขึ้นเอ็นฟรีได้ {customer.available} ครั้ง</b> · เลือกตอนรับไม้ใหม่</>:<>ใช้สิทธิ์แล้ว {customer.used} ครั้ง · สะสมอีก {customer.need-customer.progress} ครั้งได้สิทธิ์ถัดไป</>}</span></div>
+    {socksProductName&&<div className={'stamp-reward'+(customer.socksAvailable?' is-ready':'')}><Gift size={18}/><span>{customer.socksAvailable?<><b>มีสิทธิ์แลก{socksProductName}ฟรี</b> · ครบ {customer.socksNeed} ดาว</>:<>สะสมอีก {Math.max(0,customer.socksNeed-customer.stars)} ดาวแลก{socksProductName}ฟรี (ครบ {customer.socksNeed} ดาว)</>}</span></div>}
+    <div className={'stamp-reward'+(customer.stringAvailable?' is-ready':'')}><Gift size={18}/><span>{customer.stringAvailable?<><b>มีสิทธิ์ขึ้นเอ็นฟรี</b> · เลือกตอนรับไม้ใหม่ (ครบ {customer.stringNeed} ดาว)</>:<>สะสมอีก {Math.max(0,customer.stringNeed-customer.stars)} ดาวได้สิทธิ์ขึ้นเอ็นฟรี (ครบ {customer.stringNeed} ดาว)</>}</span></div>
   </div>;
 }
 
@@ -32,7 +34,7 @@ function EditForm({customer,onSave,onDone}:any){
   </form>;
 }
 
-function Detail({customer,posMin,promo,onSave,setKey}:any){
+function Detail({customer,posMin,promo,socksProductName,onSave,setKey}:any){
   const [editing,setEditing]=useState(false);
   return <div className="member-detail">
     <div className="member-title"><div><h2>{customer.name}</h2>{customer.phone&&<a className="contact-link" href={'tel:'+customer.phone.replace(/[^0-9+]/g,'')}><Phone size={16}/>{customer.phone}</a>}</div>
@@ -40,7 +42,7 @@ function Detail({customer,posMin,promo,onSave,setKey}:any){
     {editing?<EditForm key={customer.key} customer={customer} onSave={onSave} onDone={(newKey?:string)=>{setEditing(false);if(newKey)setKey(newKey)}}/>:<>
       <div className="member-note-row">{customer.note?<div className="member-note"><b>บันทึก</b><p>{customer.note}</p></div>:<span className="muted">ยังไม่มีบันทึกเกี่ยวกับลูกค้า</span>}<button type="button" className="secondary small" onClick={()=>setEditing(true)}><Pencil size={14}/> แก้ไขข้อมูล</button></div>
     </>}
-    <StampCard customer={customer}/>
+    <StampCard customer={customer} socksProductName={socksProductName}/>
     {customer.rackets.length>0&&<div className="member-block"><h3>ไม้ที่เคยขึ้นเอ็น</h3><div className="racket-chips">{customer.rackets.map((r:any)=><span className="chip" key={r.name}>{r.name}{r.tension?' · '+r.tension:''}</span>)}</div></div>}
     {customer.jobs.length>0&&<div className="member-block"><h3>ประวัติขึ้นเอ็น</h3>
       <div className="table-scroll"><table className="member-table"><thead><tr><th>วันที่</th><th>ไม้</th><th>สถานะ</th><th>ยอด</th></tr></thead><tbody>
@@ -53,14 +55,15 @@ function Detail({customer,posMin,promo,onSave,setKey}:any){
   </div>;
 }
 
-export function MembersPage({jobs,sales,config,onSave}:any){
+export function MembersPage({jobs,sales,config,products,onSave}:any){
   const [query,setQuery]=useState(''),[key,setKey]=useState('');
   const posMin=Number(config?.member_pos_min_amount)||0;
-  const customers=useMemo(()=>buildCustomers(jobs,options(config,sales)),[jobs,sales,config?.member_stamps_required,config?.member_pos_min_amount,config?.customer_notes,config?.member_promo_enabled,config?.member_promo_start,config?.member_promo_end]);
+  const socksProductName=config?.member_socks_product_id?(products||[]).find((p:any)=>p.id===config.member_socks_product_id)?.name:null;
+  const customers=useMemo(()=>buildCustomers(jobs,options(config,sales)),[jobs,sales,config?.member_stamps_required,config?.member_socks_stamps_required,config?.member_pos_min_amount,config?.customer_notes,config?.member_promo_enabled,config?.member_promo_start,config?.member_promo_end]);
   const text=query.trim().toLowerCase(),digits=phoneDigits(query);
   const shown=customers.filter(c=>!text||c.name.toLowerCase().includes(text)||(digits.length>=3&&phoneDigits(c.phone).includes(digits)));
   const selected=customers.find(c=>c.key===key)||shown[0]||null;
-  const ready=customers.filter(c=>c.available>0).length;
+  const ready=customers.filter(c=>c.stringAvailable||(socksProductName&&c.socksAvailable)).length;
   return <div className="members-layout">
     <section className="panel members-list">
       <div className="panel-tools"><div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ค้นหาชื่อหรือเบอร์โทร"/></div></div>
@@ -68,27 +71,27 @@ export function MembersPage({jobs,sales,config,onSave}:any){
       {shown.length===0?<div className="empty"><h3>{customers.length?'ไม่พบลูกค้าที่ค้นหา':'ยังไม่มีสมาชิก'}</h3><p>{customers.length?'ลองค้นหาด้วยชื่อหรือเบอร์โทรอื่น':'ลูกค้าจะขึ้นที่นี่อัตโนมัติหลังรับไม้งานแรก หรือเพิ่มสมาชิกตอนคิดเงินที่หน้าร้าน'}</p></div>:
       <ul className="members-rows">{shown.map(c=><li key={c.key}><button type="button" className={'member-row'+(selected?.key===c.key?' is-active':'')} onClick={()=>setKey(c.key)}>
         <div><b>{c.name}</b><small>{c.phone||'ไม่มีเบอร์'} · มาแล้ว {c.visits} ครั้ง</small></div>
-        <div className="member-row-side">{c.available>0?<span className="badge green"><Gift size={12}/> ฟรี {c.available}</span>:<span className="stamp-mini">{c.progress}/{c.need}</span>}</div>
+        <div className="member-row-side">{c.stringAvailable||(socksProductName&&c.socksAvailable)?<span className="badge green"><Gift size={12}/> มีสิทธิ์ฟรี</span>:<span className="stamp-mini">{c.stars}/{c.stringNeed} ดาว</span>}</div>
       </button></li>)}</ul>}
     </section>
-    <section className="panel members-detail">{selected?<Detail customer={selected} posMin={posMin} promo={promoOf(config)} onSave={onSave} setKey={setKey}/>:<div className="empty"><h3>เลือกลูกค้าเพื่อดูรายละเอียด</h3></div>}</section>
+    <section className="panel members-detail">{selected?<Detail customer={selected} posMin={posMin} promo={promoOf(config)} socksProductName={socksProductName} onSave={onSave} setKey={setKey}/>:<div className="empty"><h3>เลือกลูกค้าเพื่อดูรายละเอียด</h3></div>}</section>
   </div>;
 }
 
 // Pick a member while checking out at the POS: the bill is linked to them (and earns a stamp).
 export function MemberPicker({jobs,sales,config,value,onChange,total}:any){
   const posMin=Number(config?.member_pos_min_amount)||0,need=Number(config?.member_stamps_required)||10;
-  const customers=useMemo(()=>buildCustomers(jobs,options(config,sales)),[jobs,sales,config?.member_stamps_required,config?.member_pos_min_amount,config?.customer_notes,config?.member_promo_enabled,config?.member_promo_start,config?.member_promo_end]);
+  const customers=useMemo(()=>buildCustomers(jobs,options(config,sales)),[jobs,sales,config?.member_stamps_required,config?.member_socks_stamps_required,config?.member_pos_min_amount,config?.customer_notes,config?.member_promo_enabled,config?.member_promo_start,config?.member_promo_end]);
   const [query,setQuery]=useState(''),[adding,setAdding]=useState(false),[newName,setNewName]=useState(''),[newPhone,setNewPhone]=useState('');
   const digits=phoneDigits(newPhone);
   if(value){
     const earns=(Number(total)||0)>=posMin;
-    return <div className="member-pill picked"><b>{value.name}</b><span>{value.phone} · สะสม {value.progress}/{value.need}{value.available>0?' · มีสิทธิ์ขึ้นเอ็นฟรี '+value.available+' ครั้ง':''}</span><span className={'stamp-note'+(earns?'':' none')}>{earns?'บิลนี้ได้ +1 แต้ม':'ยอดไม่ถึง ฿'+(posMin/100).toLocaleString('th-TH')+' จึงไม่ได้แต้ม'}</span><button type="button" className="secondary small" onClick={()=>{onChange(null);setQuery('')}}>เปลี่ยน</button></div>;
+    return <div className="member-pill picked"><b>{value.name}</b><span>{value.phone} · สะสม {value.stars}/{value.stringNeed} ดาว{value.stringAvailable?' · มีสิทธิ์ขึ้นเอ็นฟรี':''}</span><span className={'stamp-note'+(earns?'':' none')}>{earns?'บิลนี้ได้ +1 แต้ม':'ยอดไม่ถึง ฿'+(posMin/100).toLocaleString('th-TH')+' จึงไม่ได้แต้ม'}</span><button type="button" className="secondary small" onClick={()=>{onChange(null);setQuery('')}}>เปลี่ยน</button></div>;
   }
   if(adding)return <div className="member-new">
     <input placeholder="ชื่อลูกค้า" maxLength={100} value={newName} onChange={e=>setNewName(e.target.value)}/>
     <input type="tel" inputMode="tel" placeholder="เบอร์โทร" maxLength={30} value={newPhone} onChange={e=>setNewPhone(e.target.value)}/>
-    <button type="button" className="secondary small" disabled={!newName.trim()||digits.length<9||digits.length>20} onClick={()=>{const existing=customers.find(c=>c.key===digits);onChange(existing||{key:digits,name:newName.trim(),phone:newPhone.trim(),progress:0,need,available:0,stamps:0,isNew:true});setAdding(false)}}>เพิ่ม</button>
+    <button type="button" className="secondary small" disabled={!newName.trim()||digits.length<9||digits.length>20} onClick={()=>{const existing=customers.find(c=>c.key===digits);onChange(existing||{key:digits,name:newName.trim(),phone:newPhone.trim(),stars:0,stringNeed:need,stringAvailable:false,stamps:0,isNew:true});setAdding(false)}}>เพิ่ม</button>
     <button type="button" className="secondary small" onClick={()=>setAdding(false)}>ยกเลิก</button>
   </div>;
   return <div className="member-search"><CustomerInput value={query} onChange={setQuery} onPick={onChange} suggestions={matchCustomers(customers,query,'name')} placeholder="พิมพ์ชื่อหรือเบอร์สมาชิก (ไม่บังคับ)"/><button type="button" className="link-button" onClick={()=>{setAdding(true);setNewName(/\d/.test(query)?'':query);setNewPhone(/\d/.test(query)?query:'')}}>+ เพิ่มสมาชิกใหม่</button></div>;

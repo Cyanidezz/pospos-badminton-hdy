@@ -1,5 +1,5 @@
 import {db,one} from '@/lib/server';
-import {availableRewardsSql} from '@/lib/member-reward';
+import {starsSql} from '@/lib/member-reward';
 import {rewardDiscount} from '@/lib/customers';
 
 // A member redeems their free stringing on this job themselves, from the public tracking page - no login, scoped
@@ -27,10 +27,10 @@ export async function POST(req:Request,{params}:any){
     const digits=String(job.phone||'').replace(/\D/g,'');
     if(digits.length<9)throw new Error('ใบรับไม้นี้ไม่มีเบอร์โทรสมาชิก');
     const off=rewardDiscount(job.amount,config.member_reward_cap);
-    const available=availableRewardsSql(config,digits);
+    const stars=starsSql(config,digits),need=Number(config.member_stamps_required)||10;
     const [,rows]:any=await db().batch([
       db().prepare('SELECT pg_advisory_xact_lock(hashtext(?))').bind('member-reward:'+digits),
-      db().prepare(`UPDATE jobs SET reward_used=1,reward_discount=?,amount=amount-?,note=TRIM(BOTH E'\\n' FROM COALESCE(note,'')||E'\\n'||?) WHERE token=? AND paid=0 AND reward_used=0 AND status<>'ยกเลิก' AND amount=? AND to_jsonb(jobs)->>'slip' IS NULL AND ${available.sql}>=1 RETURNING id`).bind(off,off,REDEEM_NOTE,token,job.amount,...available.args),
+      db().prepare(`UPDATE jobs SET reward_used=1,reward_discount=?,amount=amount-?,note=TRIM(BOTH E'\\n' FROM COALESCE(note,'')||E'\\n'||?) WHERE token=? AND paid=0 AND reward_used=0 AND status<>'ยกเลิก' AND amount=? AND to_jsonb(jobs)->>'slip' IS NULL AND ${stars.sql}>=? RETURNING id`).bind(off,off,REDEEM_NOTE,token,job.amount,...stars.args,need),
     ]);
     if(!rows.length)throw new Error('ใช้สิทธิ์ไม่สำเร็จ สิทธิ์อาจถูกใช้ไปแล้ว กรุณาโหลดหน้าใหม่');
     return Response.json({ok:true,amount:job.amount-off,discount:off});
