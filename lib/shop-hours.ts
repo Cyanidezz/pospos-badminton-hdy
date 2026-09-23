@@ -53,6 +53,12 @@ export function groupHours(hours: WeekHours) {
   return rows;
 }
 
+// Today's date in Thailand time, as "YYYY-MM-DD" (matches the plain date strings the member promo window - and
+// other local dates in this app - are stored and compared as).
+export function bangkokToday(date = new Date()) {
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+}
+
 // Current weekday and minutes since midnight in Thailand time.
 export function bangkokNow(date = new Date()) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(date).map(part => [part.type, part.value]));

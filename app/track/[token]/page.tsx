@@ -9,6 +9,21 @@ const baht=(satang:number)=>(satang/100).toLocaleString('th-TH',{maximumFraction
 
 // The reward text matches the shop's setting: a capped amount, or the whole job when there is no cap.
 const rewardText=(cap:number|null)=>cap===null||cap===undefined?'ฟรีค่าขึ้นเอ็นทั้งหมด':`เอ็นมูลค่าไม่เกิน ฿${baht(cap)}`;
+const thaiDay=(date:string)=>new Date(date+'T12:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit',timeZone:'Asia/Bangkok'});
+
+// The promotion's stamping period, worded the same way as "ตั้งค่าร้าน" describes it to staff - matches
+// lib/customers.ts's promoPhase() exactly, so this can never disagree with whether a visit actually earns a
+// stamp right now. `null` (the feature isn't configured, or an unbounded "always on") shows nothing.
+function promoNotice(promo:{phase:string|null;start:string|null;end:string|null}|undefined){
+  if(!promo?.phase)return null;
+  const {phase,start,end}=promo;
+  if(phase==='off')return {tone:'paused',text:'ปิดรับสะสมแต้มชั่วคราว · แต้มและสิทธิ์ที่มีอยู่ยังใช้ได้ตามปกติ'};
+  if(phase==='before')return {tone:'upcoming',text:end?`โปรโมชั่นสะสมแต้ม ${thaiDay(start!)} – ${thaiDay(end)}`:`โปรโมชั่นสะสมแต้มเริ่ม ${thaiDay(start!)}`};
+  if(phase==='after')return {tone:'ended',text:`โปรโมชั่นสะสมแต้มสิ้นสุดแล้วเมื่อ ${thaiDay(end!)} · แต้มและสิทธิ์ที่มีอยู่ยังใช้ได้ตามปกติ`};
+  if(end)return {tone:'active',text:`สะสมแต้มได้ถึง ${thaiDay(end)}`};
+  if(start)return {tone:'active',text:`สะสมแต้มได้ตั้งแต่ ${thaiDay(start)} เป็นต้นไป`};
+  return null;
+}
 
 // Customer-facing stamp card: same idea as the staff page, worded for the customer reading their own link.
 function MemberStamps({member,reward,token,onRedeemed}:{member:any;reward:any;token:string;onRedeemed:()=>void}){
@@ -25,9 +40,11 @@ function MemberStamps({member,reward,token,onRedeemed}:{member:any;reward:any;to
     finally{setBusy(false)}
   };
   const dots=member.need<=20?Array.from({length:member.need},(_,i)=>i):[];
+  const promo=promoNotice(member.promo);
   return <section className="member-stamps" aria-label="สะสมแต้มขึ้นเอ็น">
     <div className="stamp-card">
       <div className="stamp-head"><b>สะสมแต้มขึ้นเอ็น</b><span>{member.progress}/{member.need} ครั้ง · ครบแล้ว {member.earned} รอบ</span></div>
+      {promo&&<p className={'promo-window '+promo.tone}>{promo.text}</p>}
       {dots.length>0?<div className="stamp-dots">{dots.map(i=><span key={i} className={i<member.progress?'is-filled':''}>{i<member.progress?'✓':i+1}</span>)}</div>:<div className="stamp-bar"><i style={{width:(member.progress/member.need*100)+'%'}}/></div>}
       <div className={'stamp-reward'+(member.available>0?' is-ready':'')}>
         {member.available>0?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี {member.available} ครั้ง!</b> {reward?.canRedeem?'กดใช้สิทธิ์กับไม้นี้ได้เลย':'ใช้ได้กับไม้ครั้งถัดไป'} ({rewardText(member.rewardCap)})</span>

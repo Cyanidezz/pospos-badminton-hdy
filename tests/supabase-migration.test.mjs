@@ -664,7 +664,7 @@ test("tracking page shows the customer's own stamp progress and reward", async (
   const route = await read("app/api/track/[token]/route.ts");
   const page = await read("app/track/[token]/page.tsx");
   const css = await read("app/globals.css");
-  assert.match(route, /import \{buildCustomers,promoOf,rewardDiscount\} from '@\/lib\/customers'/);
+  assert.match(route, /import \{buildCustomers,promoOf,promoPhase,rewardDiscount\} from '@\/lib\/customers'/);
   assert.match(route, /if\(!\('member_stamps_required' in config\)\)return null/, "works before the members migration is run");
   assert.match(route, /regexp_replace\(phone,'\\\\D','','g'\)=\?",key\)/, "matches the same phone-digits key used everywhere else");
   assert.match(route, /FROM sales WHERE customer_key=\?/);
@@ -722,7 +722,8 @@ test("member stamp promotion has an optional date window and an on/off switch", 
 
   // client: lib/customers.ts's pure withinPromo() is what both buildCustomers() and the tracking page's own
   // memberStatus() rely on, so the two can never disagree about whether a given visit counted
-  assert.match(trackRoute, /promo:promoOf\(config\)/);
+  assert.match(trackRoute, /const promo=promoOf\(config\);/);
+  assert.match(trackRoute, /promo\}\);/);
   assert.match(membersPage, /promo:promoOf\(config\)/);
 
   // settings screen: the toggle and the two (optional) date fields
@@ -1024,7 +1025,7 @@ test("paying a job with a customer-uploaded slip doesn't offer a redundant re-up
   // the customer's slip gets a view link + a compact "attach a different one" control, not a second bare file
   // input sitting right under "the customer already sent one" - that read as if the upload hadn't registered
   assert.match(pos, /modal==='payJob'&&selected\?\.slip&&form\.slip===selected\.slip\?<div className="notice customer-slip">/);
-  assert.match(pos, /ดูสลิปที่ลูกค้าแนบ ↗/);
+  assert.match(pos, /ดูสลิปที่ลูกค้าแนบ<\/button>/, "opens as a popup (Lightbox) instead of a new tab, so the arrow that implied leaving the page is gone");
   assert.match(pos, /แนบสลิปใหม่แทน/);
   // any other case (a staff-attached slip, or none yet) keeps the plain upload field as before
   assert.match(pos, /:<><Field label="แนบสลิป \(ถ้ามี\)">/);
@@ -1128,4 +1129,60 @@ test("job intake: the free-text note is gone, replaced by an optional pickup dat
   assert.match(pos, /\{j\.pickup_at&&<div className="job-pickup"><CalendarClock size=\{14\}\/>นัดรับ \{pickupText\(j\.pickup_at\)\}<\/div>\}/);
   assert.match(pos, /\{selected\.pickup_at&&<p className="job-pickup"><CalendarClock size=\{14\}\/> นัดรับ: \{pickupText\(selected\.pickup_at\)\}<\/p>\}/);
   assert.match(css, /\.job-pickup\{display:flex;align-items:center;gap:6px/);
+});
+
+test("tracking page's stamp card shows the promotion's stamping period, matching the shop's own promoPhase rule", async () => {
+  const lib = await read("lib/customers.ts");
+  const route = await read("app/api/track/[token]/route.ts");
+  const page = await read("app/track/[token]/page.tsx");
+  const css = await read("app/globals.css");
+  const hours = await read("lib/shop-hours.ts");
+  assert.match(hours, /export function bangkokToday\(date = new Date\(\)\) \{/);
+  assert.match(hours, /date\.toLocaleDateString\("en-CA", \{ timeZone: "Asia\/Bangkok" \}\)/);
+  assert.match(lib, /export type PromoPhase = "off" \| "before" \| "during" \| "after" \| null;/);
+  assert.match(lib, /if \(!promo\) return null;/);
+  assert.match(lib, /if \(promo\.enabled === false\) return "off";/);
+  assert.match(lib, /if \(promo\.start && today < promo\.start\) return "before";/);
+  assert.match(lib, /if \(promo\.end && today > promo\.end\) return "after";/);
+  assert.match(lib, /return "during";/);
+  assert.match(route, /import \{DEFAULT_SHOP,bangkokToday,parseHours\} from '@\/lib\/shop-hours';/);
+  assert.match(route, /import \{buildCustomers,promoOf,promoPhase,rewardDiscount\} from '@\/lib\/customers';/);
+  assert.match(route, /const promo=promoOf\(config\);/);
+  assert.match(route, /promo:\{phase:promoPhase\(promo,bangkokToday\(\)\),start:promo\?\.start\?\?null,end:promo\?\.end\?\?null\}/);
+  // client: same phase-to-wording mapping for all five states, including the two "unbounded"/off cases that show nothing extra
+  assert.match(page, /function promoNotice\(promo:\{phase:string\|null;start:string\|null;end:string\|null\}\|undefined\)\{/);
+  assert.match(page, /if\(!promo\?\.phase\)return null;/);
+  assert.match(page, /if\(phase==='off'\)return \{tone:'paused',text:'ปิดรับสะสมแต้มชั่วคราว · แต้มและสิทธิ์ที่มีอยู่ยังใช้ได้ตามปกติ'\};/);
+  assert.match(page, /if\(phase==='after'\)return \{tone:'ended',text:`โปรโมชั่นสะสมแต้มสิ้นสุดแล้วเมื่อ \$\{thaiDay\(end!\)\} · แต้มและสิทธิ์ที่มีอยู่ยังใช้ได้ตามปกติ`\};/);
+  assert.match(page, /if\(end\)return \{tone:'active',text:`สะสมแต้มได้ถึง \$\{thaiDay\(end\)\}`\};/, "an unbounded start-only or fully-open window shows nothing extra");
+  assert.match(page, /\{promo&&<p className=\{'promo-window '\+promo\.tone\}>\{promo\.text\}<\/p>\}/);
+  assert.match(css, /\.promo-window\.paused,\.promo-window\.ended\{padding:8px 11px;border-radius:10px;background:#f3f0e4;color:#8a6d1f\}/);
+});
+
+test("photos (job condition, a customer's uploaded slip, expense receipts) open in a popup instead of a new tab, everywhere in the app", async () => {
+  const pos = await read("app/pos.tsx");
+  const css = await read("app/globals.css");
+  // no image link left opening in a new tab - only the unrelated Facebook/LINE external links remain
+  const fileLinks = [...pos.matchAll(/<a[^>]*href=\{[^}]*api\/files[^}]*\}[^>]*target="_blank"/g)];
+  assert.equal(fileLinks.length, 0, "every /api/files link that used to open in a new tab is now a popup trigger");
+  assert.match(pos, /import \{createPortal\} from 'react-dom';/);
+  assert.match(pos, /function PhotoThumb\(\{id,alt,onOpen\}:\{id:string;alt:string;onOpen:\(id:string\)=>void\}\)\{return <button type="button" className="photo-thumb" onClick=\{\(\)=>onOpen\(id\)\}/);
+  // portaled to <body> and stops the click from reaching Radix's own "outside click closes the dialog" listener,
+  // since a photo is usually opened from inside a Dialog (job detail, payment, expense gallery) and this popup is
+  // a separate portal, not nested inside that Dialog's DOM
+  assert.match(pos, /return createPortal\(<div className="lightbox-overlay" role="dialog" aria-modal="true" aria-label="ดูรูปขยาย" onPointerDownCapture=\{e=>e\.stopPropagation\(\)\}/);
+  assert.match(pos, /,document\.body\);/);
+  assert.match(pos, /window\.addEventListener\('keydown',onKey\);return\(\)=>window\.removeEventListener\('keydown',onKey\)/, "Escape closes it too");
+  assert.match(pos, /\[lightbox,setLightbox\]=useState<string\|null>\(null\)/);
+  assert.match(pos, /<Lightbox id=\{lightbox\} onClose=\{\(\)=>setLightbox\(null\)\}\/>/);
+  // every former thumbnail/text-link site now routes through PhotoThumb/setLightbox
+  assert.match(pos, /<PhotoThumb key=\{id\} id=\{id\} alt="สภาพไม้ก่อนขึ้นเอ็น" onOpen=\{setLightbox\}\/>/);
+  assert.match(pos, /<PhotoThumb id=\{selected\.slip\} alt="สลิปโอนเงินจากลูกค้า" onOpen=\{setLightbox\}\/>/);
+  assert.match(pos, /<PhotoThumb key=\{id\} id=\{id\} alt=\{'รูปแนบ '\+\(i\+1\)\} onOpen=\{setLightbox\}\/>/);
+  assert.match(pos, /<PhotoThumb id=\{id\} alt="รูปแนบค่าใช้จ่าย" onOpen=\{setLightbox\}\/>/);
+  for (const text of ["ดูสลิป", "ดูสลิปที่ลูกค้าแนบ"]) assert.match(pos, new RegExp(`className="text-button" onClick=\\{\\(\\)=>setLightbox\\(form\\.slip\\)\\}>${text}</button>`));
+  // CSS: the overlay must explicitly re-enable pointer-events, since Radix sets body{pointer-events:none} while a
+  // Dialog is open and this popup, as a plain body child, would otherwise inherit that and become unclickable
+  assert.match(css, /\.lightbox-overlay\{[^}]*pointer-events:auto\}/);
+  assert.match(css, /\.photo-thumb\{all:unset;cursor:pointer;/);
 });

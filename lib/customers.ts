@@ -50,6 +50,19 @@ export function promoOf(config: any): Promo {
   return { enabled: config.member_promo_enabled !== 0, start: config.member_promo_start || null, end: config.member_promo_end || null };
 }
 
+// Where "today" sits relative to the promo window, for the customer's own tracking page: "off" (paused by the
+// switch), "before"/"after" the date window, or "during" it (including when no window is set - unbounded).
+// `null` when the feature isn't configured at all (migration not run) - the caller shows nothing in that case,
+// same as withinPromo() treating it as unrestricted.
+export type PromoPhase = "off" | "before" | "during" | "after" | null;
+export function promoPhase(promo: Promo, today: string): PromoPhase {
+  if (!promo) return null;
+  if (promo.enabled === false) return "off";
+  if (promo.start && today < promo.start) return "before";
+  if (promo.end && today > promo.end) return "after";
+  return "during";
+}
+
 function emptyCustomer(key: string, name: string, phone: string, last: string, need: number, note: string): Customer {
   return { key, name, phone, visits: 0, last, rackets: [], stamps: 0, jobStamps: 0, posStamps: 0, need, earned: 0, used: 0, available: 0, progress: 0, spent: 0, jobs: [], sales: [], note };
 }
