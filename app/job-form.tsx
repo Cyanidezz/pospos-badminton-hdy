@@ -14,6 +14,10 @@ export function CustomerInput({value,onChange,onPick,suggestions,...input}:any){
 
 const thaiDate=(iso:string)=>iso?new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',timeZone:'Asia/Bangkok'}):'';
 
+// The datetime-local input's own min: staff can't pick a pickup time in the past. No timezone math needed - the
+// picker already shows/returns the device's local wall-clock time, same as what gets stored and displayed later.
+const nowLocal=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)};
+
 // The เอ็น field: type to search a string by name, or (since a hardware scanner is just a keyboard) type/scan its
 // barcode and press Enter to pick it directly - the same barcode either matches here or via the camera-scan button.
 function StringInput({value,onChange,products}:{value:string;onChange:(id:string)=>void;products:any[]}){
@@ -68,7 +72,7 @@ export function JobFormFields({form,setForm,products,members,jobs,sales,config,u
           <label className={'attach-button secondary'+(photos?' has-photos':'')} title="สูงสุด 8 รูป รูปละ 8 MB"><ImagePlus size={18}/>{photos?`แนบแล้ว ${photos} รูป`:'แนบรูป'}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>{upload(e.target.files,'photos');e.target.value=''}}/></label>
         </div>
         <Field className="f-s4" label="สภาพไม้ / จุดตำหนิ (ถ้ามี)"><textarea rows={1} placeholder="เช่น สีถลอกที่ขอบ" value={form.condition||''} onChange={e=>setForm({...form,condition:e.target.value})}/></Field>
-        <Field className="f-s3" label="หมายเหตุ"><textarea rows={1} value={form.note||''} onChange={e=>setForm({...form,note:e.target.value})}/></Field>
+        <Field className="f-s3" label="วันเวลาที่นัดรับ (ถ้าทราบ)"><input type="datetime-local" min={nowLocal()} value={form.pickupAt||''} onChange={e=>setForm({...form,pickupAt:e.target.value})}/></Field>
       </div>
     </section>
   </div>;

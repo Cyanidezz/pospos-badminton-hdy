@@ -173,6 +173,8 @@ input:focus,textarea:focus,.choice:focus-visible{outline:0;border-color:#5f88d5;
 .warehouse-card{border-radius:18px;padding:20px;transition:transform .16s,box-shadow .16s}.warehouse-card:hover{transform:translateY(-2px);box-shadow:0 17px 38px rgba(32,53,92,.12)}
 .warehouse-numbers{background:linear-gradient(135deg,#f2f6fc,#ecf0f9);border:1px solid #dfe5f1;border-radius:13px}.warehouse-card header>strong{background:#ebf1fb;padding:6px 10px;border-radius:9px}
 .job-card{border-radius:18px!important;transition:transform .16s,box-shadow .16s}.job-card:hover{transform:translateY(-2px);box-shadow:0 17px 38px rgba(32,53,92,.12)}.job-spec{background:#f0f3fa;border:1px solid #e2e7f1;border-radius:10px}
+.job-pickup{display:flex;align-items:center;gap:6px;color:#8a5b12;font-size:13px;font-weight:600}
+.job-detail .job-pickup{color:#5b4a2e;font-size:14px;font-weight:500}
 .bar-track{height:9px;background:#e9ecf3}.bar-track>div{background:linear-gradient(90deg,#396fd4,#8ba7db)}
 
 .pos-dialog{border:1px solid #d8dfec;border-radius:22px!important;box-shadow:0 28px 80px rgba(21,41,80,.22)}

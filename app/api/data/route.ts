@@ -12,7 +12,7 @@ const [[config],products,receipts,jobRows,members,leaves,sales,items,expenses,su
 [`SELECT id,product_id,qty,${cost},staff_id,created FROM receipts ORDER BY created DESC`],
 // reward_used is a base member-program column (always present once that migration ran); slip is read through
 // to_jsonb so a not-yet-migrated "slip" column (see 20260922050000_job_slip.sql) is just null, not a query error.
-access.stringing?[`SELECT id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,reward_discount,to_jsonb(jobs)->>'slip' AS slip FROM jobs ORDER BY created DESC`]:none,
+access.stringing?[`SELECT id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,reward_discount,to_jsonb(jobs)->>'slip' AS slip,to_jsonb(jobs)->>'pickup_at' AS pickup_at FROM jobs ORDER BY created DESC`]:none,
 ['SELECT id,email,name,role,active,permissions FROM members ORDER BY name'],
 access.leave?['SELECT * FROM leaves'+(isOwner?'':' WHERE staff_id=?')+' ORDER BY start DESC',...mine]:none,
 access.pos||access.earnings?['SELECT * FROM sales'+(isOwner?'':' WHERE staff_id=?')+' ORDER BY created DESC',...mine]:none,
@@ -76,8 +76,14 @@ rewardDiscount=rewardOff(listed,config.member_reward_cap);amount=listed-rewardDi
 // one automatically, so they get the status update right away instead of having to tap "LINK" again every visit.
 const phoneDigits=String(b.phone||'').replace(/\D/g,'');
 const existingLineUser=phoneDigits?(await one("SELECT line_user FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND line_user IS NOT NULL ORDER BY created DESC LIMIT 1",phoneDigits))?.line_user||null:null;
-const jobValues=[id,token,str(b.customer),str(b.phone,30),str(b.racket),p.id,str(b.tension,50),String(b.condition||'').trim().slice(0,2000),String(b.note||'').slice(0,2000),JSON.stringify(photos),amount,'รอขึ้นเอ็น'],jobTail=[me.id,stringer.id,now(),existingLineUser];
-statements.push(b.useReward?q('INSERT INTO jobs(id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,line_user,reward_used,reward_discount) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,1,?)',...jobValues,...jobTail,rewardDiscount):q('INSERT INTO jobs(id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,line_user) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)',...jobValues,...jobTail));result={id,token,payable:amount,rewardDiscount};if(existingLineUser)result.notifyId=id;}
+// pickup_at may not exist yet (migration not run) - checked defensively so job intake never breaks because of it.
+const hasPickup=!!(await one("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='jobs' AND column_name='pickup_at'"));
+const pickupAt=hasPickup&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(b.pickupAt||''))?String(b.pickupAt).slice(0,16):null;
+const cols=['id','token','customer','phone','racket','product_id','tension','condition','note','photos','amount','status','paid','staff_id','stringer_id','created','line_user'];
+const vals=[id,token,str(b.customer),str(b.phone,30),str(b.racket),p.id,str(b.tension,50),String(b.condition||'').trim().slice(0,2000),String(b.note||'').slice(0,2000),JSON.stringify(photos),amount,'รอขึ้นเอ็น',0,me.id,stringer.id,now(),existingLineUser];
+if(hasPickup){cols.push('pickup_at');vals.push(pickupAt);}
+if(b.useReward){cols.push('reward_used','reward_discount');vals.push(1,rewardDiscount);}
+statements.push(q(`INSERT INTO jobs(${cols.join(',')}) VALUES(${cols.map(()=>'?').join(',')})`,...vals));result={id,token,payable:amount,rewardDiscount};if(existingLineUser)result.notifyId=id;}
 else if(action==='payJob'){const j=await one('SELECT * FROM jobs WHERE id=?',b.id);if(j?.status==='ยกเลิก')throw new Error('งานนี้ถูกยกเลิกแล้ว');if(!j||j.paid)throw new Error('ไม่พบงานหรือชำระแล้ว');const p=await one('SELECT * FROM products WHERE id=?',j.product_id);const freeReward=j.reward_used===1&&j.amount===0,method=freeReward?'สิทธิ์สมาชิก':str(b.method);if(!['เงินสด','โอนเงิน','บัตร','สิทธิ์สมาชิก'].includes(method)||(method==='สิทธิ์สมาชิก'&&!freeReward))throw new Error('ช่องทางชำระไม่ถูกต้อง');if(b.slip)await ownedFiles([b.slip]);// A member reward shows on the bill as a discount (the waived amount), so the POS sales list and reports carry
 // what the free stringing cost the shop - the string's own cost is still booked on the item as usual.
 const rewardOffAmount=j.reward_used===1?Number(j.reward_discount)||0:0;

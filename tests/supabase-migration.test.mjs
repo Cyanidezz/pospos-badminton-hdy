@@ -292,7 +292,7 @@ test("stringing jobs start at waiting and offer payment right after saving", asy
   assert.match(server, /export const statuses = \["รอขึ้นเอ็น","กำลังขึ้นเอ็น","พร้อมรับไม้","คืนไม้แล้ว"\]/);
   assert.match(pos, /const statuses=\['รอขึ้นเอ็น','กำลังขึ้นเอ็น','พร้อมรับไม้','คืนไม้แล้ว'\]/);
   assert.doesNotMatch(track, /'รับไม้'/);
-  assert.match(route, /JSON\.stringify\(photos\),amount,'รอขึ้นเอ็น'\],jobTail=\[me\.id/);
+  assert.match(route, /JSON\.stringify\(photos\),amount,'รอขึ้นเอ็น',0,me\.id,stringer\.id,now\(\),existingLineUser\]/);
   assert.match(route, /statuses\.indexOf\(normalizeJobStatus\(j\.status\)\)/);
   assert.match(pos, /open\('jobPay'/);
   assert.match(pos, /act\('payJob',\{id:form\.id,method:form\.jobPay/);
@@ -357,8 +357,11 @@ test("a returning customer's linked LINE carries over to their new job automatic
   const route = await read("app/api/data/route.ts");
   const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
   assert.match(job, /SELECT line_user FROM jobs WHERE regexp_replace\(phone,'\\\\D','','g'\)=\? AND line_user IS NOT NULL ORDER BY created DESC LIMIT 1/);
-  assert.match(job, /INSERT INTO jobs\(id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,line_user,reward_used,reward_discount\)/, "carried over on the reward-redemption insert too");
-  assert.match(job, /INSERT INTO jobs\(id,token,customer,phone,racket,product_id,tension,condition,note,photos,amount,status,paid,staff_id,stringer_id,created,line_user\) VALUES/, "and the plain insert");
+  // the INSERT's column/value lists are built dynamically (cols/vals) so reward_used/reward_discount and the
+  // optional pickup_at can each be added independently, without a combinatorial set of hardcoded literal inserts
+  assert.match(job, /const cols=\['id','token','customer','phone','racket','product_id','tension','condition','note','photos','amount','status','paid','staff_id','stringer_id','created','line_user'\];/);
+  assert.match(job, /vals=\[id,token,str\(b\.customer\),str\(b\.phone,30\),str\(b\.racket\),p\.id,str\(b\.tension,50\),String\(b\.condition\|\|''\)\.trim\(\)\.slice\(0,2000\),String\(b\.note\|\|''\)\.slice\(0,2000\),JSON\.stringify\(photos\),amount,'รอขึ้นเอ็น',0,me\.id,stringer\.id,now\(\),existingLineUser\];/);
+  assert.match(job, /statements\.push\(q\(`INSERT INTO jobs\(\$\{cols\.join\(','\)\}\) VALUES\(\$\{cols\.map\(\(\)=>'\?'\)\.join\(','\)\}\)`,\.\.\.vals\)\);/, "carried over on the reward-redemption insert too, since cols/vals are shared");
   assert.match(job, /if\(existingLineUser\)result\.notifyId=id;/, "sends the status message right away, reusing the same post-transaction notifyJob hook as jobStatus/notify");
 });
 
@@ -549,7 +552,7 @@ test("member program: server rules, settings and screens", async () => {
   assert.match(job, /if\(Number\(stat\.available\)<1\)throw new Error\('ลูกค้ายังไม่มีสิทธิ์ขึ้นเอ็นฟรี'\)/, "server re-checks the reward is available");
   assert.match(rewardLib, /\(FLOOR\(\(.*\)::numeric\/\?::numeric\)-\(SELECT COUNT\(\*\) FROM jobs WHERE .* AND reward_used=1\)\)/, "stamps / N, minus rewards used");
   assert.match(rewardLib, /paid=1 AND reward_used=0/);
-  assert.match(job, /b\.useReward\?q\('INSERT INTO jobs\(.*reward_used,reward_discount\)/, "new columns only used when a reward is redeemed");
+  assert.match(job, /if\(b\.useReward\)\{cols\.push\('reward_used','reward_discount'\);vals\.push\(1,rewardDiscount\);\}/, "new columns only used when a reward is redeemed");
   const pay = route.slice(route.indexOf("else if(action==='payJob')"), route.indexOf("else if(action==='jobStatus')"));
   assert.match(pay, /freeReward=j\.reward_used===1&&j\.amount===0/);
   const sale = route.slice(route.indexOf("else if(action==='sale')"), route.indexOf("else if(action==='editSale')"));
@@ -650,7 +653,7 @@ test("customer can pay from the tracking page: bank QR, slip upload, staff revie
 
   // staff side: the main jobs query also reads reward_used (a stamp-card display bug - it was missing entirely,
   // so "available" free rewards never accounted for ones already used) and the same defensive slip column
-  assert.match(dataRoute, /status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip FROM jobs/);
+  assert.match(dataRoute, /status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip,to_jsonb\(jobs\)->>'pickup_at' AS pickup_at FROM jobs/);
   assert.match(pos, /\{!j\.paid&&j\.slip&&<span className="badge amber">มีสลิปรอตรวจ<\/span>\}/);
   assert.match(pos, /if\(selected\.slip\)setMethod\('โอนเงิน'\);open\('payJob',\{id:selected\.id,slip:selected\.slip\}\)/);
   assert.match(pos, /modal==='payJob'&&selected\?\.slip&&form\.slip===selected\.slip\?<div className="notice customer-slip">/);
@@ -1085,7 +1088,7 @@ test("customers redeem a free stringing themselves on the tracking page; the rew
   assert.match(dataRoute, /const rewardOffAmount=j\.reward_used===1\?Number\(j\.reward_discount\)\|\|0:0;/);
   assert.match(dataRoute, /INSERT INTO sales\(id,staff_id,created,total,discount,discount_reason,method,slip,job_id\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)',id,me\.id,now\(\),j\.amount,rewardOffAmount,rewardOffAmount\?REWARD_REASON:''/);
   assert.match(dataRoute, /'เอ็นแบดมินตัน',j\.amount\+rewardOffAmount,p\.price,j\.amount,p\.cost,.*,rewardOffAmount\)/);
-  assert.match(dataRoute, /notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip FROM jobs/);
+  assert.match(dataRoute, /notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip,to_jsonb\(jobs\)->>'pickup_at' AS pickup_at FROM jobs/);
   assert.match(pos, /rewardSales=sales\.filter\(\(x:any\)=>x\.discount_reason===REWARD_REASON\)/, "dashboard totals what rewards cost the shop");
   assert.match(pos, /\{selected\.reward_used===1&&<div className="reward-notice">/, "staff see the reward on the job");
   // backfill for bills paid before this change: idempotent, only untouched bills
@@ -1102,4 +1105,27 @@ test("stock-count history opens a round's items right under its own row, not at 
   assert.match(page, /\{detail\?\.id===h\.id&&<div className="count-detail">.*<\/div>\}<\/li>\}\)\}<\/ul>/s, "rendered inside the row's <li>");
   assert.doesNotMatch(page, /<h3>\{detail\.session\.name\}<\/h3>/, "the ambiguous repeated name heading is gone");
   assert.match(css, /\.count-history li>\.count-detail\{flex:1 1 100%;min-width:0;max-width:100%/);
+});
+
+test("job intake: the free-text note is gone, replaced by an optional pickup date/time (native mobile wheel picker)", async () => {
+  const form = await read("app/job-form.tsx");
+  const pos = await read("app/pos.tsx");
+  const route = await read("app/api/data/route.ts");
+  const migration = await read("supabase/migrations/20260923030000_job_pickup_at.sql");
+  const css = await read("app/globals.css");
+  assert.doesNotMatch(form, /label="หมายเหตุ"/, "the free-text note input is removed from the intake form");
+  assert.match(form, /<Field className="f-s3" label="วันเวลาที่นัดรับ \(ถ้าทราบ\)"><input type="datetime-local" min=\{nowLocal\(\)\} value=\{form\.pickupAt\|\|''\} onChange=\{e=>setForm\(\{\.\.\.form,pickupAt:e\.target\.value\}\)\}\/><\/Field>/, "datetime-local renders as a native wheel picker on iOS/Android - no custom widget needed");
+  assert.match(form, /min=\{nowLocal\(\)\}/, "can't pick a pickup time in the past");
+  assert.doesNotMatch(form, /form\.note/, "no longer reads/writes a note field");
+  // server: defensive since the migration may not have run yet - job creation must never break because of this
+  const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
+  assert.match(job, /hasPickup=!!\(await one\("SELECT 1 FROM information_schema\.columns WHERE table_schema='public' AND table_name='jobs' AND column_name='pickup_at'"\)\);/);
+  assert.match(job, /pickupAt=hasPickup&&\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}T\\d\{2\}:\\d\{2\}\/\.test\(String\(b\.pickupAt\|\|''\)\)\?String\(b\.pickupAt\)\.slice\(0,16\):null;/, "malformed/missing input silently becomes null, never a thrown error");
+  assert.match(job, /if\(hasPickup\)\{cols\.push\('pickup_at'\);vals\.push\(pickupAt\);\}/);
+  // migration: plain text column, no timezone conversion (matches the other local date fields in this app)
+  assert.match(migration, /alter table public\.jobs add column if not exists pickup_at text;/);
+  // staff see it on the job card and in the job detail
+  assert.match(pos, /\{j\.pickup_at&&<div className="job-pickup"><CalendarClock size=\{14\}\/>นัดรับ \{pickupText\(j\.pickup_at\)\}<\/div>\}/);
+  assert.match(pos, /\{selected\.pickup_at&&<p className="job-pickup"><CalendarClock size=\{14\}\/> นัดรับ: \{pickupText\(selected\.pickup_at\)\}<\/p>\}/);
+  assert.match(css, /\.job-pickup\{display:flex;align-items:center;gap:6px/);
 });
