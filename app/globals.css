@@ -226,8 +226,9 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 @media(max-width:767px){.desktop-cart-product-thumb{display:none}}
 .line-action-header{padding:2px 44px 4px;text-align:center}.line-action-header h2{margin:0;color:#22365b;font-size:19px}.line-action-header p{margin:5px 0 0;color:#718494;font-size:13px;line-height:1.45}
 @media(max-width:767px){.mobile-cart-item-summary>.mobile-cart-item-actions{display:flex;align-self:stretch;align-items:flex-end;justify-content:space-between;gap:9px}.mobile-cart-item-actions>strong{align-self:flex-start;padding-top:2px;font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}.mobile-cart-item-summary .mobile-remove-item{width:36px!important;height:36px!important;min-height:36px!important;padding:0!important;border:1px solid #dce2ed!important;border-radius:10px!important;background:#fff!important;color:#71867b!important;box-shadow:0 5px 14px rgba(27,49,88,.07)!important}.mobile-cart-item-summary .mobile-remove-item:hover{background:#fff1f1!important;color:#a43f46!important;border-color:#f0d4d6!important}}
-/* Desktop register: product catalog and active cart stay visible together. */
-@media(min-width:1200px){
+/* Desktop/tablet register: catalog and cart stay visible together from ~landscape iPad width up (an iPad 7th-gen
+   in landscape is about 1080px wide) - narrower than that still switches between them with tabs. */
+@media(min-width:1000px){
   .register-toolbar>[data-slot=tabs]{display:none}
   .register-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(390px,.85fr);gap:20px;align-items:start}
   .register-layout.screen-catalog>.cart,.register-layout.screen-cart>.catalog{display:block}
@@ -239,7 +240,7 @@ input[type=file]{width:100%;padding:6px;border:1px dashed #c1cbdf;border-radius:
 }
 @media(min-width:1500px){.register-layout{grid-template-columns:minmax(0,1.7fr) minmax(430px,.8fr)}}
 .register-main>.page-heading{display:none}.register-main .register-toolbar{justify-content:flex-start}
-@media(min-width:1200px){.register-main .register-toolbar{display:none}}
+@media(min-width:1000px){.register-main .register-toolbar{display:none}}
 /* Compact product list view. */
 .register-products.view-list{gap:9px}.register-products.view-list .register-product{grid-template-columns:minmax(0,1fr) 145px;border-radius:13px!important;background:#fff!important;box-shadow:0 5px 16px rgba(28,50,90,.06)}.register-products.view-list .register-product-name{grid-template-columns:64px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;min-height:82px;padding:9px 12px;background:#fff;color:#202b40}.register-products.view-list .register-product-image{width:64px;height:64px;grid-row:1/3;object-fit:cover;border:1px solid #e2e6ef;border-radius:9px}.register-products.view-list .register-product-name h3{grid-column:2;margin:0;font-size:15px;font-weight:700;line-height:1.35}.register-products.view-list .product-availability{grid-column:2;justify-self:start;background:#eef1f7;color:#596780;font-size:11px}.register-products.view-list .product-availability.unavailable{background:#fff0f0;color:#b2484f}.register-products.view-list .register-product-price{min-width:0;padding:12px 14px;border-left:1px solid #e3e7ef;background:#f8fafd;align-content:center}.register-products.view-list .register-product-price strong{font-size:18px}.register-products.view-list .register-product-name:not(:has(img)){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto}.register-products.view-list .register-product-name:not(:has(img)) h3,.register-products.view-list .register-product-name:not(:has(img)) .product-availability{grid-column:1}.register-products.view-list .selected-qty{top:50%;right:12px;transform:translateY(-50%)}
 /* Compact sidebar navigation. */

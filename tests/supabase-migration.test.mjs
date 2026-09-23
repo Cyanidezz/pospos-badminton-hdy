@@ -808,6 +808,25 @@ test("stock counting: server rules, migration and screens", async () => {
   assert.match(page, /ยืนยันปรับสต๊อก/);
 });
 
+test("POS search box reclaims focus after adding a product, so a barcode gun still works after a manual tap", async () => {
+  const pos = await read("app/pos.tsx");
+  // a Bluetooth/USB scanner is just a keyboard: its keystrokes go wherever focus currently is. Tapping a product
+  // card moves focus onto that card's button, so without reclaiming it, a scan right after would land nowhere.
+  assert.match(pos, /searchInputRef=useRef<HTMLInputElement>\(null\)/);
+  assert.match(pos, /ref=\{searchInputRef\} autoFocus placeholder="ค้นหาชื่อสินค้า หรือสแกนบาร์โค้ด…"/);
+  const addFn = pos.slice(pos.indexOf("function add(p:any){"), pos.indexOf("function newScannedProduct"));
+  assert.match(addFn, /setTimeout\(\(\)=>searchInputRef\.current\?\.focus\(\),0\)/, "deferred a tick so it doesn't also pop the on-screen keyboard on every tap");
+});
+
+test("catalog and cart stay side by side from iPad-landscape width up, not only on a full desktop", async () => {
+  const pos = await read("app/pos.tsx");
+  const css = await read("app/globals.css");
+  assert.match(pos, /useNarrowRegister\(\)\{[\s\S]*?matchMedia\('\(max-width:999px\)'\)/);
+  assert.match(css, /@media\(min-width:1000px\)\{\s*\.register-toolbar>\[data-slot=tabs\]\{display:none\}/);
+  assert.match(css, /@media\(min-width:1000px\)\{\.register-main \.register-toolbar\{display:none\}\}/);
+  assert.doesNotMatch(css, /min-width:1200px/, "the old, too-narrow-for-an-iPad breakpoint is gone, not just duplicated");
+});
+
 test("เอ็น field is a search box, not a dropdown, so a hardware barcode scanner (types + Enter) picks it too", async () => {
   const form = await read("app/job-form.tsx");
   const css = await read("app/globals.css");
@@ -873,7 +892,7 @@ test("sidebar can be hidden from a small button, and the POS bar has a stringing
 
 test("on a narrow screen the pay button first shows the cart, and only pays once it is on screen", async () => {
   const pos = await read("app/pos.tsx");
-  assert.match(pos, /useNarrowRegister\(\)\{[\s\S]*?matchMedia\('\(max-width:1199px\)'\)/);
+  assert.match(pos, /useNarrowRegister\(\)\{[\s\S]*?matchMedia\('\(max-width:999px\)'\)/);
   assert.match(pos, /narrowRegister=useNarrowRegister\(\)/);
   assert.match(pos, /onClick=\{\(\)=>\{if\(narrowRegister&&saleScreen==='catalog'\)setSaleScreen\('cart'\);else open\('checkout',\{\}\)\}\}/);
   assert.match(pos, /\{narrowRegister&&saleScreen==='catalog'\?'ดูตะกร้า':'ชำระเงิน'\}/);
