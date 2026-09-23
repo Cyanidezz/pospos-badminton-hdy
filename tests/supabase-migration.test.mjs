@@ -1093,3 +1093,13 @@ test("customers redeem a free stringing themselves on the tracking page; the rew
   assert.match(backfill, /discount_reason = 'สิทธิ์สมาชิก: ขึ้นเอ็นฟรี'/);
   assert.ok(backfill.indexOf("update public.items") < backfill.indexOf("update public.sales"), "items first - it keys off sales.discount still being 0");
 });
+
+test("stock-count history opens a round's items right under its own row, not at the end of the list", async () => {
+  const page = await read("app/stock-count.tsx");
+  const css = await read("app/globals.css");
+  assert.match(page, /if\(detail\?\.id===id\)\{setDetail\(null\);return\}/, "tapping the same round again hides it");
+  assert.match(page, /setDetail\(\(x:any\)=>x\?\.id===id\?\{id,\.\.\.d\}:x\)/, "a slow response for a round that was since closed/switched doesn't overwrite the current one");
+  assert.match(page, /\{detail\?\.id===h\.id&&<div className="count-detail">.*<\/div>\}<\/li>\}\)\}<\/ul>/s, "rendered inside the row's <li>");
+  assert.doesNotMatch(page, /<h3>\{detail\.session\.name\}<\/h3>/, "the ambiguous repeated name heading is gone");
+  assert.match(css, /\.count-history li>\.count-detail\{flex:1 1 100%;min-width:0;max-width:100%/);
+});

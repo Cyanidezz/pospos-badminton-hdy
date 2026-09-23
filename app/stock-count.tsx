@@ -216,7 +216,8 @@ function Start({data,isOwner,categories,products,reload}:any){
   const [scope,setScope]=useState(''),[busy,setBusy]=useState(false),[detail,setDetail]=useState<any>(null);
   const shown=scope?stats.byCategory[scope]:stats.all;
   const start=async()=>{setBusy(true);try{await call('POST','/api/count',{action:'start',scope,requestId:crypto.randomUUID()});await reload()}catch(e:any){toast.error(e.message)}finally{setBusy(false)}};
-  const open=async(id:string)=>{try{setDetail(await call('GET','/api/count?view=detail&id='+id))}catch(e:any){toast.error(e.message)}};
+  // The items of a past round open right under the row that was tapped (tap again to hide), not at the end of the list.
+  const open=async(id:string)=>{if(detail?.id===id){setDetail(null);return}setDetail({id,loading:true});try{const d=await call('GET','/api/count?view=detail&id='+id);setDetail((x:any)=>x?.id===id?{id,...d}:x)}catch(e:any){setDetail(null);toast.error(e.message)}};
   return <div className="count-layout single">
     <section className="panel count-main">
       <h2><ClipboardCheck size={20}/> เริ่มรอบนับสต๊อก</h2>
@@ -239,10 +240,10 @@ function Start({data,isOwner,categories,products,reload}:any){
       <ul>{data.history.map((h:any)=>{let s:any={};try{s=JSON.parse(h.summary||'{}')}catch{}return <li key={h.id}>
         <div><b>{h.name}</b><small>{dateTime(h.closed||h.started)} · {h.status==='closed'?'ปรับสต๊อกแล้ว':'ยกเลิก'}</small></div>
         {h.status==='closed'&&<div className="count-history-nums"><span className="neg">ขาด {s.missingItems??0} · {baht(s.missingValue||0)}</span><span className="pos">เกิน {s.surplusItems??0} · {baht(s.surplusValue||0)}</span></div>}
-        {isOwner&&h.status==='closed'&&<button type="button" className="secondary small" onClick={()=>open(h.id)}>ดูรายการ</button>}</li>})}</ul>
-      {detail&&<div className="count-detail"><h3>{detail.session.name}</h3><div className="table-scroll"><table className="member-table"><thead><tr><th>สินค้า</th><th>ในระบบ</th><th>นับได้</th><th>ผลต่าง</th><th>เหตุผล</th></tr></thead><tbody>
-        {detail.items.map((i:any)=>{const d=i.counted-i.expected;return <tr key={i.product_id}><td>{i.name}</td><td>{i.expected}</td><td>{i.counted}</td><td className={d<0?'neg':'pos'}>{d>0?'+':''}{d}</td><td>{i.applied?i.reason:'ไม่ได้ปรับ'}</td></tr>})}
-      </tbody></table></div></div>}
+        {isOwner&&h.status==='closed'&&<button type="button" className={'secondary small'+(detail?.id===h.id?' is-active':'')} aria-expanded={detail?.id===h.id} onClick={()=>open(h.id)}>{detail?.id===h.id?'ซ่อนรายการ':'ดูรายการ'}</button>}
+        {detail?.id===h.id&&<div className="count-detail">{detail.loading?<p className="muted">กำลังโหลด…</p>:detail.items.length===0?<p className="muted">ไม่มีสินค้าที่ขาดหรือเกินในรอบนี้</p>:<div className="table-scroll"><table className="member-table"><thead><tr><th>สินค้า</th><th>ในระบบ</th><th>นับได้</th><th>ผลต่าง</th><th>การปรับสต๊อก</th></tr></thead><tbody>
+          {detail.items.map((i:any)=>{const d=i.counted-i.expected;return <tr key={i.product_id}><td>{i.name}</td><td>{i.expected}</td><td>{i.counted}</td><td className={d<0?'neg':'pos'}>{d>0?'+':''}{d}</td><td className={i.applied?'':'muted'}>{i.applied?i.reason:'ไม่ได้ปรับ'}</td></tr>})}
+        </tbody></table></div>}</div>}</li>})}</ul>
     </section>}
   </div>;
 }

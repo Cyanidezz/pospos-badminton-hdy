@@ -794,3 +794,10 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .redeem-confirm button{min-height:44px;border-radius:12px;font-weight:700}
 .redeem-confirm button:not(.secondary){background:#1f8f5d!important;color:#fff!important;border:0!important}
 .reward-done{margin:12px 0 0;padding:10px 13px;border-radius:12px;background:#e0f6ea;color:#16794a;font-weight:700;font-size:14.5px}
+/* Stock-count history: a past round's items open inline under its own row. */
+.count-history li>.count-detail{flex:1 1 100%;min-width:0;max-width:100%;box-sizing:border-box;margin:4px 0 2px;padding:10px 12px;border-radius:12px;background:#f5f7fb;border:1px solid #e3e8f2}
+.count-history li>.count-detail .member-table{margin:0;background:#fff}
+.count-history li>.count-detail p{margin:4px 2px}
+.count-history li button.is-active{background:#eef3fd!important;color:#3a70d4!important;border-color:#c9d8f3!important}
+.count-history li:has(>.count-detail){background:#fbfcfe}
+@media(max-width:760px){.count-history li>.count-detail{padding:8px}.count-history li>.count-detail .member-table th,.count-history li>.count-detail .member-table td{padding:8px 7px;font-size:13px}}
