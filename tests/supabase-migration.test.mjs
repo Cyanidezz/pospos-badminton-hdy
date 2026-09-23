@@ -1041,3 +1041,18 @@ test("staff stamp card (ลูกค้าสมาชิก) is compact on desk
   assert.match(css, /@media\(min-width:901px\)\{\s*\.stamp-card-panel\{/);
   assert.match(css, /\.stamp-card-panel \.stamp-dots\{grid-template-columns:repeat\(10,34px\);gap:8px\}/);
 });
+
+test("inventory list turns into compact cards on iPad/tablet and phones instead of a squeezed or side-scrolled table", async () => {
+  const pos = await read("app/pos.tsx");
+  const css = await read("app/globals.css");
+  for (const cls of ["inv-sel", "inv-product", "inv-meta inv-code", "inv-meta inv-cat", "inv-status", "inv-actions"]) assert.match(pos, new RegExp(`<td className="${cls}"`), cls);
+  assert.match(pos, /<td className="inv-meta" data-label="ราคา">/);
+  assert.match(pos, /\{owner&&<td className="inv-meta" data-label="ทุน">/, "cost stays owner-only");
+  const tablet = css.slice(css.indexOf("@media(max-width:1100px){\n.inventory-list-panel,.inventory-table-wrap{overflow:visible!important}"));
+  assert.ok(tablet.length > 0);
+  assert.match(tablet, /\.inventory-list-table,\.inventory-list-table thead,\.inventory-list-table tbody\{display:block;width:100%;min-width:0!important/, "overrides the 980px min-width that forced sideways scrolling");
+  assert.match(tablet, /\.inventory-list-table tbody tr:after\{content:'';order:4;flex-basis:100%/, "the figures always wrap under the product name");
+  assert.match(tablet, /td\.inv-meta:before\{content:attr\(data-label\)/);
+  assert.match(tablet, /tbody tr:has\(\.inventory-row-menu\)\{z-index:100\}/, "the row menu stays above the next card");
+  assert.match(tablet, /@media\(max-width:760px\)\{[^}]*\}[\s\S]*td\.inv-code,\.inventory-list-table td\.inv-cat\{order:5/);
+});
