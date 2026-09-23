@@ -1281,3 +1281,16 @@ test("second reward tier: 5 stars redeems free socks (a real POS discount), rede
   assert.match(pos, /sockSales=sales\.filter\(\(x:any\)=>x\.discount_reason===SOCK_REWARD_REASON\)/);
   assert.match(pos, /<MembersPage jobs=\{jobs\} sales=\{data\.sales\|\|\[\]\} config=\{data\.config\} products=\{allProducts\}/);
 });
+
+test("ระบบสมาชิก settings: each reward tier gets its own labelled section, native <select> matches the other inputs", async () => {
+  const settings = await read("app/shop-settings.tsx");
+  const css = await read("app/globals.css");
+  assert.match(settings, /<h3 className="reward-tier-title">🎁 ขึ้นเอ็นฟรี<\/h3>/);
+  assert.match(settings, /<h3 className="reward-tier-title">🧦 ถุงเท้าฟรี<\/h3>/);
+  // the socks star-count and the product picker are each their own full-width row now, not squeezed into a
+  // 2-column grid next to a much shorter label (which used to wrap to 3 lines and throw the row off balance)
+  assert.match(settings, /<Field label="สะสมครบกี่ดาว"><input className="field-narrow" type="number"/);
+  assert.doesNotMatch(settings, /สะสมครบกี่ดาวแลกถุงเท้าฟรี/, "the old long label that used to wrap awkwardly is gone");
+  assert.match(css, /^select\{width:100%;border:1px solid var\(--border\);border-radius:8px;padding:10px 12px;min-width:0;background:#fff;color:var\(--foreground\);font-size:15px;height:44px\}/m, "a bare <select> now looks like every other input, not the raw browser default");
+  assert.match(css, /\.field-narrow\{max-width:160px\}/);
+});

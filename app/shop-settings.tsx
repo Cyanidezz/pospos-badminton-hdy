@@ -104,24 +104,26 @@ export function MemberPanel({form,setForm,config,products,busy,onSave,Field}:any
     <p className="muted">ขึ้นเอ็นและชำระแล้ว 1 ครั้ง = 1 ดาว และบิลหน้าร้านที่ผูกสมาชิก 1 บิล = 1 ดาว สะสมครบ {socksNeed} ดาวแลกถุงเท้าฟรีได้ 1 คู่ หรือสะสมต่อจนครบ {stringNeed} ดาวแลกเอ็นฟรี 1 เส้น แลกอย่างใดอย่างหนึ่งแล้วเริ่มนับดาวใหม่ (ลูกค้าจัดกลุ่มตามเบอร์โทรอัตโนมัติ)</p>
     {!ready&&<div className="notice">ยังไม่ได้อัปเดตฐานข้อมูลสำหรับส่วนนี้ ให้รัน migration <code>20260922010000_members.sql</code> บน Supabase ก่อน</div>}
     <form onSubmit={e=>{e.preventDefault();onSave()}}>
+      <h3 className="reward-tier-title">🎁 ขึ้นเอ็นฟรี</h3>
       <div className="form-grid">
-        <Field label="สะสมครบกี่ดาวแลกเอ็นฟรี"><input type="number" min="1" max="100" step="1" disabled={!ready} value={form.memberStampsRequired??config.member_stamps_required??10} onChange={e=>setForm({...form,memberStampsRequired:e.target.value})}/></Field>
-        <Field label="ส่วนลดสูงสุดต่อสิทธิ์เอ็นฟรี (บาท)"><input type="number" min="0" step="0.01" disabled={!ready} placeholder="ว่าง = ฟรีทั้งงาน" value={form.memberRewardCap??(config.member_reward_cap===null||config.member_reward_cap===undefined?'':config.member_reward_cap/100)} onChange={e=>setForm({...form,memberRewardCap:e.target.value})}/></Field>
+        <Field label="สะสมครบกี่ดาว"><input type="number" min="1" max="100" step="1" disabled={!ready} value={form.memberStampsRequired??config.member_stamps_required??10} onChange={e=>setForm({...form,memberStampsRequired:e.target.value})}/></Field>
+        <Field label="ส่วนลดสูงสุดต่อสิทธิ์ (บาท)"><input type="number" min="0" step="0.01" disabled={!ready} placeholder="ว่าง = ฟรีทั้งงาน" value={form.memberRewardCap??(config.member_reward_cap===null||config.member_reward_cap===undefined?'':config.member_reward_cap/100)} onChange={e=>setForm({...form,memberRewardCap:e.target.value})}/></Field>
       </div>
       <p className="muted">ถ้าใส่ส่วนลดสูงสุด เช่น 100 บาท สิทธิ์จะลดให้ไม่เกิน 100 บาทต่องาน (ลูกค้าจ่ายส่วนที่เหลือ) ปล่อยว่างเพื่อให้ฟรีทั้งงาน</p>
+      <hr className="panel-divider"/>
+      <h3 className="reward-tier-title">🧦 ถุงเท้าฟรี</h3>
       {!socksReady?<div className="notice">แลกถุงเท้าฟรีต้องรัน migration <code>20260924030000_member_socks_reward.sql</code> ก่อน</div>:<>
-        <div className="form-grid">
-          <Field label="สะสมครบกี่ดาวแลกถุงเท้าฟรี"><input type="number" min="1" max="100" step="1" value={form.memberSocksStampsRequired??config.member_socks_stamps_required??5} onChange={e=>setForm({...form,memberSocksStampsRequired:e.target.value})}/></Field>
-          <Field label="สินค้าที่ให้เป็นถุงเท้าฟรี">
-            <select value={form.memberSocksProductId??(config.member_socks_product_id||'')} onChange={e=>setForm({...form,memberSocksProductId:e.target.value})}>
-              <option value="">— ยังไม่เลือก (ปิดการแลกถุงเท้า) —</option>
-              {(products||[]).filter((p:any)=>p.active!==0).map((p:any)=><option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </Field>
-        </div>
+        <Field label="สะสมครบกี่ดาว"><input className="field-narrow" type="number" min="1" max="100" step="1" value={form.memberSocksStampsRequired??config.member_socks_stamps_required??5} onChange={e=>setForm({...form,memberSocksStampsRequired:e.target.value})}/></Field>
+        <Field label="สินค้าที่ให้เป็นถุงเท้าฟรี">
+          <select value={form.memberSocksProductId??(config.member_socks_product_id||'')} onChange={e=>setForm({...form,memberSocksProductId:e.target.value})}>
+            <option value="">— ยังไม่เลือก (ปิดการแลกถุงเท้า) —</option>
+            {(products||[]).filter((p:any)=>p.active!==0).map((p:any)=><option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </Field>
         <p className="muted">ตัดสต๊อกสินค้าที่เลือกจริง 1 ชิ้นต่อการแลก 1 ครั้ง และนับต้นทุนตามจริง แต่ราคาขายบันทึกเป็น 0 บาท (ลดเต็มราคา) โชว์ในรายงานยอดขายว่าเป็นส่วนลด</p>
       </>}
       {ready&&!('member_pos_min_amount' in config)&&<div className="notice">แต้มจากบิลหน้าร้านต้องรัน migration <code>20260922020000_member_notes_and_pos_stamps.sql</code> ก่อน</div>}
+      <hr className="panel-divider"/>
       <Field label="บิลหน้าร้าน (POS) ที่ผูกสมาชิก ได้ 1 แต้มเมื่อยอดตั้งแต่ (บาท)"><input type="number" min="0" step="0.01" disabled={!('member_pos_min_amount' in config)} placeholder="0 = ทุกบิลได้แต้ม" value={form.memberPosMinAmount??((config.member_pos_min_amount||0)/100)} onChange={e=>setForm({...form,memberPosMinAmount:e.target.value})}/></Field>
       <hr className="panel-divider"/>
       <h3>ช่วงเวลาโปรโมชั่น</h3>
