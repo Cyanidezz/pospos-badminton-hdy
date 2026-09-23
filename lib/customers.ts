@@ -121,6 +121,9 @@ export function billEarnsStamp(sale: any, posMinAmount = 0, promo: Promo = null)
   return !!sale.customer_key && sale.status !== "voided" && !sale.job_id && (Number(sale.total) || 0) >= Math.max(0, Number(posMinAmount) || 0) && withinPromo(sale.created, promo);
 }
 
+// The discount reason on the bill of a job paid with a member reward (the POS dashboard totals these up).
+export const REWARD_REASON = "สิทธิ์สมาชิก: ขึ้นเอ็นฟรี";
+
 // What a free-stringing reward takes off a job price (satang). `cap` is null/undefined for the whole job.
 export function rewardDiscount(price: number, cap?: number | null) {
   return cap === null || cap === undefined ? price : Math.min(price, cap);

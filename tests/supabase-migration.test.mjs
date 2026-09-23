@@ -545,8 +545,10 @@ test("member program: server rules, settings and screens", async () => {
   for (const column of ["member_stamps_required", "member_reward_cap", "reward_used", "reward_discount", "customer_key", "customer_name"]) assert.match(migration, new RegExp(`add column if not exists ${column}`));
   assert.match(migration, /'สิทธิ์สมาชิก'/);
   const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
-  assert.match(job, /Math\.floor\(Number\(stat\.stamps\)\/need\)-Number\(stat\.used\)<1/, "server re-checks the reward is available");
-  assert.match(job, /paid=1 AND reward_used=0/);
+  const rewardLib = await read("lib/member-reward.ts");
+  assert.match(job, /if\(Number\(stat\.available\)<1\)throw new Error\('ลูกค้ายังไม่มีสิทธิ์ขึ้นเอ็นฟรี'\)/, "server re-checks the reward is available");
+  assert.match(rewardLib, /\(FLOOR\(\(.*\)::numeric\/\?::numeric\)-\(SELECT COUNT\(\*\) FROM jobs WHERE .* AND reward_used=1\)\)/, "stamps / N, minus rewards used");
+  assert.match(rewardLib, /paid=1 AND reward_used=0/);
   assert.match(job, /b\.useReward\?q\('INSERT INTO jobs\(.*reward_used,reward_discount\)/, "new columns only used when a reward is redeemed");
   const pay = route.slice(route.indexOf("else if(action==='payJob')"), route.indexOf("else if(action==='jobStatus')"));
   assert.match(pay, /freeReward=j\.reward_used===1&&j\.amount===0/);
@@ -637,18 +639,18 @@ test("customer can pay from the tracking page: bank QR, slip upload, staff revie
   // and the new "slip" column is read defensively (a missing column must never break the whole endpoint)
   assert.match(trackRoute, /to_jsonb\(jobs\)->>'slip' AS slip/);
   assert.match(trackRoute, /payable=!j\.paid&&j\.status!=='ยกเลิก'/);
-  assert.match(trackRoute, /bank=payable\?\{name:config\?\.bank_name/);
+  assert.match(trackRoute, /bank=payable&&j\.amount>0\?\{name:config\?\.bank_name/);
 
   // the tracking page: a pay button reveals the QR + upload, and shows a persisted "already sent" state
   assert.match(page, /function PaySection/);
-  assert.match(page, /if\(job\.paid\|\|job\.status==='ยกเลิก'\)return null/);
+  assert.match(page, /if\(job\.paid\|\|job\.status==='ยกเลิก'\|\|!\(job\.amount>0\)\)return null/);
   assert.match(page, /if\(job\.slipUploaded\)return.*ส่งสลิปแล้ว/);
   assert.match(page, /fetch\('\/api\/track\/'\+token\+'\/slip'/);
   assert.match(page, /qrSrc="\/api\/track\/bank-qr"/);
 
   // staff side: the main jobs query also reads reward_used (a stamp-card display bug - it was missing entirely,
   // so "available" free rewards never accounted for ones already used) and the same defensive slip column
-  assert.match(dataRoute, /status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,to_jsonb\(jobs\)->>'slip' AS slip FROM jobs/);
+  assert.match(dataRoute, /status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip FROM jobs/);
   assert.match(pos, /\{!j\.paid&&j\.slip&&<span className="badge amber">มีสลิปรอตรวจ<\/span>\}/);
   assert.match(pos, /if\(selected\.slip\)setMethod\('โอนเงิน'\);open\('payJob',\{id:selected\.id,slip:selected\.slip\}\)/);
   assert.match(pos, /modal==='payJob'&&selected\?\.slip&&form\.slip===selected\.slip\?<div className="notice customer-slip">/);
@@ -659,14 +661,14 @@ test("tracking page shows the customer's own stamp progress and reward", async (
   const route = await read("app/api/track/[token]/route.ts");
   const page = await read("app/track/[token]/page.tsx");
   const css = await read("app/globals.css");
-  assert.match(route, /import \{buildCustomers,promoOf\} from '@\/lib\/customers'/);
+  assert.match(route, /import \{buildCustomers,promoOf,rewardDiscount\} from '@\/lib\/customers'/);
   assert.match(route, /if\(!\('member_stamps_required' in config\)\)return null/, "works before the members migration is run");
   assert.match(route, /regexp_replace\(phone,'\\\\D','','g'\)=\?",key\)/, "matches the same phone-digits key used everywhere else");
   assert.match(route, /FROM sales WHERE customer_key=\?/);
   assert.doesNotMatch(route, /customer_notes|\.note\b/, "the staff-only customer note is never sent to the public tracking page");
   assert.match(route, /rewardCap:config\.member_reward_cap\?\?null/);
   assert.match(page, /function MemberStamps\(/);
-  assert.match(page, /job\.status!=='ยกเลิก'&&<MemberStamps member=\{job\.member\}\/>/, "hidden once the job is cancelled");
+  assert.match(page, /job\.status!=='ยกเลิก'&&<MemberStamps member=\{job\.member\} reward=/, "hidden once the job is cancelled");
   assert.match(page, /available>0\?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี/);
   assert.match(page, /cap===null\|\|cap===undefined\?'ฟรีค่าขึ้นเอ็นทั้งหมด'/);
   assert.match(css, /\.member-stamps\{margin:22px 0\}/);
@@ -702,10 +704,12 @@ test("member stamp promotion has an optional date window and an on/off switch", 
   assert.match(migration, /add column if not exists member_promo_end text/);
 
   // server: the reward-eligibility count is date/enabled-filtered the same way the display logic is
-  const job = dataRoute.slice(dataRoute.indexOf("if(b.useReward){"), dataRoute.indexOf("const cap=config.member_reward_cap"));
-  assert.match(job, /promoOn=!\('member_promo_enabled' in config\)\|\|config\.member_promo_enabled!==0/, "the column may not exist yet (migration not run) - treated as on, not a hard failure");
-  assert.match(job, /dateFilter=promoOn\?"AND created>=COALESCE\(\?,'0000-01-01'\) AND created<=COALESCE\(\?,'9999-12-31'\)":'AND 1=0'/);
-  assert.match(job, /\$\{dateFilter\}\)\+\(SELECT COUNT\(\*\) FROM sales/, "the same window applies to both the job and the POS-bill half of the stamp count");
+  // (the count lives in lib/member-reward.ts, shared by staff intake and the customer's own redeem)
+  const rewardLib = await read("lib/member-reward.ts");
+  assert.match(rewardLib, /promoOn = !\('member_promo_enabled' in config\) \|\| config\.member_promo_enabled !== 0/, "the column may not exist yet (migration not run) - treated as on, not a hard failure");
+  assert.match(rewardLib, /dateFilter = promoOn \? "AND created>=COALESCE\(\?,'0000-01-01'\) AND created<=COALESCE\(\?,'9999-12-31'\)" : 'AND 1=0'/);
+  assert.match(rewardLib, /\$\{dateFilter\}\)\+\(SELECT COUNT\(\*\) FROM sales/, "the same window applies to both the job and the POS-bill half of the stamp count");
+  assert.match(dataRoute, /const available=availableRewardsSql\(config,digits\),stat:any=await one\(`SELECT \$\{available\.sql\} AS available`,\.\.\.available\.args\)/);
 
   // server: settings validates the date format and that start doesn't come after end
   const settingsAction = dataRoute.slice(dataRoute.indexOf("action==='settings'"), dataRoute.indexOf("else if(action==='expense')"));
@@ -797,8 +801,7 @@ test("editing a member: server rules, migration and screens", async () => {
   assert.match(edit, /UPDATE sales SET customer_key=\?,customer_name=\?/);
   assert.match(edit, /'customer_notes' in config/, "notes need the migration");
   assert.match(edit, /jsonb_build_object/);
-  const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
-  assert.match(job, /SELECT COUNT\(\*\) FROM sales WHERE customer_key=\? AND status='active' AND job_id IS NULL AND total>=\?/, "the server counts POS stamps for the reward");
+  assert.match(await read("lib/member-reward.ts"), /SELECT COUNT\(\*\) FROM sales WHERE customer_key=\? AND status='active' AND job_id IS NULL AND total>=\?/, "the server counts POS stamps for the reward");
   assert.match(route, /\^\(\\d\{6,20\}\|name:\.\{1,90\}\)\$/, "member key format is validated on sales");
   assert.match(route, /member_pos_min_amount',b\.memberPosMinAmount/);
   assert.match(page, /function EditForm/);
@@ -1059,4 +1062,34 @@ test("inventory list on iPad/tablet and phones: one short line per product, deta
   assert.match(css, /@container invlist \(max-width:640px\)\{/, "two-line layout follows the list's own width (portrait iPad with the sidebar open), not the viewport");
   assert.match(css, /@container invcontrols \(max-width:640px\)\{\.inventory-toolbar\{grid-template-columns:1fr 1fr\}/, "the filter bar no longer pushes the last dropdown out of the frame");
   assert.match(tablet, /tbody tr:has\(\.inventory-row-menu\)\{z-index:100\}/, "the row menu stays above the next row");
+});
+
+test("customers redeem a free stringing themselves on the tracking page; the reward is booked as a POS discount", async () => {
+  const redeem = await read("app/api/track/[token]/redeem/route.ts");
+  const trackApi = await read("app/api/track/[token]/route.ts");
+  const trackPage = await read("app/track/[token]/page.tsx");
+  const dataRoute = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  const backfill = await read("supabase/migrations/20260923020000_reward_discount_backfill.sql");
+  // redeem: same-origin, token-scoped, entitlement re-checked inside the UPDATE under a per-phone lock
+  assert.match(redeem, /req\.headers\.get\('origin'\)!==new URL\(req\.url\)\.origin/);
+  assert.match(redeem, /pg_advisory_xact_lock\(hashtext\(\?\)\)'\)\.bind\('member-reward:'\+digits\)/, "a double tap or two jobs at once can't spend one reward twice");
+  assert.match(redeem, /UPDATE jobs SET reward_used=1,reward_discount=\?,amount=amount-\?.* WHERE token=\? AND paid=0 AND reward_used=0 AND status<>'ยกเลิก' AND amount=\? AND to_jsonb\(jobs\)->>'slip' IS NULL AND \$\{available\.sql\}>=1 RETURNING id/);
+  assert.match(redeem, /rewardDiscount\(job\.amount,config\.member_reward_cap\)/, "same cap as staff intake");
+  // tracking API + page
+  assert.match(trackApi, /canRedeem=payable&&!rewardUsed&&!j\.slip&&j\.amount>0&&\(member\?\.available\|\|0\)>0/);
+  assert.match(trackPage, /fetch\('\/api\/track\/'\+token\+'\/redeem',\{method:'POST'\}\)/);
+  assert.match(trackPage, /reward\?\.canRedeem&&\(!confirm\?<button type="button" className="redeem-cta"/, "a confirm step before spending the reward");
+  assert.match(trackPage, /if\(job\.paid\|\|job\.status==='ยกเลิก'\|\|!\(job\.amount>0\)\)return null;/, "no pay button once the job is free");
+  // POS: the waived amount is the bill's discount, the item keeps its list price with a line discount
+  assert.match(dataRoute, /const rewardOffAmount=j\.reward_used===1\?Number\(j\.reward_discount\)\|\|0:0;/);
+  assert.match(dataRoute, /INSERT INTO sales\(id,staff_id,created,total,discount,discount_reason,method,slip,job_id\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)',id,me\.id,now\(\),j\.amount,rewardOffAmount,rewardOffAmount\?REWARD_REASON:''/);
+  assert.match(dataRoute, /'เอ็นแบดมินตัน',j\.amount\+rewardOffAmount,p\.price,j\.amount,p\.cost,.*,rewardOffAmount\)/);
+  assert.match(dataRoute, /notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip FROM jobs/);
+  assert.match(pos, /rewardSales=sales\.filter\(\(x:any\)=>x\.discount_reason===REWARD_REASON\)/, "dashboard totals what rewards cost the shop");
+  assert.match(pos, /\{selected\.reward_used===1&&<div className="reward-notice">/, "staff see the reward on the job");
+  // backfill for bills paid before this change: idempotent, only untouched bills
+  assert.match(backfill, /and s\.discount = 0 and i\.line_discount = 0;/);
+  assert.match(backfill, /discount_reason = 'สิทธิ์สมาชิก: ขึ้นเอ็นฟรี'/);
+  assert.ok(backfill.indexOf("update public.items") < backfill.indexOf("update public.sales"), "items first - it keys off sales.discount still being 0");
 });

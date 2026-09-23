@@ -786,3 +786,11 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
    last dropdown out of the frame */
 @media(max-width:1100px){.inventory-controls-row{container:invcontrols/inline-size}}
 @container invcontrols (max-width:640px){.inventory-toolbar{grid-template-columns:1fr 1fr}.inventory-toolbar .search-box{grid-column:1/-1}.inventory-toolbar label:last-child{grid-column:1/-1}}
+/* Tracking page: the customer redeems a free stringing on this job themselves (with a confirm step). */
+.redeem-cta{width:100%;margin-top:12px;padding:13px;border-radius:14px;background:linear-gradient(135deg,#27a86f,#16794a)!important;color:#fff!important;font-size:15.5px;font-weight:700;border:0!important;box-shadow:0 10px 24px rgba(34,160,107,.24)!important}
+.redeem-confirm{margin-top:12px;padding:12px 14px;border-radius:14px;border:1px solid #9fd8b9;background:#f0faf5;color:#1d5c40}
+.redeem-confirm p{margin:0 0 10px;font-size:14.5px;line-height:1.5}
+.redeem-confirm>div{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}
+.redeem-confirm button{min-height:44px;border-radius:12px;font-weight:700}
+.redeem-confirm button:not(.secondary){background:#1f8f5d!important;color:#fff!important;border:0!important}
+.reward-done{margin:12px 0 0;padding:10px 13px;border-radius:12px;background:#e0f6ea;color:#16794a;font-weight:700;font-size:14.5px}

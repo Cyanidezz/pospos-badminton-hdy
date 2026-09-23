@@ -11,17 +11,35 @@ const baht=(satang:number)=>(satang/100).toLocaleString('th-TH',{maximumFraction
 const rewardText=(cap:number|null)=>cap===null||cap===undefined?'ฟรีค่าขึ้นเอ็นทั้งหมด':`เอ็นมูลค่าไม่เกิน ฿${baht(cap)}`;
 
 // Customer-facing stamp card: same idea as the staff page, worded for the customer reading their own link.
-function MemberStamps({member}:{member:any}){
+function MemberStamps({member,reward,token,onRedeemed}:{member:any;reward:any;token:string;onRedeemed:()=>void}){
+  const [confirm,setConfirm]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
   if(!member)return null;
+  const redeem=async()=>{
+    setBusy(true);setError('');
+    try{
+      const r=await fetch('/api/track/'+token+'/redeem',{method:'POST'});
+      const d:any=await r.json();
+      if(!r.ok)throw new Error(d.error||'ใช้สิทธิ์ไม่สำเร็จ');
+      setConfirm(false);onRedeemed();
+    }catch(e:any){setError(e.message||'ใช้สิทธิ์ไม่สำเร็จ')}
+    finally{setBusy(false)}
+  };
   const dots=member.need<=20?Array.from({length:member.need},(_,i)=>i):[];
   return <section className="member-stamps" aria-label="สะสมแต้มขึ้นเอ็น">
     <div className="stamp-card">
       <div className="stamp-head"><b>สะสมแต้มขึ้นเอ็น</b><span>{member.progress}/{member.need} ครั้ง · ครบแล้ว {member.earned} รอบ</span></div>
       {dots.length>0?<div className="stamp-dots">{dots.map(i=><span key={i} className={i<member.progress?'is-filled':''}>{i<member.progress?'✓':i+1}</span>)}</div>:<div className="stamp-bar"><i style={{width:(member.progress/member.need*100)+'%'}}/></div>}
       <div className={'stamp-reward'+(member.available>0?' is-ready':'')}>
-        {member.available>0?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี {member.available} ครั้ง!</b> แจ้งพนักงานตอนมาส่งไม้ครั้งถัดไปเพื่อใช้สิทธิ์ ({rewardText(member.rewardCap)})</span>
+        {member.available>0?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี {member.available} ครั้ง!</b> {reward?.canRedeem?'กดใช้สิทธิ์กับไม้นี้ได้เลย':'ใช้ได้กับไม้ครั้งถัดไป'} ({rewardText(member.rewardCap)})</span>
         :<span>สะสมอีก {member.need-member.progress} ครั้ง รับสิทธิ์ขึ้นเอ็นฟรี 1 ครั้ง ({rewardText(member.rewardCap)})</span>}
       </div>
+      {reward?.used&&<p className="reward-done">✓ ใช้สิทธิ์ขึ้นเอ็นฟรีกับไม้นี้แล้ว · ลด ฿{baht(reward.discount)}</p>}
+      {reward?.canRedeem&&(!confirm?<button type="button" className="redeem-cta" onClick={()=>setConfirm(true)}>🎁 แลกสิทธิ์ขึ้นเอ็นฟรี</button>
+      :<div className="redeem-confirm">
+        <p>ใช้สิทธิ์ 1 ครั้งกับไม้นี้? ลด <b>฿{baht(reward.redeemOff)}</b> เหลือชำระ <b>฿{baht(reward.amount-reward.redeemOff)}</b></p>
+        <div><button type="button" className="secondary" disabled={busy} onClick={()=>{setConfirm(false);setError('')}}>ยกเลิก</button><button type="button" disabled={busy} onClick={redeem}>{busy?'กำลังใช้สิทธิ์…':'ยืนยันใช้สิทธิ์'}</button></div>
+      </div>)}
+      {error&&<p role="alert" className="notice">{error}</p>}
     </div>
   </section>;
 }
@@ -30,7 +48,7 @@ function MemberStamps({member}:{member:any}){
 // of the slip. This never marks the job paid by itself - the shop still reviews the slip before confirming.
 function PaySection({job,token,onUploaded}:{job:any;token:string;onUploaded:()=>void}){
   const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
-  if(job.paid||job.status==='ยกเลิก')return null;
+  if(job.paid||job.status==='ยกเลิก'||!(job.amount>0))return null;
   if(job.slipUploaded)return <div className="track-pay"><p className="notice">ส่งสลิปแล้ว ร้านจะตรวจสอบและอัปเดตสถานะการชำระเงินให้เร็วๆ นี้ หากส่งผิดรูปหรือต้องการแก้ไข ติดต่อร้านได้เลย</p></div>;
   const upload=async(files:FileList|null)=>{
     if(!files?.[0])return;
@@ -78,11 +96,12 @@ function ShopContact({shop}:any){
 
 export default function Track(){
   const {token}=useParams(),[job,setJob]=useState<any>(null),[error,setError]=useState('');
+  const load=()=>fetch('/api/track/'+token).then(r=>r.json()).then((j:any)=>j.error?setError(j.error):setJob(j)).catch(()=>setError('โหลดไม่สำเร็จ กรุณาลองอีกครั้ง'));
   useEffect(()=>{
-    const load=()=>fetch('/api/track/'+token).then(r=>r.json()).then((j:any)=>j.error?setError(j.error):setJob(j)).catch(()=>setError('โหลดไม่สำเร็จ กรุณาลองอีกครั้ง'));
     load();
     const timer=setInterval(load,30000);
     return()=>clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[token]);
   return <main className="tracking">
     <div className="eyebrow">BADMINTON · STRINGING SERVICE</div>
@@ -92,9 +111,9 @@ export default function Track(){
       <h2>{job.racket}</h2>
       <div className="track-status">{job.status}</div>
       {job.status!=='ยกเลิก'&&<ol>{steps.map((s,i)=><li className={i<=steps.indexOf(job.status)?'done':''} key={s}>{s}</li>)}</ol>}
-      {job.status==='ยกเลิก'?<p>งานนี้ถูกยกเลิก หากมีข้อสงสัยกรุณาติดต่อร้าน</p>:<p>{job.paid?'ชำระเงินแล้ว':`ชำระวันรับไม้ ${(job.amount/100).toLocaleString('th-TH')} บาท`}</p>}
+      {job.status==='ยกเลิก'?<p>งานนี้ถูกยกเลิก หากมีข้อสงสัยกรุณาติดต่อร้าน</p>:<p>{job.paid?'ชำระเงินแล้ว':job.amount>0?`ชำระวันรับไม้ ${(job.amount/100).toLocaleString('th-TH')} บาท`:'ไม่มีค่าใช้จ่าย (ใช้สิทธิ์สมาชิก)'}</p>}
       <PaySection job={job} token={String(token)} onUploaded={()=>setJob((j:any)=>({...j,slipUploaded:true}))}/>
-      {job.status!=='ยกเลิก'&&<MemberStamps member={job.member}/>}
+      {job.status!=='ยกเลิก'&&<MemberStamps member={job.member} reward={job.reward&&{...job.reward,amount:job.amount}} token={String(token)} onRedeemed={load}/>}
       {job.lineOa&&<>
         <a className="line-cta" href={'https://line.me/R/oaMessage/'+encodeURIComponent(job.lineOa)+'/?'+encodeURIComponent('LINK '+token)} target="_blank" rel="noreferrer">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.9-.9L3 21l1.9-5A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 11.5h7M8.5 14.5h4.5"/></svg>
