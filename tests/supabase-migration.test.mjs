@@ -161,6 +161,17 @@ test("PO editor: adding a new product doesn't require a cost, and every past PO'
   assert.match(css, /\.po-card-detail\{grid-column:1\/-1/);
 });
 
+test("inventory toolbar stacks below its action buttons on iPad-landscape width, not just phones", async () => {
+  const css = await read("app/globals.css");
+  // an iPad 7th-gen in landscape is about 1080px viewport / ~824px of main content once the sidebar is
+  // subtracted; the old 760px breakpoint left the filter row squeezed against the add/view-toggle buttons at
+  // that width and the wide 4-column toolbar grid (800px) didn't fit either, overlapping the หมวดหมู่ dropdown
+  // with the buttons next to it
+  assert.match(css, /@media\(max-width:1100px\)\{\.inventory-controls-row\{grid-template-columns:1fr\}/, "buttons move below the toolbar with room to spare on a tablet, not just a phone");
+  assert.match(css, /@media\(max-width:1100px\)\{\.inventory-toolbar\{grid-template-columns:minmax\(220px,1fr\) repeat\(3,minmax\(130px,160px\)\)\}\}/, "once stacked, the toolbar also switches to its narrower column set - the wide one alone still doesn't fit an iPad's available width");
+  assert.doesNotMatch(css, /max-width:760px\)\{\.inventory-controls-row\{grid-template-columns:1fr\}/, "the old, too-narrow breakpoint is gone, not just duplicated");
+});
+
 test("cashiers never see product cost, on the PO page or over the network", async () => {
   const dataRoute = await read("app/api/data/route.ts");
   const po = await read("app/purchase-orders.tsx");
