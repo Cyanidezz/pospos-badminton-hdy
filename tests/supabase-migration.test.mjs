@@ -135,6 +135,15 @@ test("uses role-based landing pages and limits dashboard categories", async () =
   assert.match(pos, /page==='team'\?'team-main'/);
 });
 
+test("PO product search reacts to a hardware barcode scanner (types + Enter)", async () => {
+  const po = await read("app/purchase-orders.tsx");
+  // a hardware scanner is just a keyboard: it types the code into whatever has focus, then sends Enter - so the
+  // search box needs its own Enter handler to act immediately, the same way the camera-scan fallback (scanned())
+  // already does for "found" vs "register as new"
+  assert.match(po, /onKeyDown=\{e=>\{if\(e\.key==='Enter'\)\{e\.preventDefault\(\);const value=productQuery\.trim\(\);if\(value\)\{scanned\(value\);setProductQuery\(''\)\}\}\}\}/);
+  assert.match(po, /placeholder="ค้นหาชื่อหรือบาร์โค้ดสินค้า \(ยิงจากเครื่องสแกนแล้วกด Enter ได้เลย\)"/);
+});
+
 test("PO editor: adding a new product doesn't require a cost, and every past PO's items can be reviewed", async () => {
   const po = await read("app/purchase-orders.tsx");
   const css = await read("app/globals.css");
