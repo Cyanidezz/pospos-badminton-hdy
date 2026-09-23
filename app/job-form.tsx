@@ -67,12 +67,12 @@ export function JobFormFields({form,setForm,products,members,jobs,sales,config,u
     </section>
     <section className="job-section optional" aria-label="เพิ่มเติม"><h4>เพิ่มเติม <small>ไม่บังคับ</small></h4>
       <div className="job-fields">
-        <Field className="f-s3" label="พนักงานขึ้นเอ็น"><Choice value={form.stringerId} onChange={(v:string)=>setForm({...form,stringerId:v})} options={members.filter((m:any)=>m.active)}/></Field>
-        <div className="field attach f-s2"><span>รูปสภาพไม้</span>
+        <Field className="f-half" label="พนักงานขึ้นเอ็น"><Choice value={form.stringerId} onChange={(v:string)=>setForm({...form,stringerId:v})} options={members.filter((m:any)=>m.active)}/></Field>
+        <div className="field attach f-half"><span>รูปสภาพไม้</span>
           <label className={'attach-button secondary'+(photos?' has-photos':'')} title="สูงสุด 8 รูป รูปละ 8 MB"><ImagePlus size={18}/>{photos?`แนบแล้ว ${photos} รูป`:'แนบรูป'}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>{upload(e.target.files,'photos');e.target.value=''}}/></label>
         </div>
-        <Field className="f-s4" label="สภาพไม้ / จุดตำหนิ (ถ้ามี)"><textarea rows={1} placeholder="เช่น สีถลอกที่ขอบ" value={form.condition||''} onChange={e=>setForm({...form,condition:e.target.value})}/></Field>
-        <Field className="f-s3" label="วันเวลาที่นัดรับ (ถ้าทราบ)"><input type="datetime-local" min={nowLocal()} value={form.pickupAt||''} onChange={e=>setForm({...form,pickupAt:e.target.value})}/></Field>
+        <Field className="f-wide" label="สภาพไม้ / จุดตำหนิ (ถ้ามี)"><textarea rows={1} placeholder="เช่น สีถลอกที่ขอบ" value={form.condition||''} onChange={e=>setForm({...form,condition:e.target.value})}/></Field>
+        <Field className="f-narrow" label="วันเวลาที่นัดรับ (ถ้าทราบ)"><input type="datetime-local" min={nowLocal()} value={form.pickupAt||''} onChange={e=>setForm({...form,pickupAt:e.target.value})}/></Field>
       </div>
     </section>
   </div>;

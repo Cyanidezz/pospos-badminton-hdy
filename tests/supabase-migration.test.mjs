@@ -434,7 +434,7 @@ test("the job form is compact, has no default condition text, and condition is o
   assert.doesNotMatch(form, /<textarea required/);
   assert.match(form, /attach-button/);
   assert.match(route, /String\(b\.condition\|\|''\)\.trim\(\)\.slice\(0,2000\)/);
-  assert.match(css, /\.job-form\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(css, /\.job-fields\{display:grid;grid-template-columns:repeat\(12,minmax\(0,1fr\)\);/, "the grouped-sections grid, not a flat two-column one");
 });
 
 test("the payment summary after saving a job shows the amount and payment choices", async () => {
@@ -1114,7 +1114,7 @@ test("job intake: the free-text note is gone, replaced by an optional pickup dat
   const migration = await read("supabase/migrations/20260923030000_job_pickup_at.sql");
   const css = await read("app/globals.css");
   assert.doesNotMatch(form, /label="หมายเหตุ"/, "the free-text note input is removed from the intake form");
-  assert.match(form, /<Field className="f-s3" label="วันเวลาที่นัดรับ \(ถ้าทราบ\)"><input type="datetime-local" min=\{nowLocal\(\)\} value=\{form\.pickupAt\|\|''\} onChange=\{e=>setForm\(\{\.\.\.form,pickupAt:e\.target\.value\}\)\}\/><\/Field>/, "datetime-local renders as a native wheel picker on iOS/Android - no custom widget needed");
+  assert.match(form, /<Field className="f-narrow" label="วันเวลาที่นัดรับ \(ถ้าทราบ\)"><input type="datetime-local" min=\{nowLocal\(\)\} value=\{form\.pickupAt\|\|''\} onChange=\{e=>setForm\(\{\.\.\.form,pickupAt:e\.target\.value\}\)\}\/><\/Field>/, "datetime-local renders as a native wheel picker on iOS/Android - no custom widget needed");
   assert.match(form, /min=\{nowLocal\(\)\}/, "can't pick a pickup time in the past");
   assert.doesNotMatch(form, /form\.note/, "no longer reads/writes a note field");
   // server: defensive since the migration may not have run yet - job creation must never break because of this
