@@ -14,6 +14,10 @@ export function CustomerInput({value,onChange,onPick,suggestions,...input}:any){
 
 const thaiDate=(iso:string)=>iso?new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',timeZone:'Asia/Bangkok'}):'';
 
+// "บริการขึ้นเอ็น" / "บริการขึ้นเอ็น 4 ปม" - labor-only products the shop sells for a customer who brings their own
+// string, so there's no product row for the string itself to record what it actually was.
+const isStringingService=(p:any)=>!!p?.name?.startsWith('บริการขึ้นเอ็น');
+
 // The datetime-local input's own min: staff can't pick a pickup time in the past. No timezone math needed - the
 // picker already shows/returns the device's local wall-clock time, same as what gets stored and displayed later.
 const nowLocal=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)};
@@ -63,6 +67,7 @@ export function JobFormFields({form,setForm,products,members,jobs,sales,config,u
         <Field className="f-narrow" label={<>ความตึง{req}</>}><input required placeholder="เช่น 25 lbs" value={form.tension||''} onChange={e=>setForm({...form,tension:e.target.value})}/></Field>
         <Field className="f-wide" label={<>เอ็น{req}</>}><div className="with-scan"><StringInput value={form.productId} onChange={(v:string)=>setForm({...form,productId:v,amount:(products.find((p:any)=>p.id===v)?.price||0)/100})} products={products}/><button type="button" className="secondary scan-string" aria-label="สแกนบาร์โค้ดเอ็น" title="สแกนบาร์โค้ดเอ็น" onClick={onScanString}><ScanBarcode size={20}/></button></div></Field>
         <Field className="f-narrow" label={<>ยอดชำระรวม (บาท){req}</>}><input required type="number" min="0" step="0.01" inputMode="decimal" value={form.amount??''} onChange={e=>setForm({...form,amount:e.target.value})}/></Field>
+        {isStringingService(products.find((p:any)=>p.id===form.productId))&&<Field className="f-full" label="ชื่อเอ็นที่ลูกค้านำมาเอง (ไม่บังคับ)"><input maxLength={200} placeholder="เช่น Yonex BG65 ที่ลูกค้าเตรียมมาเอง" value={form.customerString||''} onChange={e=>setForm({...form,customerString:e.target.value})}/></Field>}
       </div>
     </section>
     <section className="job-section optional" aria-label="เพิ่มเติม"><h4>เพิ่มเติม <small>ไม่บังคับ</small></h4>

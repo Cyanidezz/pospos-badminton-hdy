@@ -653,7 +653,7 @@ test("customer can pay from the tracking page: bank QR, slip upload, staff revie
 
   // staff side: the main jobs query also reads reward_used (a stamp-card display bug - it was missing entirely,
   // so "available" free rewards never accounted for ones already used) and the same defensive slip column
-  assert.match(dataRoute, /status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip,to_jsonb\(jobs\)->>'pickup_at' AS pickup_at FROM jobs/);
+  assert.match(dataRoute, /status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip,to_jsonb\(jobs\)->>'pickup_at' AS pickup_at,to_jsonb\(jobs\)->>'customer_string' AS customer_string FROM jobs/);
   assert.match(pos, /\{!j\.paid&&j\.slip&&<span className="badge amber">มีสลิปรอตรวจ<\/span>\}/);
   assert.match(pos, /if\(selected\.slip\)setMethod\('โอนเงิน'\);open\('payJob',\{id:selected\.id,slip:selected\.slip\}\)/);
   assert.match(pos, /modal==='payJob'&&selected\?\.slip&&form\.slip===selected\.slip\?<div className="notice customer-slip">/);
@@ -1089,7 +1089,7 @@ test("customers redeem a free stringing themselves on the tracking page; the rew
   assert.match(dataRoute, /const rewardOffAmount=j\.reward_used===1\?Number\(j\.reward_discount\)\|\|0:0;/);
   assert.match(dataRoute, /INSERT INTO sales\(id,staff_id,created,total,discount,discount_reason,method,slip,job_id\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)',id,me\.id,now\(\),j\.amount,rewardOffAmount,rewardOffAmount\?REWARD_REASON:''/);
   assert.match(dataRoute, /'เอ็นแบดมินตัน',j\.amount\+rewardOffAmount,p\.price,j\.amount,p\.cost,.*,rewardOffAmount\)/);
-  assert.match(dataRoute, /notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip,to_jsonb\(jobs\)->>'pickup_at' AS pickup_at FROM jobs/);
+  assert.match(dataRoute, /notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip,to_jsonb\(jobs\)->>'pickup_at' AS pickup_at,to_jsonb\(jobs\)->>'customer_string' AS customer_string FROM jobs/);
   assert.match(pos, /rewardSales=sales\.filter\(\(x:any\)=>x\.discount_reason===REWARD_REASON\)/, "dashboard totals what rewards cost the shop");
   assert.match(pos, /\{selected\.reward_used===1&&<div className="reward-notice">/, "staff see the reward on the job");
   // backfill for bills paid before this change: idempotent, only untouched bills
@@ -1120,7 +1120,8 @@ test("job intake: the free-text note is gone, replaced by an optional pickup dat
   assert.doesNotMatch(form, /form\.note/, "no longer reads/writes a note field");
   // server: defensive since the migration may not have run yet - job creation must never break because of this
   const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
-  assert.match(job, /hasPickup=!!\(await one\("SELECT 1 FROM information_schema\.columns WHERE table_schema='public' AND table_name='jobs' AND column_name='pickup_at'"\)\);/);
+  assert.match(job, /const jobCols=await all\("SELECT column_name FROM information_schema\.columns WHERE table_schema='public' AND table_name='jobs' AND column_name IN \('pickup_at','customer_string'\)"\);/);
+  assert.match(job, /hasPickup=jobCols\.some\(\(r:any\)=>r\.column_name==='pickup_at'\)/);
   assert.match(job, /pickupAt=hasPickup&&\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}T\\d\{2\}:\\d\{2\}\/\.test\(String\(b\.pickupAt\|\|''\)\)\?String\(b\.pickupAt\)\.slice\(0,16\):null;/, "malformed/missing input silently becomes null, never a thrown error");
   assert.match(job, /if\(hasPickup\)\{cols\.push\('pickup_at'\);vals\.push\(pickupAt\);\}/);
   // migration: plain text column, no timezone conversion (matches the other local date fields in this app)
@@ -1185,4 +1186,22 @@ test("photos (job condition, a customer's uploaded slip, expense receipts) open 
   // Dialog is open and this popup, as a plain body child, would otherwise inherit that and become unclickable
   assert.match(css, /\.lightbox-overlay\{[^}]*pointer-events:auto\}/);
   assert.match(css, /\.photo-thumb\{all:unset;cursor:pointer;/);
+});
+
+test("job intake: when the customer brings their own string (บริการขึ้นเอ็น), staff can note what it was", async () => {
+  const form = await read("app/job-form.tsx");
+  const route = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  const migration = await read("supabase/migrations/20260924010000_job_customer_string.sql");
+  assert.match(migration, /alter table public\.jobs add column if not exists customer_string text;/);
+  assert.match(form, /const isStringingService=\(p:any\)=>!!p\?\.name\?\.startsWith\('บริการขึ้นเอ็น'\);/, "matches both \"บริการขึ้นเอ็น\" and \"บริการขึ้นเอ็น 4 ปม\"");
+  assert.match(form, /\{isStringingService\(products\.find\(\(p:any\)=>p\.id===form\.productId\)\)&&<Field className="f-full" label="ชื่อเอ็นที่ลูกค้านำมาเอง \(ไม่บังคับ\)">/, "hidden unless a stringing-service product is selected");
+  assert.match(form, /maxLength=\{200\}.*value=\{form\.customerString\|\|''\} onChange=\{e=>setForm\(\{\.\.\.form,customerString:e\.target\.value\}\)\}/);
+  // server: defensive since the migration may not have run yet, same pattern as pickup_at, combined into one query
+  const job = route.slice(route.indexOf("else if(action==='job')"), route.indexOf("else if(action==='payJob')"));
+  assert.match(job, /const jobCols=await all\("SELECT column_name FROM information_schema\.columns WHERE table_schema='public' AND table_name='jobs' AND column_name IN \('pickup_at','customer_string'\)"\);/);
+  assert.match(job, /hasCustomerString=jobCols\.some\(\(r:any\)=>r\.column_name==='customer_string'\)/);
+  assert.match(job, /if\(hasCustomerString\)\{cols\.push\('customer_string'\);vals\.push\(String\(b\.customerString\|\|''\)\.trim\(\)\.slice\(0,200\)\|\|null\);\}/);
+  assert.match(route, /to_jsonb\(jobs\)->>'customer_string' AS customer_string FROM jobs/, "read defensively too, so the jobs list never errors before the migration runs");
+  assert.match(pos, /\{selected\.customer_string&&<p>เอ็นที่ลูกค้านำมาเอง: \{selected\.customer_string\}<\/p>\}/, "staff see it later in the job detail");
 });
