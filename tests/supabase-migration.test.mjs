@@ -135,6 +135,23 @@ test("uses role-based landing pages and limits dashboard categories", async () =
   assert.match(pos, /page==='team'\?'team-main'/);
 });
 
+test("PO editor: adding a new product doesn't require a cost, and every past PO's items can be reviewed", async () => {
+  const po = await read("app/purchase-orders.tsx");
+  const css = await read("app/globals.css");
+  // creating a product from within a PO no longer requires (or even sends an empty-string) cost
+  assert.match(po, /if\(!p\?\.name\|\|!p\?\.category\|\|p\?\.price===''\)\{toast\.error\('กรอกชื่อสินค้า หมวดหมู่ และราคาขายให้ครบ'\)/);
+  assert.doesNotMatch(po, /p\?\.cost===''/, "cost is no longer part of the required-field check");
+  assert.match(po, /cost:p\.cost===''\?null:Math\.round\(Number\(p\.cost\)\*100\)/, "left blank, the new item's line cost is empty (still to be filled in per PO), not a misleading 0");
+  assert.match(po, /placeholder="ต้นทุน \(ไม่บังคับ\)"/);
+  // an explicit "เพิ่มสินค้า" button opens the new-product form directly, not only after a search finds nothing
+  assert.match(po, /className="secondary po-add-product" onClick=\{\(\)=>setNewProduct\(\{barcode:'',name:productQuery/);
+  // every past PO (any status, not just drafts) can have its item list reviewed without editing it
+  assert.match(po, /\[expanded,setExpanded\]=useState<string>\(''\)/);
+  assert.match(po, /onClick=\{\(\)=>setExpanded\(id=>id===order\.id\?'':order\.id\)\}>\{open\?'ซ่อนรายการ':'ดูรายการ'\}/);
+  assert.match(po, /\{open&&<div className="po-card-detail">/);
+  assert.match(css, /\.po-card-detail\{grid-column:1\/-1/);
+});
+
 test("keeps purchase orders staged until inventory is received", async () => {
   const migration = await read("supabase/migrations/20260917001000_purchase_orders.sql");
   const approvalMigration = await read("supabase/migrations/20260917010000_purchase_order_approval.sql");

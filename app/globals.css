@@ -707,3 +707,12 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .barcode-label-name{font-size:14px;font-weight:650;color:#202b40;text-align:center;overflow-wrap:anywhere}
 .barcode-label canvas{max-width:100%;height:auto}
 .barcode-download{align-self:center}
+/* PO editor: explicit add-product button beside the search box, and the optional-cost hint under the new-product form */
+.po-product-add-row{display:flex;gap:10px;align-items:center}
+.po-product-add-row .search-box{flex:1;min-width:0}
+.po-add-product{height:50px;flex:none;white-space:nowrap}
+.po-new-product-note{margin:2px 0 10px}
+/* Read-only item list expanded under a PO card, for any status (not just drafts being edited) */
+.po-card-detail{grid-column:1/-1;padding-top:14px;margin-top:2px;border-top:1px dashed #d9e0ec}
+.po-card-detail .member-table th{background:#f3f6fc}
+.po-card-note{margin:10px 0 0}
