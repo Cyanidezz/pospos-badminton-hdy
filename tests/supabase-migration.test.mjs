@@ -808,6 +808,22 @@ test("stock counting: server rules, migration and screens", async () => {
   assert.match(page, /ยืนยันปรับสต๊อก/);
 });
 
+test("เอ็น field is a search box, not a dropdown, so a hardware barcode scanner (types + Enter) picks it too", async () => {
+  const form = await read("app/job-form.tsx");
+  const css = await read("app/globals.css");
+  assert.match(form, /function StringInput\(\{value,onChange,products\}/);
+  assert.doesNotMatch(form, /<Choice value=\{form\.productId\}/, "no longer a dropdown");
+  assert.match(form, /<StringInput value=\{form\.productId\} onChange=\{\(v:string\)=>setForm\(\{\.\.\.form,productId:v,amount:\(products\.find/);
+  // typing filters by name or barcode/scan_code, restricted to actual strings
+  assert.match(form, /strings=useMemo\(\(\)=>products\.filter\(\(p:any\)=>p\.category==='เอ็นแบดมินตัน'\)/);
+  assert.match(form, /p\.name\.toLowerCase\(\)\.includes\(text\)\|\|\(p\.barcode\|\|''\)\.includes\(text\)\|\|\(p\.scan_code\|\|''\)\.includes\(text\)/);
+  // Enter: an exact barcode/scan_code match wins outright; otherwise a single filtered match is accepted
+  assert.match(form, /if\(e\.key==='Enter'\)\{e\.preventDefault\(\);const code=query\.trim\(\),byCode=strings\.find\(\(p:any\)=>p\.barcode===code\|\|p\.scan_code===code\);if\(byCode\)pick\(byCode\);else if\(matches\.length===1\)pick\(matches\[0\]\)\}/);
+  // the field re-syncs its displayed text whenever productId changes from elsewhere (e.g. the camera-scan button)
+  assert.match(form, /useEffect\(\(\)=>\{setQuery\(selected\?\.name\|\|''\)\},\[value\]\)/);
+  assert.match(css, /\.with-scan \.suggest-wrap\{flex:1;min-width:0\}/);
+});
+
 test('new stringing job form: grouped sections and a barcode scan button for the string', async () => {
   const form = await read('app/job-form.tsx'), pos = await read('app/pos.tsx'), css = await read('app/globals.css');
   assert.equal((form.match(/<section className="job-section/g) || []).length, 3, 'customer / racket+string / optional');

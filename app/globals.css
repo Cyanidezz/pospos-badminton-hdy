@@ -716,3 +716,4 @@ body:has([data-slot=sidebar][data-state=collapsed]) .register-bottom{left:0}
 .po-card-detail{grid-column:1/-1;padding-top:14px;margin-top:2px;border-top:1px dashed #d9e0ec}
 .po-card-detail .member-table th{background:#f3f6fc}
 .po-card-note{margin:10px 0 0}
+.with-scan .suggest-wrap{flex:1;min-width:0}

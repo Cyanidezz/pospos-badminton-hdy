@@ -1,5 +1,5 @@
 'use client';
-import {useMemo,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import {Gift,ImagePlus,ScanBarcode,UserCheck} from 'lucide-react';
 import {buildCustomers,knownRackets,matchCustomers,phoneDigits,rewardDiscount,type Customer} from '@/lib/customers';
 
@@ -13,6 +13,24 @@ export function CustomerInput({value,onChange,onPick,suggestions,...input}:any){
 }
 
 const thaiDate=(iso:string)=>iso?new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',timeZone:'Asia/Bangkok'}):'';
+
+// The เอ็น field: type to search a string by name, or (since a hardware scanner is just a keyboard) type/scan its
+// barcode and press Enter to pick it directly - the same barcode either matches here or via the camera-scan button.
+function StringInput({value,onChange,products}:{value:string;onChange:(id:string)=>void;products:any[]}){
+  const strings=useMemo(()=>products.filter((p:any)=>p.category==='เอ็นแบดมินตัน'),[products]);
+  const selected=strings.find((p:any)=>p.id===value);
+  const [query,setQuery]=useState(selected?.name||'');
+  const [open,setOpen]=useState(false);
+  useEffect(()=>{setQuery(selected?.name||'')},[value]);
+  const text=query.trim().toLowerCase();
+  const matches=text?strings.filter((p:any)=>p.name.toLowerCase().includes(text)||(p.barcode||'').includes(text)||(p.scan_code||'').includes(text)).slice(0,8):[];
+  const pick=(p:any)=>{onChange(p.id);setQuery(p.name);setOpen(false)};
+  return <div className="suggest-wrap">
+    <input required value={query} autoComplete="off" placeholder="พิมพ์ชื่อเอ็น หรือยิงบาร์โค้ด" onChange={e=>{setQuery(e.target.value);setOpen(true)}} onFocus={()=>setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),150)}
+      onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();const code=query.trim(),byCode=strings.find((p:any)=>p.barcode===code||p.scan_code===code);if(byCode)pick(byCode);else if(matches.length===1)pick(matches[0])}}}/>
+    {open&&matches.length>0&&<ul className="suggest-list">{matches.map((p:any)=><li key={p.id}><button type="button" onClick={()=>pick(p)}><b>{p.name}</b><span>฿{(p.price/100).toLocaleString('th-TH')}{p.barcode?' · '+p.barcode:''}</span></button></li>)}</ul>}
+  </div>;
+}
 
 // The compact "รับไม้ลูกค้า" form body. Field and Choice come from the POS screen so the look stays in one place.
 export function JobFormFields({form,setForm,products,members,jobs,sales,config,upload,onScanString,Field,Choice}:any){
@@ -39,7 +57,7 @@ export function JobFormFields({form,setForm,products,members,jobs,sales,config,u
           {member&&member.rackets.length>0&&<div className="racket-chips">{member.rackets.slice(0,4).map(r=><button type="button" className={'secondary'+(r.name===form.racket?' is-active':'')} key={r.name} onClick={()=>pickRacket(r)}>{r.name}</button>)}</div>}
         </Field>
         <Field className="f-narrow" label={<>ความตึง{req}</>}><input required placeholder="เช่น 25 lbs" value={form.tension||''} onChange={e=>setForm({...form,tension:e.target.value})}/></Field>
-        <Field className="f-wide" label={<>เอ็น{req}</>}><div className="with-scan"><Choice value={form.productId} onChange={(v:string)=>setForm({...form,productId:v,amount:(products.find((p:any)=>p.id===v)?.price||0)/100})} options={products.filter((p:any)=>p.category==='เอ็นแบดมินตัน')}/><button type="button" className="secondary scan-string" aria-label="สแกนบาร์โค้ดเอ็น" title="สแกนบาร์โค้ดเอ็น" onClick={onScanString}><ScanBarcode size={20}/></button></div></Field>
+        <Field className="f-wide" label={<>เอ็น{req}</>}><div className="with-scan"><StringInput value={form.productId} onChange={(v:string)=>setForm({...form,productId:v,amount:(products.find((p:any)=>p.id===v)?.price||0)/100})} products={products}/><button type="button" className="secondary scan-string" aria-label="สแกนบาร์โค้ดเอ็น" title="สแกนบาร์โค้ดเอ็น" onClick={onScanString}><ScanBarcode size={20}/></button></div></Field>
         <Field className="f-narrow" label={<>ยอดชำระรวม (บาท){req}</>}><input required type="number" min="0" step="0.01" inputMode="decimal" value={form.amount??''} onChange={e=>setForm({...form,amount:e.target.value})}/></Field>
       </div>
     </section>
