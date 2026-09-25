@@ -162,12 +162,21 @@ const pushLine = (token: string, to: string, messages: unknown[]) => fetch("http
 export async function replyLine(replyToken: string, messages: unknown[]) {
   const token = runtime().LINE_CHANNEL_ACCESS_TOKEN;
   if (!token || !replyToken || !messages.length) return;
-  const response = await fetch("https://api.line.me/v2/bot/message/reply", {
+  const send = (body: unknown[]) => fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ replyToken, messages: messages.slice(0, 5) }),
+    body: JSON.stringify({ replyToken, messages: body.slice(0, 5) }),
   }).catch(() => null);
-  if (response && !response.ok) console.error("LINE reply failed", response.status, (await response.text().catch(() => "")).slice(0, 300));
+  let response = await send(messages);
+  if (response && !response.ok) {
+    console.error("LINE reply failed", response.status, (await response.text().catch(() => "")).slice(0, 300));
+    // LINE refuses the WHOLE reply over one bad Flex property, and the customer sees nothing. A refused request
+    // doesn't use up the reply token, so try once more with each card as its plain-text summary (altText).
+    if (response.status === 400 && messages.some((m: any) => m?.type === "flex")) {
+      response = await send(messages.map((m: any) => m?.type === "flex" ? { type: "text", text: String(m.altText || "").slice(0, 5000) || "-" } : m));
+      if (response && !response.ok) console.error("LINE reply fallback failed", response.status, (await response.text().catch(() => "")).slice(0, 300));
+    }
+  }
 }
 export async function notifyJob(id: string) {
   const job: any = await one("SELECT * FROM jobs WHERE id=?", id);

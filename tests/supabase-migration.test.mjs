@@ -684,7 +684,7 @@ test("tracking page shows the customer's own stamp progress and reward", async (
   const page = await read("app/track/[token]/page.tsx");
   const css = await read("app/globals.css");
   assert.match(route, /import \{rewardDiscount\} from '@\/lib\/customers';/);
-  assert.match(route, /import \{buildCustomers,promoOf,promoPhase\} from '\.\/customers';/);
+  assert.match(route, /import \{DEFAULT_SOCKS_STAMPS_REQUIRED,DEFAULT_STAMPS_REQUIRED,buildCustomers,promoOf,promoPhase\} from '\.\/customers';/);
   assert.match(route, /if\(!\('member_stamps_required' in config\)\)return null/, "works before the members migration is run");
   assert.match(route, /regexp_replace\(phone,'\\\\D','','g'\)=\?",key\)/, "matches the same phone-digits key used everywhere else");
   assert.match(route, /FROM sales WHERE customer_key=\?/);
@@ -694,7 +694,7 @@ test("tracking page shows the customer's own stamp progress and reward", async (
   assert.match(page, /job\.status!=='ยกเลิก'&&<MemberStamps member=\{job\.member\} reward=/, "hidden once the job is cancelled");
   assert.match(page, /stringAvailable\?<span>🎁 <b>คุณมีสิทธิ์ขึ้นเอ็นฟรี!<\/b>/);
   assert.match(page, /cap===null\|\|cap===undefined\?'ฟรีค่าขึ้นเอ็นทั้งหมด'/);
-  assert.match(route, /socksAvailable:customer\.socksAvailable&&!!socksProduct/, "the socks tier stays off until an owner has actually picked a product for it");
+  assert.match(route, /socksAvailable:customer\.socksAvailable&&!!program!\.socksProductName/, "the socks tier stays off until an owner has actually picked a product for it");
   assert.match(css, /\.member-stamps\{margin:22px 0\}/);
 });
 
@@ -1168,7 +1168,7 @@ test("tracking page's stamp card shows the promotion's stamping period, matching
   assert.match(lib, /if \(promo\.end && today > promo\.end\) return "after";/);
   assert.match(lib, /return "during";/);
   assert.match(route, /import \{bangkokToday\} from '\.\/shop-hours';/);
-  assert.match(route, /import \{buildCustomers,promoOf,promoPhase\} from '\.\/customers';/);
+  assert.match(route, /import \{DEFAULT_SOCKS_STAMPS_REQUIRED,DEFAULT_STAMPS_REQUIRED,buildCustomers,promoOf,promoPhase\} from '\.\/customers';/);
   assert.match(route, /const promo=promoOf\(config\);/);
   assert.match(route, /promo:\{phase:promoPhase\(promo,bangkokToday\(\)\),start:promo\?\.start\?\?null,end:promo\?\.end\?\?null\}/);
   // client: same phase-to-wording mapping for all five states, including the two "unbounded"/off cases that show nothing extra
@@ -1466,9 +1466,25 @@ test("LINE เช็คคะแนนสะสม: stars card shared with the t
   assert.match(json, /สะสมอีก 4 ดาว รับสิทธิ์ขึ้นเอ็นฟรี \(ครบ 10 ดาว · เอ็นมูลค่าไม่เกิน ฿300\.00\)/);
   assert.match(json, /สะสมแต้มได้ถึง/);
   assert.equal(card.contents.footer, undefined, "no link without a linked job");
-  const body = card.contents.body.contents;
-  assert.equal(body[1].contents.length, 10, "one dot per stamp");
-  assert.equal(body[1].contents.filter(d => d.backgroundColor !== "#E3E8F2").length, 6);
+  const grid = card.contents.body.contents.find(c => c.backgroundColor === "#F7F4FF").contents;
+  assert.equal(grid.length, 2, "10 stamps = 2 rows of 5");
+  const stamps = grid.flatMap(row => row.contents).map(c => c.text);
+  assert.equal(stamps.filter(x => x === "★").length, 6, "a filled star per stamp earned");
+  assert.equal(stamps[9], "🎁", "the free-stringing milestone is marked");
+  // LINE rejects the whole reply over one unknown Flex property (the chat just stays silent) - keep to known ones.
+  const allowed = new Set(["type", "text", "contents", "layout", "size", "color", "weight", "align", "flex", "wrap", "spacing", "paddingAll", "paddingTop",
+    "backgroundColor", "cornerRadius", "margin", "style", "height", "action", "label", "uri", "altText", "header", "body", "footer", "hero", "url", "aspectRatio", "aspectMode"]);
+  const walk = node => { if (Array.isArray(node)) return node.forEach(walk); if (node && typeof node === "object") for (const [k, v] of Object.entries(node)) { assert.ok(allowed.has(k), "unexpected Flex property " + k); walk(v); } };
+  walk(card);
+  // No stars yet / unknown phone: the programme card - how to earn, both rewards, the stamping period.
+  const fresh = JSON.stringify(line.memberCardMessage({ ...member, stars: 0, socksAvailable: false, promo: { phase: "before", start: "2026-10-01", end: "2026-12-31" } }, { known: false }));
+  assert.match(fresh, /บัตรสะสมดาว Wingpro Badminton/);
+  assert.match(fresh, /ขึ้นเอ็นและชำระแล้ว 1 ครั้ง = 1 ดาว/);
+  assert.match(fresh, /ครบ 5 ดาว แลกถุงเท้าข้อสั้นฟรี/);
+  assert.match(fresh, /ครบ 10 ดาว ขึ้นเอ็นฟรี 1 ครั้ง \(เอ็นมูลค่าไม่เกิน ฿300\.00\)/);
+  assert.match(fresh, /ยังไม่มีดาวสะสมของเบอร์นี้/);
+  assert.match(fresh, /โปรโมชั่นสะสมแต้ม/);
+  walk(JSON.parse(fresh));
   const linked = line.memberCardMessage(member, { trackUrl: "https://shop.example/track/abc" });
   assert.equal(linked.contents.footer.contents[0].action.uri, "https://shop.example/track/abc");
   assert.equal(linked.contents.footer.contents[0].action.label, "แลกของรางวัล");

@@ -1,6 +1,6 @@
 import {all,one} from './server';
 import {bangkokToday} from './shop-hours';
-import {buildCustomers,promoOf,promoPhase} from './customers';
+import {DEFAULT_SOCKS_STAMPS_REQUIRED,DEFAULT_STAMPS_REQUIRED,buildCustomers,promoOf,promoPhase} from './customers';
 
 // A customer's own stamp progress, by phone: shown on their tracking page and on LINE ("เช็คคะแนนสะสม"). Only their
 // numbers (not their whole job/sale history, and not the staff-only note) - built the same way as the "ลูกค้าสมาชิก"
@@ -17,8 +17,19 @@ export async function memberStatus(config:any,phone:string){
   const promo=promoOf(config);
   const [customer]=buildCustomers(jobs,{stampsRequired:config.member_stamps_required,socksStampsRequired:config.member_socks_stamps_required,sales,posMinAmount:config.member_pos_min_amount,promo});
   if(!customer)return null;
+  const program=await memberProgram(config);
+  return {...program!,stars:customer.stars,stringNeed:customer.stringNeed,socksNeed:customer.socksNeed,stringAvailable:customer.stringAvailable,socksAvailable:customer.socksAvailable&&!!program!.socksProductName,stringUsed:customer.stringUsed,socksUsed:customer.socksUsed};
+}
+
+// The programme itself (no customer): what it takes to earn each reward, the reward cap, and the stamping period -
+// for a customer with no stars yet, or a phone the shop doesn't know ("บัตรสะสมดาว" card on LINE).
+export async function memberProgram(config:any){
+  if(!('member_stamps_required' in config))return null;
+  const promo=promoOf(config);
   // The socks reward stays off (even after the migration runs) until an owner actually picks a product for it.
   const socksProduct=config.member_socks_product_id?await one('SELECT name FROM products WHERE id=? AND active=1',config.member_socks_product_id):null;
-  return {stars:customer.stars,stringNeed:customer.stringNeed,socksNeed:customer.socksNeed,stringAvailable:customer.stringAvailable,socksAvailable:customer.socksAvailable&&!!socksProduct,stringUsed:customer.stringUsed,socksUsed:customer.socksUsed,rewardCap:config.member_reward_cap??null,socksProductName:socksProduct?.name??null,posMinAmount:Number(config.member_pos_min_amount)||0,
+  // Same rounding/defaults as buildCustomers() in lib/customers.ts.
+  const need=(value:any,fallback:number)=>Math.max(1,Math.round(Number(value))||fallback);
+  return {stars:0,stringNeed:need(config.member_stamps_required,DEFAULT_STAMPS_REQUIRED),socksNeed:need(config.member_socks_stamps_required,DEFAULT_SOCKS_STAMPS_REQUIRED),stringAvailable:false,socksAvailable:false,stringUsed:0,socksUsed:0,rewardCap:config.member_reward_cap??null,socksProductName:socksProduct?.name??null,posMinAmount:Number(config.member_pos_min_amount)||0,
     promo:{phase:promoPhase(promo,bangkokToday()),start:promo?.start??null,end:promo?.end??null}};
 }

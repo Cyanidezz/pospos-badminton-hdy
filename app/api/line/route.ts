@@ -3,7 +3,7 @@ import {DEFAULT_SHOP} from '@/lib/shop-hours';
 import {isService,memberCardMessage,productAnswerMessage,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {PRODUCT_INTENT,coreQuery,inquiryKey,isGeneralStringingQuestion,pickMatches,searchProducts} from '@/lib/product-search';
 import {askProductAi} from '@/lib/product-ai';
-import {memberStatus} from '@/lib/member-status';
+import {memberProgram,memberStatus} from '@/lib/member-status';
 
 // LINE OA webhook. Every request is signed with the channel secret; anything unsigned is rejected before parsing.
 async function verified(req:Request){
@@ -38,7 +38,10 @@ async function pointsCard(phone:string,trackToken=''){
   const config:any=await one('SELECT * FROM config WHERE id=1');
   const member=await memberStatus(config,phone);
   const base=siteUrl().replace(/\/$/,'');
-  return member?memberCardMessage(member,{trackUrl:trackToken&&base?`${base}/track/${trackToken}`:''}):null;
+  if(member)return memberCardMessage(member,{trackUrl:trackToken&&base?`${base}/track/${trackToken}`:''});
+  // Not a member yet: the programme card (how to earn, the rewards, the period) - still worth showing.
+  const program=await memberProgram(config);
+  return program?memberCardMessage(program,{known:false}):null;
 }
 
 // A typed phone number answers both menu buttons at once (there is no conversation state to know which one asked):

@@ -204,27 +204,48 @@ export function promoNote(promo: Member["promo"]) {
   return "";
 }
 
-// "เช็คคะแนนสะสม": stars so far, a dot per stamp (the socks milestone marked), and what each reward still needs.
+// "เช็คคะแนนสะสม": stars so far as a stamp grid (rows of 5, the socks milestone marked), and what each reward still
+// needs. A customer with no stars yet (or a phone the shop doesn't know - member null) gets the programme card
+// instead: how to earn, what each reward is, and the stamping period - all from the shop's member settings.
 // trackUrl (the customer's own open job) is only passed for a LINE account already linked to that job - someone
 // who just typed a phone number sees the numbers, never a link into another person's job.
-export function memberCardMessage(member: Member, { trackUrl = "" }: { trackUrl?: string } = {}) {
+// Only standard Flex properties: LINE rejects the WHOLE reply over one unknown property (no error reaches the chat).
+export function memberCardMessage(member: Member, { trackUrl = "", known = true }: { trackUrl?: string; known?: boolean } = {}) {
   const need = Math.max(1, member.stringNeed);
-  const dots = need <= 20 ? Array.from({ length: need }, (_, i) => ({
-    type: "box", layout: "vertical", width: "20px", height: "20px", cornerRadius: "10px", justifyContent: "center",
-    backgroundColor: i < member.stars ? PURPLE : TRACK,
-    ...(i === member.socksNeed - 1 && member.socksProductName ? { borderWidth: "2px", borderColor: "#E0801A" } : {}),
-    contents: [text(i < member.stars ? "★" : " ", { size: "xxs", color: "#FFFFFF", align: "center" })],
+  const fresh = !known || member.stars <= 0;
+  const socksAt = member.socksProductName ? member.socksNeed : 0;
+  const stamp = (i: number) => {
+    const filled = i < member.stars, milestone = i + 1 === socksAt || i + 1 === need;
+    return text(filled ? "★" : milestone ? (i + 1 === need ? "🎁" : "🧦") : "☆", { size: "xl", align: "center", color: filled ? PURPLE : milestone ? "#E0801A" : "#C9CFDD", flex: 1 });
+  };
+  const grid = need <= 20 ? Array.from({ length: Math.ceil(need / 5) }, (_, row) => ({
+    type: "box", layout: "horizontal",
+    contents: Array.from({ length: 5 }, (_, col) => row * 5 + col).map(i => i < need ? stamp(i) : { type: "box", layout: "vertical", flex: 1, contents: [] }),
   })) : [];
   const cap = member.rewardCap === null || member.rewardCap === undefined ? "ฟรีค่าขึ้นเอ็นทั้งหมด" : `เอ็นมูลค่าไม่เกิน ฿${baht(member.rewardCap)}`;
+  const earn = `ขึ้นเอ็นและชำระแล้ว 1 ครั้ง = 1 ดาว${member.posMinAmount ? ` · ซื้อสินค้าครบ ฿${baht(member.posMinAmount)} = 1 ดาว` : ""}`;
   const reward = (ready: boolean, readyText: string, waitText: string) => ({
     type: "box", layout: "vertical", paddingAll: "10px", cornerRadius: "10px", backgroundColor: ready ? "#E6F6EE" : "#F4F6FB",
     contents: [text(ready ? readyText : waitText, { size: "sm", color: ready ? "#17804F" : NAVY, weight: ready ? "bold" : "regular" })],
   });
   const note = promoNote(member.promo);
   const ready = member.stringAvailable || member.socksAvailable;
+  const rewards = fresh ? [
+    ...(member.socksProductName ? [reward(false, "", `🧦 ครบ ${member.socksNeed} ดาว แลก${member.socksProductName}ฟรี`)] : []),
+    reward(false, "", `🎁 ครบ ${need} ดาว ขึ้นเอ็นฟรี 1 ครั้ง (${cap})`),
+    text(member.socksProductName ? "แลกของรางวัลอย่างใดอย่างหนึ่งแล้ว ดาวเริ่มนับใหม่" : "แลกแล้วดาวเริ่มนับใหม่", { size: "xs", color: MUTED }),
+  ] : [
+    ...(member.socksProductName ? [reward(member.socksAvailable,
+      `🧦 แลก${member.socksProductName}ฟรีได้แล้ว! (ครบ ${member.socksNeed} ดาว)`,
+      `สะสมอีก ${Math.max(0, member.socksNeed - member.stars)} ดาว แลก${member.socksProductName}ฟรี (ครบ ${member.socksNeed} ดาว)`)] : []),
+    reward(member.stringAvailable,
+      `🎁 ขึ้นเอ็นฟรีได้แล้ว! (ครบ ${need} ดาว · ${cap})`,
+      `สะสมอีก ${Math.max(0, need - member.stars)} ดาว รับสิทธิ์ขึ้นเอ็นฟรี (ครบ ${need} ดาว · ${cap})`),
+    text(ready ? "แลกได้ที่หน้าติดตามสถานะไม้ หรือแจ้งพนักงานที่ร้าน · แลกแล้วดาวเริ่มนับใหม่" : earn, { size: "xs", color: MUTED }),
+  ];
   return {
     type: "flex",
-    altText: `คะแนนสะสม ${member.stars} ดาว`,
+    altText: fresh ? "บัตรสะสมดาว Wingpro Badminton" : `คะแนนสะสม ${member.stars} ดาว`,
     contents: {
       type: "bubble",
       size: "mega",
@@ -233,6 +254,7 @@ export function memberCardMessage(member: Member, { trackUrl = "" }: { trackUrl?
         contents: [
           text("WINGPRO BADMINTON", { size: "xs", color: "#E5DBFF", weight: "bold" }),
           text("บัตรสะสมดาว", { size: "xl", color: "#FFFFFF", weight: "bold" }),
+          ...(fresh ? [text(earn, { size: "xs", color: "#E5DBFF" })] : []),
         ],
       },
       body: {
@@ -240,17 +262,12 @@ export function memberCardMessage(member: Member, { trackUrl = "" }: { trackUrl?
         contents: [
           {
             type: "box", layout: "baseline", spacing: "sm",
-            contents: [text(String(member.stars), { size: "3xl", weight: "bold", color: PURPLE, flex: 0 }), text(`/ ${need} ดาว`, { size: "md", color: MUTED })],
+            contents: [text(String(Math.max(0, member.stars)), { size: "3xl", weight: "bold", color: PURPLE, flex: 0 }), text(`/ ${need} ดาว`, { size: "md", color: MUTED })],
           },
-          ...(dots.length ? [{ type: "box", layout: "horizontal", spacing: "xs", flexWrap: "wrap", contents: dots }] : []),
-          ...(member.socksProductName ? [reward(member.socksAvailable,
-            `🧦 แลก${member.socksProductName}ฟรีได้แล้ว! (ครบ ${member.socksNeed} ดาว)`,
-            `สะสมอีก ${Math.max(0, member.socksNeed - member.stars)} ดาว แลก${member.socksProductName}ฟรี (ครบ ${member.socksNeed} ดาว)`)] : []),
-          reward(member.stringAvailable,
-            `🎁 ขึ้นเอ็นฟรีได้แล้ว! (ครบ ${need} ดาว · ${cap})`,
-            `สะสมอีก ${Math.max(0, need - member.stars)} ดาว รับสิทธิ์ขึ้นเอ็นฟรี (ครบ ${need} ดาว · ${cap})`),
-          text(ready ? "แลกได้ที่หน้าติดตามสถานะไม้ หรือแจ้งพนักงานที่ร้าน · แลกแล้วดาวเริ่มนับใหม่" : `ได้ 1 ดาวทุกครั้งที่ขึ้นเอ็น หรือซื้อสินค้าที่ร้าน${member.posMinAmount ? ` ครบ ฿${baht(member.posMinAmount)}` : ""}`, { size: "xs", color: MUTED }),
-          ...(note ? [text(note, { size: "xs", color: "#E0801A" })] : []),
+          ...(fresh ? [text(known ? "ยังไม่มีดาวสะสม เริ่มสะสมได้ตั้งแต่ขึ้นเอ็นครั้งถัดไป" : "ยังไม่มีดาวสะสมของเบอร์นี้ เริ่มสะสมได้ตั้งแต่ขึ้นเอ็นครั้งแรก", { size: "sm", color: NAVY })] : []),
+          ...(grid.length ? [{ type: "box", layout: "vertical", spacing: "xs", paddingAll: "8px", cornerRadius: "12px", backgroundColor: "#F7F4FF", contents: grid }] : []),
+          ...rewards,
+          ...(note ? [text(note, { size: "xs", color: "#E0801A", weight: "bold" })] : []),
         ],
       },
       ...(/^https:\/\//.test(trackUrl) ? {
