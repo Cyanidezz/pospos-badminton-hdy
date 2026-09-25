@@ -3,6 +3,7 @@ import {useEffect,useState} from 'react';
 import {useParams} from 'next/navigation';
 import {DEFAULT_SHOP,bangkokNow,groupHours,isOpenNow,parseHours} from '@/lib/shop-hours';
 import {BankTransfer} from '@/app/bank-transfer';
+import {compressSlip} from '@/lib/image-compress';
 
 const steps=['รอขึ้นเอ็น','กำลังขึ้นเอ็น','พร้อมรับไม้','คืนไม้แล้ว'];
 const baht=(satang:number)=>(satang/100).toLocaleString('th-TH',{maximumFractionDigits:0});
@@ -97,7 +98,7 @@ function PaySection({job,token,onUploaded}:{job:any;token:string;onUploaded:()=>
     if(!files?.[0])return;
     setBusy(true);setError('');
     try{
-      const body=new FormData();body.append('file',files[0]);
+      const body=new FormData();body.append('file',await compressSlip(files[0]));
       const r=await fetch('/api/track/'+token+'/slip',{method:'POST',body});
       const d:any=await r.json();
       if(!r.ok)throw new Error(d.error||'อัปโหลดไม่สำเร็จ');

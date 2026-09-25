@@ -671,7 +671,7 @@ test("customer can pay from the tracking page: bank QR, slip upload, staff revie
   // staff side: the main jobs query also reads reward_used (a stamp-card display bug - it was missing entirely,
   // so "available" free rewards never accounted for ones already used) and the same defensive slip column
   assert.match(dataRoute, /status,paid,staff_id,stringer_id,created,completed,returned,notify,reward_used,reward_discount,to_jsonb\(jobs\)->>'slip' AS slip,to_jsonb\(jobs\)->>'pickup_at' AS pickup_at,to_jsonb\(jobs\)->>'customer_string' AS customer_string FROM jobs/);
-  assert.match(pos, /\{!j\.paid&&j\.slip&&<span className="badge amber">มีสลิปรอตรวจ<\/span>\}/);
+  assert.match(pos, /\{!j\.paid&&j\.slip&&<span className="badge amber slip-badge" role="button"/);
   assert.match(pos, /if\(selected\.slip\)setMethod\('โอนเงิน'\);open\('payJob',\{id:selected\.id,slip:selected\.slip\}\)/);
   assert.match(pos, /modal==='payJob'&&selected\?\.slip&&form\.slip===selected\.slip\?<div className="notice customer-slip">/);
   assert.match(css, /\.pay-cta\{/);
@@ -1313,4 +1313,25 @@ test("งานขึ้นเอ็น: status cards filter the list, a date fi
   assert.match(pos, /\{shownJobs\.length>6&&<button type="button" className="secondary small report-show-all" onClick=\{\(\)=>setShowAllJobs\(v=>!v\)\}>\{showAllJobs\?'แสดงน้อยลง':'แสดงทั้งหมด \('\+shownJobs\.length\+'\)'\}<\/button>\}/);
   assert.match(css, /\.job-status-cards>button\{all:unset;cursor:pointer;/, "clickable cards reset the default button chrome instead of turning into a solid blue pill");
   assert.match(css, /\.job-status-cards>button\.is-active/);
+});
+
+test("customer transfer slips are compressed client-side before upload, and the job card's slip badge opens it directly", async () => {
+  const compress = await read("lib/image-compress.ts");
+  const pos = await read("app/pos.tsx");
+  const trackPage = await read("app/track/[token]/page.tsx");
+  const css = await read("app/globals.css");
+  assert.match(compress, /export async function compressSlip\(file: File, maxDim = 1280, quality = 0\.72\): Promise<File>/);
+  assert.match(compress, /if \(!file\.type\.startsWith\("image\/"\)\) return file;/, "never touches a non-image file");
+  assert.match(compress, /if \(!blob \|\| blob\.size >= file\.size\) return file;/, "never makes an already-small slip bigger");
+  assert.match(compress, /\} catch \{\n    return file;\n  \}/, "compression failing (an odd format, an old browser) never blocks the upload itself");
+  // staff-side: only the slip key is compressed - job condition photos and product images are untouched
+  assert.match(pos, /import \{compressSlip\} from '@\/lib\/image-compress';/);
+  assert.match(pos, /fd\.append\('file',key==='slip'\?await compressSlip\(file\):file\);/);
+  // customer's own slip upload (tracking page) is always a slip, so always compressed
+  assert.match(trackPage, /import \{compressSlip\} from '@\/lib\/image-compress';/);
+  assert.match(trackPage, /body\.append\('file',await compressSlip\(files\[0\]\)\);/);
+  // job card: the "มีสลิปรอตรวจ" badge opens the slip popup directly, without opening the card's own job detail
+  assert.match(pos, /className="badge amber slip-badge" role="button" tabIndex=\{0\} aria-label=\{'ดูสลิปโอนเงินของ '\+j\.customer\} onClick=\{e=>\{e\.stopPropagation\(\);setLightbox\(j\.slip\)\}\}/);
+  assert.match(pos, /onKeyDown=\{e=>\{if\(e\.key==='Enter'\|\|e\.key===' '\)\{e\.preventDefault\(\);e\.stopPropagation\(\);setLightbox\(j\.slip\)\}\}\}/, "keyboard-activatable too, since it's nested inside another button and can't be a real <button>");
+  assert.match(css, /\.slip-badge\{cursor:pointer\}/);
 });

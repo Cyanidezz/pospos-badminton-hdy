@@ -839,3 +839,8 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .job-status-cards>button.is-active:nth-child(3){box-shadow:inset 0 0 0 2px #e39a1f,var(--wing-shadow)}
 .job-status-cards>button.is-active:nth-child(4){box-shadow:inset 0 0 0 2px #22a06b,var(--wing-shadow)}
 .job-date-controls{margin:16px 0}
+/* งานขึ้นเอ็น list: the "มีสลิปรอตรวจ" badge on a job card opens the slip popup directly (no need to open the full
+   job detail first) - stopPropagation keeps that click from also opening the card's own detail underneath. */
+.slip-badge{cursor:pointer}
+.slip-badge:hover{background:#fde8c2!important}
+.slip-badge:focus-visible{outline:2px solid #986319;outline-offset:2px}
