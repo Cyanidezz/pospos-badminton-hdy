@@ -1335,3 +1335,14 @@ test("customer transfer slips are compressed client-side before upload, and the 
   assert.match(pos, /onKeyDown=\{e=>\{if\(e\.key==='Enter'\|\|e\.key===' '\)\{e\.preventDefault\(\);e\.stopPropagation\(\);setLightbox\(j\.slip\)\}\}\}/, "keyboard-activatable too, since it's nested inside another button and can't be a real <button>");
   assert.match(css, /\.slip-badge\{cursor:pointer\}/);
 });
+
+test("รับสินค้าเข้า (PO): status cards are clickable filters, counted against the current date range", async () => {
+  const po = await read("app/purchase-orders.tsx");
+  const css = await read("app/globals.css");
+  assert.match(po, /\[expanded,setExpanded\]=useState<string>\(''\),\[statusFilter,setStatusFilter\]=useState\(''\);/);
+  assert.match(po, /const datedOrders=useMemo\(\(\)=>orders\.filter/, "the date-only filter, kept separate from status so a card's own count never promises rows the date filter is hiding");
+  assert.match(po, /const filteredOrders=useMemo\(\(\)=>statusFilter\?datedOrders\.filter\(\(order:any\)=>order\.status===statusFilter\):datedOrders,\[datedOrders,statusFilter\]\);/);
+  assert.match(po, /<button type="button" key=\{status\} className=\{statusFilter===status\?'is-active':''\} onClick=\{\(\)=>setStatusFilter\(f=>f===status\?'':status\)\}><span>\{statusName\[status\]\}<\/span><strong>\{datedOrders\.filter\(\(o:any\)=>o\.status===status\)\.length\}<\/strong><\/button>/, "toggles off on a second click; counted against datedOrders, not the unfiltered lifetime total");
+  assert.match(css, /\.po-status-summary>button\{all:unset;cursor:pointer;/, "resets the default button chrome instead of turning into a solid blue pill");
+  assert.match(css, /\.po-status-summary>button\.is-active\{border-color:#4275d5;/);
+});
