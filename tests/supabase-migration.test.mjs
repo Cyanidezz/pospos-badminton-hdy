@@ -1500,3 +1500,16 @@ test("LINE ราคาขึ้นเอ็น: owner edits the price text + pi
   assert.match(empty[0].text, /สอบถามราคาขึ้นเอ็นแบดมินตันได้ที่ร้านเลย/);
   assert.equal(line.stringPriceMessages({ text: "x", image: "img1", siteUrl: "http://insecure" }).length, 1, "LINE only takes https images");
 });
+
+test("ตั้งค่าร้าน is split into sub-menus: ร้านค้า / รับชำระเงิน / ระบบสมาชิก / LINE OA", async () => {
+  const pos = await read("app/pos.tsx");
+  const settings = pos.slice(pos.indexOf("page==='settings'&&owner&&"), pos.indexOf("</main>"));
+  assert.match(pos, /\[settingsTab,setSettingsTab\]=useState\('shop'\)/);
+  assert.match(settings, /\[\['shop','ร้านค้า',Store\],\['payment','รับชำระเงิน',Wallet\],\['member','ระบบสมาชิก',Gift\],\['line','LINE OA',MessageCircle\]\]/);
+  const tab = id => settings.slice(settings.indexOf(`{settingsTab==='${id}'&&<>`), settings.indexOf("</>}", settings.indexOf(`{settingsTab==='${id}'&&<>`)));
+  assert.match(tab("shop"), /<BasicPanel [\s\S]*<ContactPanel [\s\S]*หลักการคำนวณ/);
+  assert.match(tab("payment"), /<BankPanel /);
+  assert.match(tab("member"), /<MemberPanel /);
+  assert.match(tab("line"), /LINE และหน้าติดตามลูกค้า[\s\S]*<LineMenuPanel [\s\S]*<PromotionPanel [\s\S]*<StringPricePanel /);
+  assert.equal((settings.match(/<(BasicPanel|ContactPanel|BankPanel|MemberPanel|LineMenuPanel|PromotionPanel|StringPricePanel) /g) || []).length, 7, "every panel is in exactly one tab");
+});
