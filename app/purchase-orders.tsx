@@ -12,7 +12,7 @@ const nextLabel:any={pending_approval:'อนุมัติใบสั่ง�
 const money=(satang:number)=>(Number(satang||0)/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 export function PurchaseOrders({data,products,categories,owner,busy,onAction}:any){
- const [editing,setEditing]=useState<any>(null),[scan,setScan]=useState(false),[productQuery,setProductQuery]=useState(''),[supplierForm,setSupplierForm]=useState(false),[newSupplier,setNewSupplier]=useState({name:'',address:'',phone:'',line:''}),[newProduct,setNewProduct]=useState<any>(null),[uploading,setUploading]=useState(false),[groupBy,setGroupBy]=useState<'day'|'month'|'year'>('day'),[filterDate,setFilterDate]=useState(localDate()),[expanded,setExpanded]=useState<string>(''),[statusFilter,setStatusFilter]=useState('');
+ const [editing,setEditing]=useState<any>(null),[scan,setScan]=useState(false),[productQuery,setProductQuery]=useState(''),[supplierForm,setSupplierForm]=useState(false),[newSupplier,setNewSupplier]=useState({name:'',address:'',phone:'',line:''}),[newProduct,setNewProduct]=useState<any>(null),[uploading,setUploading]=useState(false),[groupBy,setGroupBy]=useState<'day'|'month'|'year'>('month'),[filterDate,setFilterDate]=useState(localDate()),[expanded,setExpanded]=useState<string>(''),[statusFilter,setStatusFilter]=useState('pending_approval');
  const orders=useMemo(()=>data.purchaseOrders||[],[data.purchaseOrders]),orderItems=data.purchaseOrderItems||[],suppliers=data.suppliers||[];
  // Dated first (what the status cards count, so their numbers always match what picking that date range can show),
  // then status on top of that (what the list below actually renders) - a card's count never promises rows a date

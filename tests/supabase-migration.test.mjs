@@ -1339,7 +1339,7 @@ test("customer transfer slips are compressed client-side before upload, and the 
 test("รับสินค้าเข้า (PO): status cards are clickable filters, counted against the current date range", async () => {
   const po = await read("app/purchase-orders.tsx");
   const css = await read("app/globals.css");
-  assert.match(po, /\[expanded,setExpanded\]=useState<string>\(''\),\[statusFilter,setStatusFilter\]=useState\(''\);/);
+  assert.match(po, /\[expanded,setExpanded\]=useState<string>\(''\),\[statusFilter,setStatusFilter\]=useState\('pending_approval'\);/, "lands on this month's still-pending POs, not \"today, any status\"");
   assert.match(po, /const datedOrders=useMemo\(\(\)=>orders\.filter/, "the date-only filter, kept separate from status so a card's own count never promises rows the date filter is hiding");
   assert.match(po, /const filteredOrders=useMemo\(\(\)=>statusFilter\?datedOrders\.filter\(\(order:any\)=>order\.status===statusFilter\):datedOrders,\[datedOrders,statusFilter\]\);/);
   assert.match(po, /<button type="button" key=\{status\} className=\{statusFilter===status\?'is-active':''\} onClick=\{\(\)=>setStatusFilter\(f=>f===status\?'':status\)\}><span>\{statusName\[status\]\}<\/span><strong>\{datedOrders\.filter\(\(o:any\)=>o\.status===status\)\.length\}<\/strong><\/button>/, "toggles off on a second click; counted against datedOrders, not the unfiltered lifetime total");
@@ -1380,4 +1380,10 @@ test("PO editing: also allowed while รออนุมัติ, and the sale p
 test("sidebar: รับสินค้าเข้า (PO) shows a count badge for POs still waiting on approval", async () => {
   const pos = await read("app/pos.tsx");
   assert.match(pos, /\{id==='purchaseOrders'&&\(data\.purchaseOrders\|\|\[\]\)\.some\(\(o:any\)=>o\.status==='pending_approval'\)&&<b className="nav-count">\{\(data\.purchaseOrders\|\|\[\]\)\.filter\(\(o:any\)=>o\.status==='pending_approval'\)\.length\}<\/b>\}/, "hidden entirely when nothing is waiting, same as the other nav badges");
+});
+
+test("รับสินค้าเข้า (PO) lands on this month's still-pending-approval orders by default", async () => {
+  const po = await read("app/purchase-orders.tsx");
+  assert.match(po, /\[groupBy,setGroupBy\]=useState<'day'\|'month'\|'year'>\('month'\)/, "the date grouping defaults to the whole month, not just today");
+  assert.match(po, /\[statusFilter,setStatusFilter\]=useState\('pending_approval'\);/);
 });
