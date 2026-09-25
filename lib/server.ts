@@ -7,6 +7,8 @@ export const runtime = () => ({
   LINE_CHANNEL_ACCESS_TOKEN: process.env.LINE_CHANNEL_ACCESS_TOKEN,
   LINE_CHANNEL_SECRET: process.env.LINE_CHANNEL_SECRET,
   POS_OWNER_EMAIL: process.env.POS_OWNER_EMAIL,
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
 });
 
 let sqlClient: Sql | undefined;

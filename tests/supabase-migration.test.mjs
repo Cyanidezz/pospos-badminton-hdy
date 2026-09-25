@@ -1513,3 +1513,84 @@ test("ตั้งค่าร้าน is split into sub-menus: ร้านค
   assert.match(tab("line"), /LINE และหน้าติดตามลูกค้า[\s\S]*<LineMenuPanel [\s\S]*<PromotionPanel [\s\S]*<StringPricePanel /);
   assert.equal((settings.match(/<(BasicPanel|ContactPanel|BankPanel|MemberPanel|LineMenuPanel|PromotionPanel|StringPricePanel) /g) || []).length, 7, "every panel is in exactly one tab");
 });
+
+test("LINE product questions: typed names match however they are spelled; unclear ones list, unknown ones are logged", async t => {
+  let search;
+  try { search = await import("../lib/product-search.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const P = [
+    { id: "1", name: "Li-Ning No.1", category: "เอ็นแบดมินตัน" }, { id: "2", name: "Li-Ning No.5", category: "เอ็นแบดมินตัน" },
+    { id: "3", name: "Yonex BG80", category: "เอ็นแบดมินตัน" }, { id: "4", name: "Yonex BG65 Titanium", category: "เอ็นแบดมินตัน", aliases: "bg65ti" },
+    { id: "5", name: "Yonex Exbolt 63", category: "เอ็นแบดมินตัน" }, { id: "6", name: "Yonex Super Grap AC102", category: "กริป" },
+    { id: "8", name: "ถุงเท้าข้อสั้น Wingpro", category: "ถุงเท้า" },
+  ];
+  const pick = q => { const r = search.pickMatches(search.searchProducts(q, P)); return [r.kind, r.products.map(p => p.id)]; };
+  for (const q of ["Li-ning no1", "Lining no1", "Li-ning no.1", "LI NING NO 1 ราคาเท่าไหร่ครับ", "หลี่หนิง เบอร์1 มีไหม", "no1"]) assert.deepEqual(pick(q), ["one", ["1"]], q);
+  assert.deepEqual(pick("bg 80 ราคา"), ["one", ["3"]]);
+  assert.deepEqual(pick("bg65ti"), ["one", ["4"]], "the owner's own alias for a product");
+  assert.deepEqual(pick("lining"), ["many", ["1", "2"]], "a brand alone lists that brand");
+  assert.deepEqual(pick("เอ็น yonex มีอะไรบ้าง")[1].sort(), ["3", "4", "5"], "a brand + a kind lists only that brand's strings");
+  assert.deepEqual(pick("มีกริปไหม"), ["one", ["6"]]);
+  assert.deepEqual(pick("Yonex Astrox 88D มีไหม"), ["none", []], "a model the shop doesn't have is not swapped for a similar one");
+  assert.deepEqual(pick("ขอบคุณครับ"), ["none", []]);
+  assert.equal(search.PRODUCT_INTENT.test("Yonex Astrox 88D มีไหม"), true);
+  assert.equal(search.PRODUCT_INTENT.test("ขอบคุณครับ"), false);
+  assert.equal(search.inquiryKey("Li-Ning No.1 มีไหมครับ"), search.inquiryKey("lining no1"), "one request however it was typed");
+  assert.equal(search.isGeneralStringingQuestion("ขึ้นเอ็นราคาเท่าไหร่ครับ"), true, "stringing in general -> the shop's price sheet");
+  assert.equal(search.isGeneralStringingQuestion("เอ็น bg80 ราคา"), false);
+});
+
+test("LINE product answers: price + stock left from the database; AI only picks ids; falls back to rules", async t => {
+  const webhook = await read("app/api/line/route.ts");
+  const ai = await read("lib/product-ai.ts");
+  const migration = await read("supabase/migrations/20260925040000_product_inquiries.sql");
+  const data = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  assert.match(migration, /alter table public\.products add column if not exists aliases text not null default '';/);
+  assert.match(migration, /unique \(kind, query_key\)/);
+  assert.match(migration, /revoke all on public\.product_inquiries from anon, authenticated;/);
+  assert.match(webhook, /stock-\(SELECT COUNT\(\*\) FROM jobs WHERE product_id=products\.id AND paid=0 AND returned IS NULL AND status<>'ยกเลิก'\) AS available/, "strings reserved for queued rackets are not offered");
+  assert.match(webhook, /if\(ai\)\{\s*if\(!ai\.isProductQuestion\)return \[\];/, "the AI can keep the bot quiet for non-product messages");
+  assert.match(webhook, /if\(rule\.kind!=='none'\)return productReply/, "no AI (or AI failed) -> rule matching");
+  assert.match(webhook, /if\(rule\.kind!=='none'&&ranked\[0\]\.score>=0\.85\)return productReply/, "a strong name match skips the AI (no cost)");
+  assert.match(webhook, /const again=ai\.wanted\?searchProducts\(ai\.wanted,products\):\[\];/, "the AI's cleaned-up name gets a second search before 'ไม่มี'");
+  assert.match(webhook, /AND category<>'สินค้าเทียบ'/);
+  assert.match(webhook, /if\(PRODUCT_INTENT\.test\(message\)&&coreQuery\(message\)\)return notFoundReply/, "rules only log 'not stocked' for a clear buying question");
+  assert.match(webhook, /\/\^\(สอบถาม\)\?ราคา\(ขึ้นเอ็น\|เอ็น\)\?/, "a bare 'ราคา' still gets the shop's price sheet");
+  assert.match(ai, /filter\(\(id: string\) => known\.has\(id\)\)/, "an id the AI made up is dropped");
+  assert.match(ai, /tool_choice: \{ type: "tool", name: TOOL\.name \}/);
+  assert.match(ai, /controller\.abort\(\), timeoutMs/);
+  assert.match(data, /aiReady:isOwner&&!!runtime\(\)\.ANTHROPIC_API_KEY/);
+  assert.match(data, /if\(b\.aliases!==undefined&&'aliases' in p\)/, "aliases only saved once the column exists");
+  assert.match(pos, /<InquiryPanel aiReady=\{data\.aiReady\} onAction=\{act\}\/>/);
+  let line;
+  try { line = await import("../lib/line-message.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const one = line.productAnswerMessage([{ id: "1", name: "Li-Ning No.1", category: "เอ็นแบดมินตัน", price: 32000, available: 4, unit: "ชุด", image: "img" }], { siteUrl: "https://shop.example", phone: "087-0954441" });
+  const json = JSON.stringify(one);
+  assert.equal(one.contents.type, "bubble");
+  assert.match(json, /฿320\.00/);
+  assert.match(json, /ราคารวมค่าขึ้นเอ็นแล้ว/);
+  assert.match(json, /มีสินค้า 4 ชุด/);
+  assert.match(json, /https:\/\/shop\.example\/api\/line\/promo-image\/img/);
+  const out = JSON.stringify(line.productAnswerMessage([{ id: "6", name: "Grip", category: "กริป", price: 9000, available: 0 }]));
+  assert.match(out, /สินค้าหมดชั่วคราว/);
+  assert.doesNotMatch(out, /ราคารวมค่าขึ้นเอ็น/, "only strings include stringing");
+  // Several products (one model in several colours): one list card, in-stock first, price 0 -> "สอบถามราคา".
+  const list = line.productAnswerMessage([
+    { id: "a", name: "เอ็น Yonex BG80 Yellow", category: "เอ็นแบดมินตัน", price: 32000, available: 0 },
+    { id: "b", name: "เอ็น Yonex BG80 White", category: "เอ็นแบดมินตัน", price: 32000, available: 3 },
+    { id: "c", name: "เอ็น Yonex BG80 Power", category: "เอ็นแบดมินตัน", price: 0, available: 1 },
+  ]);
+  const listJson = JSON.stringify(list);
+  assert.equal(list.contents.type, "bubble");
+  assert.match(listJson, /พบ 3 รายการ/);
+  assert.match(listJson, /ราคาเอ็นรวมค่าขึ้นเอ็นแล้ว/);
+  assert.match(listJson, /สอบถามราคา/);
+  assert.ok(listJson.indexOf("BG80 White") < listJson.indexOf("BG80 Yellow"), "in stock first");
+  const many = JSON.stringify(line.productAnswerMessage(Array.from({ length: 20 }, (_, i) => ({ id: String(i), name: "P" + i, price: 100, available: 1 }))));
+  assert.match(many, /และอีก 5 รายการ/);
+  const service = JSON.stringify(line.productAnswerMessage([{ id: "s", name: "บริการขึ้นเอ็น", category: "เอ็นแบดมินตัน", price: 10000, available: -6 }]));
+  assert.doesNotMatch(service, /หมด|มีสินค้า|รวมค่าขึ้นเอ็น/, "a service has no stock and is not a string");
+  assert.match(line.productNotFoundMessage("Yonex Astrox 88D", "087-0954441").text, /ยังไม่มี “Yonex Astrox 88D” ร้านบันทึกไว้แล้ว/);
+});

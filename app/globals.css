@@ -872,3 +872,11 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .settings-tabs>button.is-active{background:#3a70d4;border-color:#3a70d4;color:#fff}
 .settings-tabs>button:focus-visible{outline:2px solid #b5d7cb;outline-offset:2px}
 .settings-grid.is-single{grid-template-columns:minmax(0,880px)}
+.inquiry-filter{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
+.inquiry-filter>button{all:unset;cursor:pointer;padding:7px 12px;border-radius:999px;border:1px solid #d9e0ec;font-size:13px;color:#2f4164;background:#fff}
+.inquiry-filter>button.is-active{background:#3a70d4;border-color:#3a70d4;color:#fff}
+.inquiry-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.inquiry-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid #e3e8f0;border-radius:12px}
+.inquiry-list li>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.inquiry-list li b{overflow-wrap:anywhere}
+.inquiry-list small{display:flex;gap:6px;align-items:center;flex-wrap:wrap}

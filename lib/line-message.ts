@@ -275,3 +275,91 @@ export function stringPriceMessages({ text: body = "", image = "", siteUrl = "",
     { type: "text", text: message ? (contact ? `${message}\n\n${contact}` : message) : `สอบถามราคาขึ้นเอ็นแบดมินตันได้ที่ร้านเลย${contact ? `\n${contact}` : ""}` },
   ];
 }
+
+type ShopProduct = { id: string; name: string; category?: string | null; price: number; available: number; unit?: string | null; image?: string | null };
+
+// A string's shop price already includes the stringing labour (the shop's own rule), so say so on the card.
+export const isStringProduct = (product: { category?: string | null; name?: string }) => /เอ็น/.test(String(product.category || "")) && !isService(product);
+// Labour and other services (บริการขึ้นเอ็น, เปลี่ยนตาไก่): a price, but no stock to speak of.
+export const isService = (product: { category?: string | null; name?: string }) => /ค่าบริการ/.test(String(product.category || "")) || /^(บริการ|ค่า)/.test(String(product.name || "").trim());
+const priceText = (product: ShopProduct) => product.price > 0 ? `฿${baht(product.price)}` : "สอบถามราคา";
+const stockText = (product: ShopProduct) => product.available > 0 ? `มีสินค้า ${product.available} ${product.unit || "ชิ้น"}` : "สินค้าหมดชั่วคราว";
+const LIST_LIMIT = 15;
+
+// Answer to "มี X ไหม / X เท่าไหร่". One product: a card with its picture, price and how many are left. Several (most
+// products here are one model in several colours): one list card - a row each with price and stock, in-stock
+// first. Stock shown = stock minus strings already reserved for rackets in the queue, so a customer never hears
+// "มี" for one that is spoken for.
+export function productAnswerMessage(products: ShopProduct[], { siteUrl = "", phone = "" }: { siteUrl?: string; phone?: string } = {}) {
+  if (!products.length) return null;
+  const base = /^https:\/\//.test(siteUrl) ? siteUrl.replace(/\/$/, "") : "";
+  const tel = String(phone).replace(/[^0-9+]/g, "");
+  const footer = (label: string) => tel ? { footer: { type: "box", layout: "vertical", paddingAll: "12px", contents: [{ type: "button", style: "secondary", height: "sm", action: { type: "uri", label, uri: `tel:${tel}` } }] } } : {};
+  if (products.length === 1) {
+    const product = products[0], inStock = product.available > 0, service = isService(product);
+    return {
+      type: "flex",
+      altText: `${product.name} ${priceText(product)}`,
+      contents: {
+        type: "bubble",
+        size: "mega",
+        ...(base && product.image ? { hero: { type: "image", url: `${base}/api/line/promo-image/${product.image}`, size: "full", aspectRatio: "1:1", aspectMode: "cover" } } : {}),
+        body: {
+          type: "box", layout: "vertical", paddingAll: "16px", spacing: "sm",
+          contents: [
+            ...(product.category ? [text(product.category, { size: "xs", color: MUTED })] : []),
+            text(product.name, { size: "md", weight: "bold", color: NAVY }),
+            text(priceText(product), { size: "xl", weight: "bold", color: BLUE }),
+            ...(isStringProduct(product) ? [text("ราคารวมค่าขึ้นเอ็นแล้ว", { size: "xs", color: "#17804F" })] : []),
+            ...(service ? [] : [text(stockText(product), { size: "sm", weight: "bold", color: inStock ? "#17804F" : "#CF4A44" })]),
+          ],
+        },
+        ...footer(service || inStock ? "โทรสั่ง / จองสินค้า" : "สอบถามวันเข้า"),
+      },
+    };
+  }
+  const sorted = [...products].sort((a, b) => Number(b.available > 0 || isService(b)) - Number(a.available > 0 || isService(a)));
+  const shown = sorted.slice(0, LIST_LIMIT), more = sorted.length - shown.length;
+  const rows = shown.map(product => ({
+    type: "box", layout: "horizontal", spacing: "sm", paddingTop: "6px",
+    contents: [
+      text(product.name, { size: "sm", color: NAVY, flex: 6 }),
+      {
+        type: "box", layout: "vertical", flex: 3,
+        contents: [
+          text(priceText(product), { size: "sm", weight: "bold", color: BLUE, align: "end" }),
+          ...(isService(product) ? [] : [text(product.available > 0 ? `เหลือ ${product.available}` : "หมด", { size: "xxs", color: product.available > 0 ? "#17804F" : "#CF4A44", align: "end" })]),
+        ],
+      },
+    ],
+  }));
+  return {
+    type: "flex",
+    altText: `สินค้าที่ตรงกับที่ถาม ${products.length} รายการ`,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      body: {
+        type: "box", layout: "vertical", paddingAll: "16px", spacing: "xs",
+        contents: [
+          text(`พบ ${products.length} รายการ`, { size: "md", weight: "bold", color: NAVY }),
+          ...(products.some(isStringProduct) ? [text("ราคาเอ็นรวมค่าขึ้นเอ็นแล้ว", { size: "xs", color: "#17804F" })] : []),
+          { type: "separator", margin: "md" },
+          ...rows,
+          ...(more > 0 ? [text(`และอีก ${more} รายการ พิมพ์ชื่อรุ่นหรือสีให้ละเอียดขึ้นเพื่อดูเพิ่ม`, { size: "xs", color: MUTED, margin: "md" })] : []),
+        ],
+      },
+      ...footer("โทรสอบถาม / จองสินค้า"),
+    },
+  };
+}
+
+// Nothing in the shop matches: say so plainly, and that the shop has been told (the request is logged).
+export function productNotFoundMessage(wanted: string, phone = "") {
+  const tel = String(phone).replace(/[^0-9+]/g, "");
+  const name = wanted.trim().slice(0, 80);
+  return {
+    type: "text",
+    text: `ขออภัย ตอนนี้ร้านยังไม่มี${name ? ` “${name}”` : "สินค้านี้"} ร้านบันทึกไว้แล้วว่ามีลูกค้าต้องการ เผื่อนำเข้ามาขายในอนาคต${tel ? `\nสอบถามสินค้าใกล้เคียง โทร ${phone}` : ""}`,
+  };
+}

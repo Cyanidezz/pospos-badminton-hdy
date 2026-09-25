@@ -251,3 +251,26 @@ export function StringPricePanel({config,Field,onAction}:any){
     <button type="button" disabled={!ready||saving||uploading||!dirty} onClick={async()=>{setSaving(true);await onAction('stringPriceSave',{text,image:image||null,requestId:crypto.randomUUID()},false);setSaving(false)}}>{saving?'กำลังบันทึก…':'บันทึกราคาขึ้นเอ็น'}</button>
   </div>;
 }
+
+// What LINE customers asked for but the shop couldn't sell them - not stocked ('missing') or sold out
+// ('out_of_stock') - most-wanted first, to help decide what to bring in. "ซ่อน" hides one until someone asks again.
+export function InquiryPanel({aiReady,onAction}:any){
+  const [inquiries,setInquiries]=useState<any[]|null|undefined>(undefined),[kind,setKind]=useState<'all'|'missing'|'out_of_stock'>('all');
+  const reload=async()=>{try{const r=await fetch('/api/inquiries',{cache:'no-store'}),d:any=await r.json();if(!r.ok)throw new Error(d.error);setInquiries(d.inquiries)}catch(e:any){toast.error(e.message);setInquiries([])}};
+  useEffect(()=>{reload()},[]);
+  const when=(iso:string)=>new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit',timeZone:'Asia/Bangkok'});
+  const list=(inquiries||[]).filter((i:any)=>kind==='all'||i.kind===kind);
+  const countOf=(k:string)=>(inquiries||[]).filter((i:any)=>i.kind===k).length;
+  return <div className="panel report inquiry-panel"><h2>สินค้าที่ลูกค้าถามหา (จาก LINE)</h2>
+    <p className="muted">ลูกค้าพิมพ์ถามสินค้าใน LINE ได้เลย บอทตอบราคาและจำนวนคงเหลือจากสต๊อกจริง ถ้าร้านไม่มีหรือของหมด จะบันทึกไว้ที่นี่ เรียงจากที่ลูกค้าต้องการมากที่สุด</p>
+    <p className="muted">ตัวช่วยอ่านข้อความ (AI): <span className={'badge '+(aiReady?'green':'amber')}>{aiReady?'Claude Haiku เปิดใช้งาน':'ใช้แบบจับคำ (ยังไม่ได้ตั้ง ANTHROPIC_API_KEY)'}</span></p>
+    {inquiries===undefined?<p className="muted">กำลังโหลด…</p>:inquiries===null?<div className="notice">ต้องรัน migration <code>20260925040000_product_inquiries.sql</code> บน Supabase ก่อน</div>:<>
+      <div className="inquiry-filter">{([['all','ทั้งหมด',inquiries.length],['missing','ร้านไม่มีขาย',countOf('missing')],['out_of_stock','ของหมด',countOf('out_of_stock')]] as const).map(([id,label,n])=><button key={id} type="button" className={kind===id?'is-active':''} onClick={()=>setKind(id)}>{label} <b>{n}</b></button>)}</div>
+      {list.length?<ul className="inquiry-list">{list.map((i:any)=><li key={i.id}>
+        <div><b>{i.kind==='out_of_stock'?(i.product_name||i.query):i.query}</b>
+          <small>{i.kind==='out_of_stock'?<span className="badge amber">ของหมด</span>:<span className="badge">ร้านไม่มีขาย</span>} ลูกค้า {i.customers} คน · ถาม {i.count} ครั้ง · ล่าสุด {when(i.last_asked)}</small></div>
+        <button type="button" className="secondary small" onClick={async()=>{await onAction('inquiryDismiss',{id:i.id,requestId:crypto.randomUUID()},false);reload()}}>ซ่อน</button>
+      </li>)}</ul>:<p className="muted">ยังไม่มีรายการ</p>}
+    </>}
+  </div>;
+}
