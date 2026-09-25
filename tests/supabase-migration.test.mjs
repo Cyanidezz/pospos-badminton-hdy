@@ -1376,3 +1376,8 @@ test("PO editing: also allowed while รออนุมัติ, and the sale p
   const getQuery = dataRoute.slice(0, dataRoute.indexOf("export async function POST"));
   assert.match(getQuery, /to_jsonb\(purchase_order_items\)->>'price' AS price FROM purchase_order_items/, "read defensively too, so the PO list never errors before the migration runs");
 });
+
+test("sidebar: รับสินค้าเข้า (PO) shows a count badge for POs still waiting on approval", async () => {
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /\{id==='purchaseOrders'&&\(data\.purchaseOrders\|\|\[\]\)\.some\(\(o:any\)=>o\.status==='pending_approval'\)&&<b className="nav-count">\{\(data\.purchaseOrders\|\|\[\]\)\.filter\(\(o:any\)=>o\.status==='pending_approval'\)\.length\}<\/b>\}/, "hidden entirely when nothing is waiting, same as the other nav badges");
+});
