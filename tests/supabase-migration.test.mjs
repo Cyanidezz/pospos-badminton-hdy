@@ -181,7 +181,7 @@ test("cashiers never see product cost, on the PO page or over the network", asyn
   const getBlock = dataRoute.slice(dataRoute.indexOf("export async function GET"), dataRoute.indexOf("export async function POST"));
   assert.match(getBlock, /poTotal=isOwner\?'total':'NULL as total'/);
   assert.match(getBlock, /SELECT id,date,supplier_id,note,evidence,\$\{poTotal\},status,created_by,created,updated,approved_by,approved_at,paid_at,received_at FROM purchase_orders/);
-  assert.match(getBlock, /SELECT id,purchase_order_id,product_id,name,qty,\$\{cost\} FROM purchase_order_items/);
+  assert.match(getBlock, /SELECT id,purchase_order_id,product_id,name,qty,\$\{cost\},to_jsonb\(purchase_order_items\)->>'price' AS price FROM purchase_order_items/);
   assert.doesNotMatch(getBlock, /SELECT \* FROM purchase_orders/);
   assert.doesNotMatch(getBlock, /SELECT \* FROM purchase_order_items/);
 
@@ -1345,4 +1345,34 @@ test("รับสินค้าเข้า (PO): status cards are clickable f
   assert.match(po, /<button type="button" key=\{status\} className=\{statusFilter===status\?'is-active':''\} onClick=\{\(\)=>setStatusFilter\(f=>f===status\?'':status\)\}><span>\{statusName\[status\]\}<\/span><strong>\{datedOrders\.filter\(\(o:any\)=>o\.status===status\)\.length\}<\/strong><\/button>/, "toggles off on a second click; counted against datedOrders, not the unfiltered lifetime total");
   assert.match(css, /\.po-status-summary>button\{all:unset;cursor:pointer;/, "resets the default button chrome instead of turning into a solid blue pill");
   assert.match(css, /\.po-status-summary>button\.is-active\{border-color:#4275d5;/);
+});
+
+test("PO editing: also allowed while รออนุมัติ, and the sale price (not just cost/qty) can be edited and is applied at receiving", async () => {
+  const migration = await read("supabase/migrations/20260925010000_po_item_price.sql");
+  const po = await read("app/purchase-orders.tsx");
+  const dataRoute = await read("app/api/data/route.ts");
+  assert.match(migration, /alter table public\.purchase_order_items add column if not exists price integer check \(price is null or price >= 0\);/);
+
+  // client: the edit button now shows for pending_approval too, and prefills price from the PO item if it has one,
+  // else from the product's current price (for PO items saved before this feature, or a cashier's earlier save)
+  assert.match(po, /\{\(order\.status==='draft'\|\|order\.status==='pending_approval'\)&&<button className="secondary" onClick=\{\(\)=>setEditing/);
+  assert.match(po, /const priceSource=x\.price\?\?products\.find\(\(p:any\)=>p\.id===x\.product_id\)\?\.price;/);
+  // a new item (added while editing) also gets the product's current price prefilled, same as cost already does
+  assert.match(po, /price:product\.price==null\?'':product\.price\/100/);
+  // ราคาขาย/ชิ้น is owner-only, same gating as ต้นทุน\/ชิ้น already has
+  assert.match(po, /\{owner&&<label><span>ราคาขาย\/ชิ้น<\/span><input type="number" min="0" step="0\.01" value=\{item\.price\}/);
+
+  const save = dataRoute.slice(dataRoute.indexOf("action==='purchaseOrderSave'"), dataRoute.indexOf("else if(action==='purchaseOrderStatus')"));
+  assert.match(save, /const editableStatuses=\['draft','pending_approval'\];/);
+  assert.match(save, /if\(b\.id&&\(!existing\|\|!editableStatuses\.includes\(existing\.status\)\)\)throw new Error\('แก้ไขได้เฉพาะใบ PO สถานะร่างหรือรออนุมัติ'\);/);
+  assert.match(save, /WHERE id=\? AND status IN \('draft','pending_approval'\)/, "the UPDATE's own guard was widened to match, not just the earlier throw");
+  assert.match(save, /const hasItemPrice=!!\(await one\("SELECT 1 FROM information_schema\.columns WHERE table_schema='public' AND table_name='purchase_order_items' AND column_name='price'"\)\);/, "defensive - saving a PO must never break before the migration runs");
+  assert.match(save, /const itemPrice=isOwner&&hasItemPrice&&x\.price!==''&&x\.price!=null\?money\(x\.price\):null;/, "a cashier's submission is never trusted, mirroring how cost already works");
+  assert.match(save, /if\(hasItemPrice\)\{cols\.push\('price'\);vals\.push\(row\.price\);\}/, "price only added to the INSERT once the column exists");
+
+  const receive = dataRoute.slice(dataRoute.indexOf("else if(action==='purchaseOrderStatus')"), dataRoute.indexOf("else if(action==='customerEdit')"));
+  assert.match(receive, /statements\.push\('price' in row\?q\('UPDATE products SET stock=stock\+\?,cost=\?,price=COALESCE\(\?,price\) WHERE id=\?',row\.qty,row\.cost,row\.price,row\.product_id\):q\('UPDATE products SET stock=stock\+\?,cost=\? WHERE id=\?',row\.qty,row\.cost,row\.product_id\)\);/, "COALESCE - a row with no recorded price (old PO, or a cashier's save) never wipes the product's price to null");
+
+  const getQuery = dataRoute.slice(0, dataRoute.indexOf("export async function POST"));
+  assert.match(getQuery, /to_jsonb\(purchase_order_items\)->>'price' AS price FROM purchase_order_items/, "read defensively too, so the PO list never errors before the migration runs");
 });
