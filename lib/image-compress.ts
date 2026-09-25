@@ -1,9 +1,8 @@
-// Shrinks a customer's transfer-slip photo before it ever leaves the browser, so uploading is fast on a phone's
-// data connection and re-opening it later (the popup viewer) is fast too - a slip only needs to be readable
-// enough to check the transferred amount, not full camera resolution. Browser-only (canvas), no dependency.
-// Falls back to the original file on any failure (an unsupported format, a browser without OffscreenCanvas, ...)
-// so compression can never be the reason a slip fails to upload.
-export async function compressSlip(file: File, maxDim = 1280, quality = 0.72): Promise<File> {
+// Shrinks an image in the browser before it's uploaded (canvas, no dependency). Falls back to the original file on
+// any failure (an unsupported format, an old browser, ...) so compression can never be the reason an upload fails.
+// `force` always re-encodes to JPEG even when that isn't smaller - for images LINE has to show, which must be
+// JPEG or PNG (a phone's WebP/HEIC-converted upload would otherwise be rejected).
+export async function compressImage(file: File, { maxDim = 1280, quality = 0.72, force = false } = {}): Promise<File> {
   if (!file.type.startsWith("image/")) return file;
   try {
     const bitmap = await createImageBitmap(file);
@@ -13,12 +12,21 @@ export async function compressSlip(file: File, maxDim = 1280, quality = 0.72): P
     canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return file;
+    ctx.fillStyle = "#fff"; // a transparent PNG would otherwise turn black as a JPEG
+    ctx.fillRect(0, 0, width, height);
     ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close?.();
     const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
-    if (!blob || blob.size >= file.size) return file; // re-encoding never makes an already-small slip bigger
+    if (!blob || (!force && blob.size >= file.size)) return file; // re-encoding never makes an already-small file bigger
     return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
   } catch {
     return file;
   }
 }
+
+// A customer's transfer slip: only needs to be readable enough to check the amount, so upload and viewing stay fast
+// on a phone's data connection.
+export const compressSlip = (file: File, maxDim = 1280, quality = 0.72) => compressImage(file, { maxDim, quality });
+
+// A promotion's picture for the LINE Flex card: JPEG (LINE doesn't take WebP) and at most 1024px on a side.
+export const promoImage = (file: File) => compressImage(file, { maxDim: 1024, quality: 0.85, force: true });

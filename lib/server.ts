@@ -149,12 +149,24 @@ export async function ownedFiles(ids: any) {
   for (const id of ids) if (!(await one("SELECT id FROM files WHERE id=?", str(id)))) throw new Error("ไม่พบไฟล์แนบ");
   return ids;
 }
-const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
+export const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
 const pushLine = (token: string, to: string, messages: unknown[]) => fetch("https://api.line.me/v2/bot/message/push", {
   method: "POST",
   headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
   body: JSON.stringify({ to, messages }),
 });
+// Answers a customer's own message or rich-menu tap. Replies are free (unlike pushes, which count against the
+// monthly quota) but the reply token is single-use and short-lived, so each event gets exactly one reply.
+export async function replyLine(replyToken: string, messages: unknown[]) {
+  const token = runtime().LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token || !replyToken || !messages.length) return;
+  const response = await fetch("https://api.line.me/v2/bot/message/reply", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ replyToken, messages: messages.slice(0, 5) }),
+  }).catch(() => null);
+  if (response && !response.ok) console.error("LINE reply failed", response.status, (await response.text().catch(() => "")).slice(0, 300));
+}
 export async function notifyJob(id: string) {
   const job: any = await one("SELECT * FROM jobs WHERE id=?", id);
   const token = runtime().LINE_CHANNEL_ACCESS_TOKEN;

@@ -1320,9 +1320,10 @@ test("customer transfer slips are compressed client-side before upload, and the 
   const pos = await read("app/pos.tsx");
   const trackPage = await read("app/track/[token]/page.tsx");
   const css = await read("app/globals.css");
-  assert.match(compress, /export async function compressSlip\(file: File, maxDim = 1280, quality = 0\.72\): Promise<File>/);
+  assert.match(compress, /export async function compressImage\(file: File, \{ maxDim = 1280, quality = 0\.72, force = false \} = \{\}\): Promise<File>/);
+  assert.match(compress, /export const compressSlip = \(file: File, maxDim = 1280, quality = 0\.72\) => compressImage\(file, \{ maxDim, quality \}\);/);
   assert.match(compress, /if \(!file\.type\.startsWith\("image\/"\)\) return file;/, "never touches a non-image file");
-  assert.match(compress, /if \(!blob \|\| blob\.size >= file\.size\) return file;/, "never makes an already-small slip bigger");
+  assert.match(compress, /if \(!blob \|\| \(!force && blob\.size >= file\.size\)\) return file;/, "never makes an already-small slip bigger");
   assert.match(compress, /\} catch \{\n    return file;\n  \}/, "compression failing (an odd format, an old browser) never blocks the upload itself");
   // staff-side: only the slip key is compressed - job condition photos and product images are untouched
   assert.match(pos, /import \{compressSlip\} from '@\/lib\/image-compress';/);
@@ -1386,4 +1387,58 @@ test("รับสินค้าเข้า (PO) lands on this month's still-p
   const po = await read("app/purchase-orders.tsx");
   assert.match(po, /\[groupBy,setGroupBy\]=useState<'day'\|'month'\|'year'>\('month'\)/, "the date grouping defaults to the whole month, not just today");
   assert.match(po, /\[statusFilter,setStatusFilter\]=useState\('pending_approval'\);/);
+});
+
+test("LINE OA rich menu: 4 buttons over the menu image, installed by the owner from ตั้งค่าร้าน", async t => {
+  const route = await read("app/api/line/richmenu/route.ts");
+  const pos = await read("app/pos.tsx");
+  const settings = await read("app/shop-settings.tsx");
+  assert.match(route, /const me=await auth\(\);owner\(me\);/, "only the owner can replace the shop's LINE menu");
+  assert.match(route, /line\(`richmenu\/\$\{richMenuId\}\/content`,\{method:'POST',headers:\{'Content-Type':'image\/jpeg'\}[^\n]*'api-data\.line\.me'\)/, "the image goes to the data host");
+  assert.match(route, /line\(`user\/all\/richmenu\/\$\{richMenuId\}`,\{method:'POST'\}\)/, "set as every customer's default menu");
+  assert.match(pos, /<LineMenuPanel [^>]*onDone=\{load\}\/><PromotionPanel Field=\{Field\} onAction=\{act\}\/>/);
+  assert.match(await read("app/api/promotions/route.ts"), /const me=await auth\(\);owner\(me\);/, "the promotion list (drafts too) is owner-only");
+  assert.match(settings, /fetch\('\/api\/line\/richmenu',\{method:'POST'/);
+  let menu;
+  try { menu = await import("../lib/line-richmenu.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const body = menu.richMenuBody({ facebook: "https://www.facebook.com/share/1Cso5TZikx/?mibextid=wwXIfr", phone: "087-0954441" });
+  assert.deepEqual(body.size, { width: 2500, height: 1686 });
+  assert.equal(body.areas.length, 4);
+  const actions = body.areas.map(a => a.action);
+  assert.deepEqual(actions.filter(a => a.type === "postback").map(a => a.data), ["action=track", "action=promo"]);
+  assert.ok(actions.some(a => a.uri === "tel:0870954441"), "the call button dials digits only");
+  assert.ok(actions.some(a => a.uri === "https://www.facebook.com/share/1Cso5TZikx/?mibextid=wwXIfr"));
+  for (const a of body.areas) assert.ok(a.bounds.x + a.bounds.width <= 2500 && a.bounds.y + a.bounds.height <= 1686);
+});
+
+test("LINE webhook: track by phone shows only a compact card; linked jobs get the full card; promotions are a carousel", async t => {
+  const webhook = await read("app/api/line/route.ts");
+  const data = await read("app/api/data/route.ts");
+  const migration = await read("supabase/migrations/20260925020000_promotions.sql");
+  const promoImage = await read("app/api/line/promo-image/[id]/route.ts");
+  assert.match(webhook, /crypto\.subtle\.verify\('HMAC'/, "every webhook call is signature-checked");
+  assert.match(webhook, /regexp_replace\(phone,'\\\\D','','g'\)=\?/);
+  assert.match(webhook, /WHERE active=1 ORDER BY created DESC LIMIT 12/, "a LINE carousel holds at most 12 cards");
+  assert.match(migration, /revoke all on public\.promotions from anon, authenticated;/);
+  assert.match(promoImage, /active=1/, "a promotion's picture is public only while that promotion is on");
+  assert.match(data, /action==='promotionSave'/);
+  assert.doesNotMatch(data.slice(data.indexOf("export async function GET()"), data.indexOf("export async function POST")), /promotions/, "the main snapshot doesn't depend on the promotions migration");
+  assert.match(data, /action==='promotionDelete'/);
+  let line;
+  try { line = await import("../lib/line-message.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const steps = ["รอขึ้นเอ็น", "กำลังขึ้นเอ็น", "พร้อมรับไม้", "คืนไม้แล้ว"];
+  const job = (id, line_user) => ({ id, token: "t" + id, racket: "Yonex " + id, status: "กำลังขึ้นเอ็น", paid: 0, amount: 25000, created: "2026-09-25T03:00:00Z", line_user });
+  const msg = line.trackJobsMessage([job("a", "U1"), job("b", null)], { steps, siteUrl: "https://shop.example", lineUser: "U1" });
+  assert.equal(msg.contents.type, "carousel");
+  const [mine, stranger] = msg.contents.contents.map(b => JSON.stringify(b));
+  assert.match(mine, /\/track\/ta/, "your own linked job links to its tracking page");
+  assert.doesNotMatch(stranger, /\/track\/|250/, "someone typing a phone number sees no tracking link or amount");
+  assert.equal(line.promotionsMessage([], {}), null);
+  const promos = Array.from({ length: 14 }, (_, i) => ({ id: "p" + i, title: "โปร " + i, body: "", image: i ? "img" + i : null }));
+  const carousel = line.promotionsMessage(promos, { siteUrl: "https://shop.example", phone: "087-0954441" });
+  assert.equal(carousel.contents.contents.length, 12);
+  assert.equal(carousel.contents.contents[0].hero, undefined, "a promotion without a picture has no broken image");
+  assert.equal(carousel.contents.contents[1].hero.url, "https://shop.example/api/line/promo-image/img1");
 });

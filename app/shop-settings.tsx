@@ -1,5 +1,8 @@
 'use client';
+import {useEffect,useState} from 'react';
 import {ImagePlus} from 'lucide-react';
+import {toast} from 'sonner';
+import {promoImage} from '@/lib/image-compress';
 import {Switch} from '@/components/ui/switch';
 import {DAY_NAMES,DISPLAY_ORDER,parseHours} from '@/lib/shop-hours';
 
@@ -137,4 +140,81 @@ export function MemberPanel({form,setForm,config,products,busy,onSave,Field}:any
       <p className="muted">เว้นว่างทั้งสองช่องเพื่อสะสมแต้มได้ตลอดไป (ไม่จำกัดช่วงเวลา)</p>
       <button disabled={busy||!ready}>บันทึกระบบสมาชิก</button>
     </form></div>;
+}
+
+// ---------------------------------------------------------------- LINE OA: rich menu + promotions
+
+// Installs the 4-button rich menu (ติดตามงานขึ้นเอ็น / โปรโมชั่น / Facebook / โทร) on the shop's LINE OA. The link and
+// phone number are saved as the shop's contact details too, so every customer-facing place shows the same ones.
+export function LineMenuPanel({config,lineReady,Field,onDone}:any){
+  const [facebook,setFacebook]=useState(config.contact_facebook||''),[phone,setPhone]=useState(config.contact_phone||''),[busy,setBusy]=useState(false);
+  const install=async()=>{
+    setBusy(true);
+    try{
+      const r=await fetch('/api/line/richmenu',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({facebook,phone})});
+      const d:any=await r.json();
+      if(!r.ok)throw new Error(d.error||'ติดตั้งไม่สำเร็จ');
+      toast.success('ติดตั้ง rich menu บน LINE OA แล้ว');onDone?.();
+    }catch(e:any){toast.error(e.message)}finally{setBusy(false)}
+  };
+  return <div className="panel report line-menu-panel"><h2>เมนูบน LINE OA (Rich menu)</h2>
+    <p className="muted">เมนู 4 ปุ่มด้านล่างแชท LINE ของร้าน: ติดตามงานขึ้นเอ็น (ลูกค้าพิมพ์เบอร์โทรเพื่อเช็คสถานะ), โปรโมชั่น, Facebook ร้าน และโทรหาร้าน</p>
+    <img className="line-menu-preview" src="/line-richmenu.jpg" alt="ตัวอย่าง rich menu"/>
+    {!lineReady&&<div className="notice">ยังไม่ได้ตั้งค่า LINE Channel access token / secret จึงติดตั้งเมนูไม่ได้</div>}
+    <Field label="ลิงก์ Facebook ร้าน"><input type="url" placeholder="https://www.facebook.com/..." value={facebook} onChange={e=>setFacebook(e.target.value)}/></Field>
+    <Field label="เบอร์โทรร้าน"><input type="tel" inputMode="tel" placeholder="เช่น 087-095-4441" value={phone} onChange={e=>setPhone(e.target.value)}/></Field>
+    <p className="muted">ลิงก์และเบอร์นี้จะใช้กับหน้าติดตามสถานะไม้และการ์ดโปรโมชั่นด้วย ต้องเปิด Webhook ของ LINE OA ไว้ที่ <code>/api/line</code> ปุ่ม “ติดตามงานขึ้นเอ็น” และ “โปรโมชั่น” จึงจะตอบกลับได้</p>
+    <button type="button" disabled={busy||!lineReady||!facebook||!phone} onClick={install}>{busy?'กำลังติดตั้ง…':'ติดตั้ง / อัปเดต rich menu บน LINE OA'}</button>
+  </div>;
+}
+
+// Promotions shown when a customer taps "โปรโมชั่น" on LINE: one Flex card each (image + title + text), newest first.
+export function PromotionPanel({Field,onAction}:any){
+  const blank={id:'',title:'',body:'',image:'',active:true};
+  const [promotions,setPromotions]=useState<any[]|null|undefined>(undefined);
+  const [form,setForm]=useState<any>(null),[uploading,setUploading]=useState(false),[saving,setSaving]=useState(false);
+  const reload=async()=>{try{const r=await fetch('/api/promotions',{cache:'no-store'}),d:any=await r.json();if(!r.ok)throw new Error(d.error);setPromotions(d.promotions)}catch(e:any){toast.error(e.message);setPromotions([])}};
+  useEffect(()=>{reload()},[]);
+  const act=async(action:string,body:any)=>{const d=await onAction(action,body,false);await reload();return d};
+  if(promotions===undefined)return <div className="panel report"><h2>โปรโมชั่นบน LINE</h2><p className="muted">กำลังโหลด…</p></div>;
+  if(promotions===null)return <div className="panel report"><h2>โปรโมชั่นบน LINE</h2><div className="notice">ต้องรัน migration <code>20260925020000_promotions.sql</code> บน Supabase ก่อน</div></div>;
+  const list=promotions||[],activeCount=list.filter((p:any)=>p.active).length;
+  const upload=async(files:FileList|null)=>{
+    if(!files?.[0])return;
+    setUploading(true);
+    try{
+      const fd=new FormData();fd.append('file',await promoImage(files[0]));
+      const r=await fetch('/api/upload',{method:'POST',body:fd}),d:any=await r.json();
+      if(!r.ok)throw new Error(d.error);
+      setForm((f:any)=>({...f,image:d.id}));
+    }catch(e:any){toast.error(e.message)}finally{setUploading(false)}
+  };
+  const save=async(p:any)=>{setSaving(true);const d=await act('promotionSave',{id:p.id||undefined,title:p.title,body:p.body,image:p.image||null,active:!!p.active,requestId:crypto.randomUUID()});setSaving(false);return d};
+  return <div className="panel report promo-panel"><h2>โปรโมชั่นบน LINE</h2>
+    <p className="muted">ลูกค้ากด “โปรโมชั่น” ในเมนู LINE จะเห็นทุกโปรที่เปิดอยู่เรียงเป็นการ์ดเลื่อนดูได้ (สูงสุด 12 รายการ) · เปิดอยู่ {activeCount} รายการ</p>
+    {!form&&<button type="button" className="secondary" onClick={()=>setForm(blank)}>+ เพิ่มโปรโมชั่น</button>}
+    {form&&<div className="promo-form">
+      <Field label="หัวข้อโปรโมชั่น"><input maxLength={120} placeholder="เช่น ขึ้นเอ็น BG80 ลด 50 บาท" value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></Field>
+      <Field label="รายละเอียด"><textarea rows={3} maxLength={500} placeholder="เงื่อนไข ระยะเวลา หรือรายละเอียดเพิ่มเติม" value={form.body} onChange={e=>setForm({...form,body:e.target.value})}/></Field>
+      <div className="field"><span>รูปโปรโมชั่น</span>
+        <div className="promo-image-row">{form.image?<img src={'/api/files/'+form.image} alt="รูปโปรโมชั่น"/>:<div className="promo-image-empty">ยังไม่มีรูป</div>}
+          <label className={'attach-button secondary'+(uploading?' is-busy':'')}>{uploading?'กำลังอัปโหลด…':form.image?'เปลี่ยนรูป':'อัปโหลดรูป'}<input type="file" accept="image/*" disabled={uploading} onChange={e=>{upload(e.target.files);e.target.value=''}}/></label>
+          {form.image&&<button type="button" className="link-button" onClick={()=>setForm({...form,image:''})}>เอารูปออก</button>}
+        </div>
+        <small className="muted">แนะนำรูปแนวนอน สัดส่วนประมาณ 20:13 ระบบย่อรูปให้อัตโนมัติ</small>
+      </div>
+      <div className="switch-row"><div><b>เปิดแสดงบน LINE</b><p>ปิดไว้ก่อนได้ ถ้ายังไม่อยากให้ลูกค้าเห็น</p></div><Switch checked={!!form.active} onCheckedChange={v=>setForm({...form,active:v})}/></div>
+      <div className="actions"><button type="button" className="secondary" disabled={saving} onClick={()=>setForm(null)}>ยกเลิก</button><button type="button" disabled={saving||uploading||!form.title.trim()} onClick={async()=>{if(await save(form))setForm(null)}}>{saving?'กำลังบันทึก…':'บันทึกโปรโมชั่น'}</button></div>
+    </div>}
+    {list.length>0&&<ul className="promo-list">{list.map((p:any)=><li key={p.id} className={p.active?'':'is-off'}>
+      {p.image?<img src={'/api/files/'+p.image} alt=""/>:<div className="promo-image-empty">ไม่มีรูป</div>}
+      <div><b>{p.title}</b>{p.body&&<p>{p.body}</p>}<small>{p.active?'แสดงบน LINE':'ปิดอยู่'}</small></div>
+      <div className="promo-actions">
+        <Switch checked={!!p.active} aria-label={'เปิด/ปิด '+p.title} onCheckedChange={v=>save({...p,active:v})}/>
+        <button type="button" className="secondary small" onClick={()=>setForm({...p,image:p.image||'',active:!!p.active})}>แก้ไข</button>
+        <button type="button" className="secondary small danger" onClick={()=>{if(confirm('ลบโปรโมชั่น “'+p.title+'”?'))act('promotionDelete',{id:p.id,requestId:crypto.randomUUID()})}}>ลบ</button>
+      </div>
+    </li>)}</ul>}
+    {!list.length&&!form&&<p className="muted">ยังไม่มีโปรโมชั่น</p>}
+  </div>;
 }

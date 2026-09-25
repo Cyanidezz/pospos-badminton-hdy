@@ -847,3 +847,17 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .slip-badge{cursor:pointer}
 .slip-badge:hover{background:#fde8c2!important}
 .slip-badge:focus-visible{outline:2px solid #986319;outline-offset:2px}
+
+/* LINE OA rich menu + promotions (ตั้งค่าร้าน) */
+.line-menu-preview{display:block;width:100%;max-width:520px;border-radius:12px;border:1px solid #e3e8f0;margin:4px 0 14px}
+.promo-form{border:1px solid #e3e8f0;border-radius:14px;padding:14px;margin:8px 0 14px;background:#fafcff}
+.promo-image-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.promo-image-row img,.promo-list img,.promo-image-empty{width:120px;aspect-ratio:20/13;object-fit:cover;border-radius:10px;border:1px solid #e3e8f0;background:#f1f4f9}
+.promo-image-empty{display:flex;align-items:center;justify-content:center;color:#8a94a6;font-size:13px}
+.promo-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}
+.promo-list li{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px;border:1px solid #e3e8f0;border-radius:14px;background:#fff}
+.promo-list li.is-off{opacity:.6}
+.promo-list li p{margin:4px 0;color:#5b6475;font-size:13px;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.promo-list li small{color:#8a94a6}
+.promo-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:640px){.promo-list li{grid-template-columns:96px minmax(0,1fr)}.promo-list img,.promo-list .promo-image-empty{width:96px}.promo-actions{grid-column:1/-1;justify-content:flex-start}}

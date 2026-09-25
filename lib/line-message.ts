@@ -111,3 +111,74 @@ export function jobStatusText(job: Job) {
     text: `สถานะไม้ ${job.racket}: ${job.status}\nเลขรับไม้ ${jobNumber(job)}${job.paid ? "\nชำระเงินแล้ว" : `\nยอดชำระ ${baht(job.amount)} บาท`}`,
   };
 }
+
+// ---------------------------------------------------------------- rich menu replies
+
+// A carousel of Flex bubbles (LINE allows up to 12), or null when there are none.
+const carousel = (altText: string, bubbles: any[]) => bubbles.length ? { type: "flex", altText: altText.slice(0, 400), contents: { type: "carousel", contents: bubbles.slice(0, 12) } } : null;
+
+type TrackJob = Job & { created?: string; line_user?: string | null };
+
+// "ติดตามงานขึ้นเอ็น": the customer's jobs still in the shop. A job already linked to THIS LINE account gets the full
+// card (payment + tracking link), same as a status push. One only found by typing a phone number gets a short card:
+// racket, status and date - anyone can type any number, so nothing about payment or the private tracking link.
+export function trackJobsMessage(jobs: TrackJob[], { steps, siteUrl = "", lineUser = "" }: Options & { lineUser?: string }) {
+  const bubbles = jobs.map(job => {
+    if (lineUser && job.line_user === lineUser) return jobStatusMessage(job, { steps, siteUrl }).contents;
+    const style = statusStyle[job.status] ?? statusStyle["รอขึ้นเอ็น"];
+    const received = job.created ? new Date(job.created).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit", timeZone: "Asia/Bangkok" }) : "";
+    return {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "18px",
+        spacing: "sm",
+        contents: [
+          text("WINGPRO BADMINTON", { size: "xxs", color: MUTED, weight: "bold" }),
+          text(job.racket, { size: "md", weight: "bold", color: NAVY }),
+          text(job.status, { size: "lg", weight: "bold", color: style.color }),
+          text(style.note, { size: "xs", color: MUTED }),
+          { type: "separator", margin: "md" },
+          row("เลขรับไม้", `#${jobNumber(job)}`),
+          ...(received ? [row("รับไม้", received)] : []),
+        ],
+      },
+    };
+  });
+  return carousel(`งานขึ้นเอ็นของคุณ ${jobs.length} รายการ`, bubbles);
+}
+
+type Promotion = { id: string; title: string; body: string; image?: string | null };
+
+// "โปรโมชั่น": one card per active promotion, image on top (served publicly by /api/line/promo-image/[id]).
+export function promotionsMessage(promotions: Promotion[], { siteUrl = "", phone = "" }: { siteUrl?: string; phone?: string } = {}) {
+  const base = /^https:\/\//.test(siteUrl) ? siteUrl.replace(/\/$/, "") : "";
+  const tel = String(phone).replace(/[^0-9+]/g, "");
+  const bubbles = promotions.map(promo => ({
+    type: "bubble",
+    size: "mega",
+    ...(base && promo.image ? { hero: { type: "image", url: `${base}/api/line/promo-image/${promo.image}`, size: "full", aspectRatio: "20:13", aspectMode: "cover" } } : {}),
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "18px",
+      spacing: "sm",
+      contents: [
+        text("โปรโมชั่น", { size: "xs", color: "#E0801A", weight: "bold" }),
+        text(promo.title, { size: "lg", weight: "bold", color: NAVY }),
+        ...(promo.body ? [text(promo.body, { size: "sm", color: "#4B5A75" })] : []),
+      ],
+    },
+    ...(tel ? {
+      footer: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "14px",
+        contents: [{ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "โทรสอบถามร้าน", uri: `tel:${tel}` } }],
+      },
+    } : {}),
+  }));
+  return carousel(`โปรโมชั่น Wingpro Badminton (${promotions.length})`, bubbles);
+}
