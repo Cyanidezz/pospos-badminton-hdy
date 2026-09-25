@@ -822,3 +822,20 @@ select{width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 
 select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .field select{border-color:#d7deec;box-shadow:0 1px 2px rgba(30,51,88,.03);transition:border-color .16s,box-shadow .16s}
 .field select:focus{outline:0;border-color:#5f88d5;box-shadow:0 0 0 4px rgba(95,136,213,.12)}
+/* งานขึ้นเอ็น's 4 status cards are clickable filters too (same idea as the inventory status cards already are) -
+   reset the default button chrome and give each one the same colored-card look, active state on the one currently
+   filtering the list below. Clicking the active one again clears back to the default view. */
+.job-status-cards>button{all:unset;cursor:pointer;box-sizing:border-box;display:block;width:100%;border-radius:17px;padding:23px;background:linear-gradient(145deg,#fff,#fbfcff);border:1px solid rgba(208,216,232,.9);box-shadow:var(--wing-shadow);text-align:left;transition:transform .12s,box-shadow .12s}
+.job-status-cards>button:hover{transform:translateY(-2px)}
+.job-status-cards>button span{display:block;color:#6c8290;font-weight:600}
+.job-status-cards>button strong{color:#22365b;font-size:28px;font-weight:700}
+.job-status-cards>button:nth-child(1){box-shadow:inset 0 4px 0 #3a70d4,var(--wing-shadow)}
+.job-status-cards>button:nth-child(2){box-shadow:inset 0 4px 0 #cf4a44,var(--wing-shadow)}
+.job-status-cards>button:nth-child(3){box-shadow:inset 0 4px 0 #e39a1f,var(--wing-shadow)}
+.job-status-cards>button:nth-child(4){box-shadow:inset 0 4px 0 #22a06b,var(--wing-shadow)}
+.job-status-cards>button.is-active{background:linear-gradient(145deg,#eaf1fd,#fff)}
+.job-status-cards>button.is-active:nth-child(1){box-shadow:inset 0 0 0 2px #3a70d4,var(--wing-shadow)}
+.job-status-cards>button.is-active:nth-child(2){box-shadow:inset 0 0 0 2px #cf4a44,var(--wing-shadow)}
+.job-status-cards>button.is-active:nth-child(3){box-shadow:inset 0 0 0 2px #e39a1f,var(--wing-shadow)}
+.job-status-cards>button.is-active:nth-child(4){box-shadow:inset 0 0 0 2px #22a06b,var(--wing-shadow)}
+.job-date-controls{margin:16px 0}

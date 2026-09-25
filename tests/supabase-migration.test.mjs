@@ -1294,3 +1294,23 @@ test("ระบบสมาชิก settings: each reward tier gets its own lab
   assert.match(css, /^select\{width:100%;border:1px solid var\(--border\);border-radius:8px;padding:10px 12px;min-width:0;background:#fff;color:var\(--foreground\);font-size:15px;height:44px\}/m, "a bare <select> now looks like every other input, not the raw browser default");
   assert.match(css, /\.field-narrow\{max-width:160px\}/);
 });
+
+test("งานขึ้นเอ็น: status cards filter the list, a date filter (with its own default of showing everything), and pagination", async () => {
+  const pos = await read("app/pos.tsx");
+  const css = await read("app/globals.css");
+  assert.match(pos, /\[jobRange,setJobRange\]=useState\('all'\),\[jobDate,setJobDate\]=useState\(today\(\)\),\[showAllJobs,setShowAllJobs\]=useState\(false\)/);
+  assert.match(pos, /const jobInRange=\(s:string\)=>\{if\(jobRange==='all'\)return true;/, "no date chosen is its own state, not just \"today\"");
+  assert.match(pos, /const jobDateControl=<div className="date-controls job-date-controls"><Tabs value=\{jobRange\} onValueChange=\{setJobRange\}><TabsList>\{\[\['all','ทั้งหมด'\],\['day','วัน'\],\['month','เดือน'\],\['year','ปี'\]\]/, "independent of the dashboard's own date filter");
+  // the default landing view (no date, no explicit status picked) shows only work still pending; picking a date
+  // or a specific status always overrides that
+  assert.match(pos, /const pendingStatuses=\['รอขึ้นเอ็น','กำลังขึ้นเอ็น','พร้อมรับไม้'\];/);
+  assert.match(pos, /const statusMatch=\(j:any\)=>jobFilter!=='ทั้งหมด'\?j\.status===jobFilter:jobRange==='all'\?pendingStatuses\.includes\(j\.status\):true;/);
+  // status cards are clickable filters (same idea as the inventory status cards), toggling off on a second click
+  assert.match(pos, /className=\{jobFilter===s\?'is-active':''\} onClick=\{\(\)=>setJobFilter\(f=>f===s\?'ทั้งหมด':s\)\}/);
+  assert.match(pos, /dated\.filter\(\(j:any\)=>j\.status===s\)\.length/, "the card counts respect the date filter, matching what the list below shows");
+  // pagination: capped at 6 with a "show all" toggle, same convention as the inventory category breakdown already uses
+  assert.match(pos, /\{\(showAllJobs\?shownJobs:shownJobs\.slice\(0,6\)\)\.map/);
+  assert.match(pos, /\{shownJobs\.length>6&&<button type="button" className="secondary small report-show-all" onClick=\{\(\)=>setShowAllJobs\(v=>!v\)\}>\{showAllJobs\?'แสดงน้อยลง':'แสดงทั้งหมด \('\+shownJobs\.length\+'\)'\}<\/button>\}/);
+  assert.match(css, /\.job-status-cards>button\{all:unset;cursor:pointer;/, "clickable cards reset the default button chrome instead of turning into a solid blue pill");
+  assert.match(css, /\.job-status-cards>button\.is-active/);
+});
