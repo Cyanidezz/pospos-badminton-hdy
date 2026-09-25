@@ -1,6 +1,7 @@
 import {runtime,db,all,one,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {promotionsMessage,trackJobsMessage} from '@/lib/line-message';
+import {memberCardMessage,promotionsMessage,trackJobsMessage} from '@/lib/line-message';
+import {memberStatus} from '@/lib/member-status';
 
 // LINE OA webhook. Every request is signed with the channel secret; anything unsigned is rejected before parsing.
 async function verified(req:Request){
@@ -17,6 +18,7 @@ async function verified(req:Request){
 const ACTIVE_JOBS="status<>'ยกเลิก' AND status<>'คืนไม้แล้ว'";
 const text=(value:string)=>({type:'text',text:value});
 const ASK_PHONE=text('พิมพ์เบอร์โทรที่ใช้ตอนฝากไม้ได้เลย เช่น 0812345678 ระบบจะแสดงสถานะงานขึ้นเอ็นที่ยังอยู่ที่ร้าน');
+const ASK_PHONE_POINTS=text('พิมพ์เบอร์โทรที่ให้ไว้กับร้านได้เลย เช่น 0812345678 ระบบจะแสดงดาวสะสมและงานขึ้นเอ็นที่ยังอยู่ที่ร้าน');
 
 async function trackReply(jobs:any[],lineUser:string){
   const message=trackJobsMessage(jobs.map(j=>({...j,status:normalizeJobStatus(j.status)})),{steps:statuses,siteUrl:siteUrl(),lineUser});
@@ -30,10 +32,31 @@ async function onTrack(lineUser:string){
   return [...await trackReply(linked,lineUser),text('ถ้ามีไม้ที่ฝากด้วยเบอร์อื่น พิมพ์เบอร์นั้นมาได้เลย')];
 }
 
+async function pointsCard(phone:string,trackToken=''){
+  const config:any=await one('SELECT * FROM config WHERE id=1');
+  const member=await memberStatus(config,phone);
+  const base=siteUrl().replace(/\/$/,'');
+  return member?memberCardMessage(member,{trackUrl:trackToken&&base?`${base}/track/${trackToken}`:''}):null;
+}
+
+// A typed phone number answers both menu buttons at once (there is no conversation state to know which one asked):
+// that number's stars, then its jobs still at the shop. Anyone can type any number, so both stay compact - no name,
+// no link into the job (see trackJobsMessage / memberCardMessage).
 async function onPhone(digits:string,lineUser:string){
   const jobs=await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,digits);
-  if(!jobs.length)return [text('ไม่พบงานขึ้นเอ็นที่ยังอยู่ที่ร้านของเบอร์นี้ ถ้าคิดว่าไม่ถูกต้อง ติดต่อร้านได้เลย')];
-  return trackReply(jobs,lineUser);
+  const card=await pointsCard(digits);
+  const messages=[...(card?[card]:[]),...await trackReply(jobs,lineUser)];
+  return messages.length?messages:[text('ไม่พบข้อมูลของเบอร์นี้ ถ้าคิดว่าไม่ถูกต้อง ติดต่อร้านได้เลย')];
+}
+
+// "เช็คคะแนนสะสม": a LINE account already linked to a job (via the QR on its receipt) gets its card straight away,
+// with a button to its newest open job's tracking page where rewards are redeemed; otherwise ask for a phone.
+async function onPoints(lineUser:string){
+  const latest:any=await one("SELECT phone FROM jobs WHERE line_user=? AND phone IS NOT NULL AND phone<>'' ORDER BY created DESC LIMIT 1",lineUser);
+  if(!latest)return [ASK_PHONE_POINTS];
+  const open:any=await one(`SELECT token FROM jobs WHERE line_user=? AND paid=0 AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 1`,lineUser);
+  const card=await pointsCard(latest.phone,open?.token||'');
+  return card?[card]:[ASK_PHONE_POINTS];
 }
 
 async function onPromotions(){
@@ -62,6 +85,7 @@ export async function POST(req:Request){
         const action=new URLSearchParams(e.postback?.data||'').get('action');
         if(action==='track')await replyLine(replyToken,await onTrack(lineUser));
         else if(action==='promo')await replyLine(replyToken,await onPromotions());
+        else if(action==='points')await replyLine(replyToken,await onPoints(lineUser));
         continue;
       }
       if(e.type!=='message'||e.message?.type!=='text')continue;
@@ -70,6 +94,7 @@ export async function POST(req:Request){
       if(link){await onLink(link[1],lineUser);continue;}
       // Typed text works the same as the rich-menu buttons, for anyone who types instead of tapping.
       if(/^ติดตาม/.test(message))await replyLine(replyToken,await onTrack(lineUser));
+      else if(/^(เช็ค|เช็ก)?(คะแนน|แต้ม|ดาว)/.test(message))await replyLine(replyToken,await onPoints(lineUser));
       else if(/^โปรโมชั่น|^โปร$/.test(message))await replyLine(replyToken,await onPromotions());
       else{
         const digits=message.replace(/[\s-]/g,'');

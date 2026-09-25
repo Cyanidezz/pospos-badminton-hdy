@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+// The tracking API plus the memberStatus() it shares with the LINE webhook (lib/member-status.ts).
+const readTrackApi = async () => (await read("app/api/track/[token]/route.ts")) + "\n" + (await read("lib/member-status.ts"));
 
 test("uses Vercel-compatible Next.js scripts and pinned Supabase packages", async () => {
   const pkg = JSON.parse(await read("package.json"));
@@ -473,7 +475,7 @@ test("opening hours: validation, grouping and open-now use Thailand time", async
 test("shop contact and bank settings are stored, validated and shown", async () => {
   const migration = await read("supabase/migrations/20260922000000_shop_contact_and_bank.sql");
   const route = await read("app/api/data/route.ts");
-  const track = await read("app/api/track/[token]/route.ts");
+  const track = await readTrackApi();
   const page = await read("app/track/[token]/page.tsx");
   const pos = await read("app/pos.tsx");
   const settings = await read("app/shop-settings.tsx");
@@ -626,7 +628,7 @@ test("customer can pay from the tracking page: bank QR, slip upload, staff revie
   const upload = await read("app/api/upload/route.ts");
   const slipRoute = await read("app/api/track/[token]/slip/route.ts");
   const qrRoute = await read("app/api/track/bank-qr/route.ts");
-  const trackRoute = await read("app/api/track/[token]/route.ts");
+  const trackRoute = await readTrackApi();
   const dataRoute = await read("app/api/data/route.ts");
   const bank = await read("app/bank-transfer.tsx");
   const page = await read("app/track/[token]/page.tsx");
@@ -678,10 +680,11 @@ test("customer can pay from the tracking page: bank QR, slip upload, staff revie
 });
 
 test("tracking page shows the customer's own stamp progress and reward", async () => {
-  const route = await read("app/api/track/[token]/route.ts");
+  const route = await readTrackApi();
   const page = await read("app/track/[token]/page.tsx");
   const css = await read("app/globals.css");
-  assert.match(route, /import \{buildCustomers,promoOf,promoPhase,rewardDiscount\} from '@\/lib\/customers'/);
+  assert.match(route, /import \{rewardDiscount\} from '@\/lib\/customers';/);
+  assert.match(route, /import \{buildCustomers,promoOf,promoPhase\} from '\.\/customers';/);
   assert.match(route, /if\(!\('member_stamps_required' in config\)\)return null/, "works before the members migration is run");
   assert.match(route, /regexp_replace\(phone,'\\\\D','','g'\)=\?",key\)/, "matches the same phone-digits key used everywhere else");
   assert.match(route, /FROM sales WHERE customer_key=\?/);
@@ -716,7 +719,7 @@ test("payment dialogs default to transfer with a large QR and no repeated amount
 test("member stamp promotion has an optional date window and an on/off switch", async () => {
   const migration = await read("supabase/migrations/20260923010000_member_promo_window.sql");
   const dataRoute = await read("app/api/data/route.ts");
-  const trackRoute = await read("app/api/track/[token]/route.ts");
+  const trackRoute = await readTrackApi();
   const membersPage = await read("app/members-page.tsx");
   const settings = await read("app/shop-settings.tsx");
 
@@ -1088,7 +1091,7 @@ test("inventory list on iPad/tablet and phones: one short line per product, deta
 
 test("customers redeem a free stringing themselves on the tracking page; the reward is booked as a POS discount", async () => {
   const redeem = await read("app/api/track/[token]/redeem/route.ts");
-  const trackApi = await read("app/api/track/[token]/route.ts");
+  const trackApi = await readTrackApi();
   const trackPage = await read("app/track/[token]/page.tsx");
   const dataRoute = await read("app/api/data/route.ts");
   const pos = await read("app/pos.tsx");
@@ -1152,7 +1155,7 @@ test("job intake: the free-text note is gone, replaced by an optional pickup dat
 
 test("tracking page's stamp card shows the promotion's stamping period, matching the shop's own promoPhase rule", async () => {
   const lib = await read("lib/customers.ts");
-  const route = await read("app/api/track/[token]/route.ts");
+  const route = await readTrackApi();
   const page = await read("app/track/[token]/page.tsx");
   const css = await read("app/globals.css");
   const hours = await read("lib/shop-hours.ts");
@@ -1164,8 +1167,8 @@ test("tracking page's stamp card shows the promotion's stamping period, matching
   assert.match(lib, /if \(promo\.start && today < promo\.start\) return "before";/);
   assert.match(lib, /if \(promo\.end && today > promo\.end\) return "after";/);
   assert.match(lib, /return "during";/);
-  assert.match(route, /import \{DEFAULT_SHOP,bangkokToday,parseHours\} from '@\/lib\/shop-hours';/);
-  assert.match(route, /import \{buildCustomers,promoOf,promoPhase,rewardDiscount\} from '@\/lib\/customers';/);
+  assert.match(route, /import \{bangkokToday\} from '\.\/shop-hours';/);
+  assert.match(route, /import \{buildCustomers,promoOf,promoPhase\} from '\.\/customers';/);
   assert.match(route, /const promo=promoOf\(config\);/);
   assert.match(route, /promo:\{phase:promoPhase\(promo,bangkokToday\(\)\),start:promo\?\.start\?\?null,end:promo\?\.end\?\?null\}/);
   // client: same phase-to-wording mapping for all five states, including the two "unbounded"/off cases that show nothing extra
@@ -1230,7 +1233,7 @@ test("second reward tier: 5 stars redeems free socks (a real POS discount), rede
   const settings = await read("app/shop-settings.tsx");
   const dataRoute = await read("app/api/data/route.ts");
   const redeemSocks = await read("app/api/track/[token]/redeem-socks/route.ts");
-  const trackApi = await read("app/api/track/[token]/route.ts");
+  const trackApi = await readTrackApi();
   const trackPage = await read("app/track/[token]/page.tsx");
   const membersPage = await read("app/members-page.tsx");
   const pos = await read("app/pos.tsx");
@@ -1389,7 +1392,7 @@ test("รับสินค้าเข้า (PO) lands on this month's still-p
   assert.match(po, /\[statusFilter,setStatusFilter\]=useState\('pending_approval'\);/);
 });
 
-test("LINE OA rich menu: 4 buttons over the menu image, installed by the owner from ตั้งค่าร้าน", async t => {
+test("LINE OA rich menu: 5 buttons over the menu image, installed by the owner from ตั้งค่าร้าน", async t => {
   const route = await read("app/api/line/richmenu/route.ts");
   const pos = await read("app/pos.tsx");
   const settings = await read("app/shop-settings.tsx");
@@ -1404,12 +1407,14 @@ test("LINE OA rich menu: 4 buttons over the menu image, installed by the owner f
   catch { t.skip("this Node version cannot import .ts files directly"); return; }
   const body = menu.richMenuBody({ facebook: "https://www.facebook.com/share/1Cso5TZikx/?mibextid=wwXIfr", phone: "087-0954441" });
   assert.deepEqual(body.size, { width: 2500, height: 1686 });
-  assert.equal(body.areas.length, 4);
+  assert.equal(body.areas.length, 5);
   const actions = body.areas.map(a => a.action);
-  assert.deepEqual(actions.filter(a => a.type === "postback").map(a => a.data), ["action=track", "action=promo"]);
+  assert.deepEqual(actions.filter(a => a.type === "postback").map(a => a.data), ["action=track", "action=points", "action=promo"]);
   assert.ok(actions.some(a => a.uri === "tel:0870954441"), "the call button dials digits only");
   assert.ok(actions.some(a => a.uri === "https://www.facebook.com/share/1Cso5TZikx/?mibextid=wwXIfr"));
   for (const a of body.areas) assert.ok(a.bounds.x + a.bounds.width <= 2500 && a.bounds.y + a.bounds.height <= 1686);
+  const area = a => a.bounds.width * a.bounds.height;
+  assert.equal(body.areas.reduce((sum, a) => sum + area(a), 0), 2500 * 1686, "the buttons tile the whole image - no dead spot, no overlap");
 });
 
 test("LINE webhook: track by phone shows only a compact card; linked jobs get the full card; promotions are a carousel", async t => {
@@ -1441,4 +1446,30 @@ test("LINE webhook: track by phone shows only a compact card; linked jobs get th
   assert.equal(carousel.contents.contents.length, 12);
   assert.equal(carousel.contents.contents[0].hero, undefined, "a promotion without a picture has no broken image");
   assert.equal(carousel.contents.contents[1].hero.url, "https://shop.example/api/line/promo-image/img1");
+});
+
+test("LINE เช็คคะแนนสะสม: stars card shared with the tracking page's rule; link only for the customer's own linked job", async t => {
+  const webhook = await read("app/api/line/route.ts");
+  const track = await read("app/api/track/[token]/route.ts");
+  assert.match(track, /import \{memberStatus\} from '@\/lib\/member-status';/, "one memberStatus() for both, so LINE and the tracking page always agree");
+  assert.match(webhook, /else if\(action==='points'\)await replyLine\(replyToken,await onPoints\(lineUser\)\);/);
+  assert.match(webhook, /SELECT phone FROM jobs WHERE line_user=\?/, "a linked LINE account is recognised without typing a phone");
+  assert.match(webhook, /const card=await pointsCard\(digits\);/, "a typed phone gets the card with no tracking link");
+  let line;
+  try { line = await import("../lib/line-message.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const member = { stars: 6, stringNeed: 10, socksNeed: 5, stringAvailable: false, socksAvailable: true, stringUsed: 0, socksUsed: 1, rewardCap: 30000, socksProductName: "ถุงเท้าข้อสั้น", posMinAmount: 0, promo: { phase: "during", start: null, end: "2026-12-31" } };
+  const card = line.memberCardMessage(member);
+  const json = JSON.stringify(card);
+  assert.equal(card.altText, "คะแนนสะสม 6 ดาว");
+  assert.match(json, /แลกถุงเท้าข้อสั้นฟรีได้แล้ว/);
+  assert.match(json, /สะสมอีก 4 ดาว รับสิทธิ์ขึ้นเอ็นฟรี \(ครบ 10 ดาว · เอ็นมูลค่าไม่เกิน ฿300\.00\)/);
+  assert.match(json, /สะสมแต้มได้ถึง/);
+  assert.equal(card.contents.footer, undefined, "no link without a linked job");
+  const body = card.contents.body.contents;
+  assert.equal(body[1].contents.length, 10, "one dot per stamp");
+  assert.equal(body[1].contents.filter(d => d.backgroundColor !== "#E3E8F2").length, 6);
+  const linked = line.memberCardMessage(member, { trackUrl: "https://shop.example/track/abc" });
+  assert.equal(linked.contents.footer.contents[0].action.uri, "https://shop.example/track/abc");
+  assert.equal(linked.contents.footer.contents[0].action.label, "แลกของรางวัล");
 });

@@ -182,3 +182,83 @@ export function promotionsMessage(promotions: Promotion[], { siteUrl = "", phone
   }));
   return carousel(`โปรโมชั่น Wingpro Badminton (${promotions.length})`, bubbles);
 }
+
+type Member = {
+  stars: number; stringNeed: number; socksNeed: number; stringAvailable: boolean; socksAvailable: boolean;
+  stringUsed: number; socksUsed: number; rewardCap: number | null; socksProductName: string | null; posMinAmount?: number;
+  promo?: { phase: string | null; start: string | null; end: string | null };
+};
+
+const PURPLE = "#6D3FD6";
+const thaiDay = (date: string) => new Date(date + "T12:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit", timeZone: "Asia/Bangkok" });
+
+// Same wording as the tracking page's stamp card, so the two never tell a customer different things.
+export function promoNote(promo: Member["promo"]) {
+  if (!promo?.phase) return "";
+  const { phase, start, end } = promo;
+  if (phase === "off") return "ปิดรับสะสมแต้มชั่วคราว · แต้มและสิทธิ์ที่มีอยู่ยังใช้ได้ตามปกติ";
+  if (phase === "before") return end ? `โปรโมชั่นสะสมแต้ม ${thaiDay(start!)} – ${thaiDay(end)}` : `โปรโมชั่นสะสมแต้มเริ่ม ${thaiDay(start!)}`;
+  if (phase === "after") return `โปรโมชั่นสะสมแต้มสิ้นสุดแล้วเมื่อ ${thaiDay(end!)} · แต้มและสิทธิ์ที่มีอยู่ยังใช้ได้ตามปกติ`;
+  if (end) return `สะสมแต้มได้ถึง ${thaiDay(end)}`;
+  if (start) return `สะสมแต้มได้ตั้งแต่ ${thaiDay(start)} เป็นต้นไป`;
+  return "";
+}
+
+// "เช็คคะแนนสะสม": stars so far, a dot per stamp (the socks milestone marked), and what each reward still needs.
+// trackUrl (the customer's own open job) is only passed for a LINE account already linked to that job - someone
+// who just typed a phone number sees the numbers, never a link into another person's job.
+export function memberCardMessage(member: Member, { trackUrl = "" }: { trackUrl?: string } = {}) {
+  const need = Math.max(1, member.stringNeed);
+  const dots = need <= 20 ? Array.from({ length: need }, (_, i) => ({
+    type: "box", layout: "vertical", width: "20px", height: "20px", cornerRadius: "10px", justifyContent: "center",
+    backgroundColor: i < member.stars ? PURPLE : TRACK,
+    ...(i === member.socksNeed - 1 && member.socksProductName ? { borderWidth: "2px", borderColor: "#E0801A" } : {}),
+    contents: [text(i < member.stars ? "★" : " ", { size: "xxs", color: "#FFFFFF", align: "center" })],
+  })) : [];
+  const cap = member.rewardCap === null || member.rewardCap === undefined ? "ฟรีค่าขึ้นเอ็นทั้งหมด" : `เอ็นมูลค่าไม่เกิน ฿${baht(member.rewardCap)}`;
+  const reward = (ready: boolean, readyText: string, waitText: string) => ({
+    type: "box", layout: "vertical", paddingAll: "10px", cornerRadius: "10px", backgroundColor: ready ? "#E6F6EE" : "#F4F6FB",
+    contents: [text(ready ? readyText : waitText, { size: "sm", color: ready ? "#17804F" : NAVY, weight: ready ? "bold" : "regular" })],
+  });
+  const note = promoNote(member.promo);
+  const ready = member.stringAvailable || member.socksAvailable;
+  return {
+    type: "flex",
+    altText: `คะแนนสะสม ${member.stars} ดาว`,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box", layout: "vertical", paddingAll: "18px", backgroundColor: PURPLE,
+        contents: [
+          text("WINGPRO BADMINTON", { size: "xs", color: "#E5DBFF", weight: "bold" }),
+          text("บัตรสะสมดาว", { size: "xl", color: "#FFFFFF", weight: "bold" }),
+        ],
+      },
+      body: {
+        type: "box", layout: "vertical", paddingAll: "18px", spacing: "md",
+        contents: [
+          {
+            type: "box", layout: "baseline", spacing: "sm",
+            contents: [text(String(member.stars), { size: "3xl", weight: "bold", color: PURPLE, flex: 0 }), text(`/ ${need} ดาว`, { size: "md", color: MUTED })],
+          },
+          ...(dots.length ? [{ type: "box", layout: "horizontal", spacing: "xs", flexWrap: "wrap", contents: dots }] : []),
+          ...(member.socksProductName ? [reward(member.socksAvailable,
+            `🧦 แลก${member.socksProductName}ฟรีได้แล้ว! (ครบ ${member.socksNeed} ดาว)`,
+            `สะสมอีก ${Math.max(0, member.socksNeed - member.stars)} ดาว แลก${member.socksProductName}ฟรี (ครบ ${member.socksNeed} ดาว)`)] : []),
+          reward(member.stringAvailable,
+            `🎁 ขึ้นเอ็นฟรีได้แล้ว! (ครบ ${need} ดาว · ${cap})`,
+            `สะสมอีก ${Math.max(0, need - member.stars)} ดาว รับสิทธิ์ขึ้นเอ็นฟรี (ครบ ${need} ดาว · ${cap})`),
+          text(ready ? "แลกได้ที่หน้าติดตามสถานะไม้ หรือแจ้งพนักงานที่ร้าน · แลกแล้วดาวเริ่มนับใหม่" : `ได้ 1 ดาวทุกครั้งที่ขึ้นเอ็น หรือซื้อสินค้าที่ร้าน${member.posMinAmount ? ` ครบ ฿${baht(member.posMinAmount)}` : ""}`, { size: "xs", color: MUTED }),
+          ...(note ? [text(note, { size: "xs", color: "#E0801A" })] : []),
+        ],
+      },
+      ...(/^https:\/\//.test(trackUrl) ? {
+        footer: {
+          type: "box", layout: "vertical", paddingAll: "14px",
+          contents: [{ type: "button", style: "primary", color: PURPLE, height: "sm", action: { type: "uri", label: ready ? "แลกของรางวัล" : "ดูบัตรสะสมดาว", uri: trackUrl } }],
+        },
+      } : {}),
+    },
+  };
+}
