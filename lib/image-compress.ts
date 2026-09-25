@@ -30,3 +30,7 @@ export const compressSlip = (file: File, maxDim = 1280, quality = 0.72) => compr
 
 // A promotion's picture for the LINE Flex card: JPEG (LINE doesn't take WebP) and at most 1024px on a side.
 export const promoImage = (file: File) => compressImage(file, { maxDim: 1024, quality: 0.85, force: true });
+
+// The "ราคาขึ้นเอ็น" price list: small print has to stay readable when a customer zooms in on LINE, so it keeps more
+// pixels than a promotion card - still JPEG, and still well under LINE's 10 MB image limit.
+export const priceListImage = (file: File) => compressImage(file, { maxDim: 2048, quality: 0.88, force: true });

@@ -1392,7 +1392,7 @@ test("รับสินค้าเข้า (PO) lands on this month's still-p
   assert.match(po, /\[statusFilter,setStatusFilter\]=useState\('pending_approval'\);/);
 });
 
-test("LINE OA rich menu: 5 buttons over the menu image, installed by the owner from ตั้งค่าร้าน", async t => {
+test("LINE OA rich menu: 6 buttons over the menu image, installed by the owner from ตั้งค่าร้าน", async t => {
   const route = await read("app/api/line/richmenu/route.ts");
   const pos = await read("app/pos.tsx");
   const settings = await read("app/shop-settings.tsx");
@@ -1407,9 +1407,9 @@ test("LINE OA rich menu: 5 buttons over the menu image, installed by the owner f
   catch { t.skip("this Node version cannot import .ts files directly"); return; }
   const body = menu.richMenuBody({ facebook: "https://www.facebook.com/share/1Cso5TZikx/?mibextid=wwXIfr", phone: "087-0954441" });
   assert.deepEqual(body.size, { width: 2500, height: 1686 });
-  assert.equal(body.areas.length, 5);
+  assert.equal(body.areas.length, 6);
   const actions = body.areas.map(a => a.action);
-  assert.deepEqual(actions.filter(a => a.type === "postback").map(a => a.data), ["action=track", "action=points", "action=promo"]);
+  assert.deepEqual(actions.filter(a => a.type === "postback").map(a => a.data), ["action=track", "action=points", "action=promo", "action=price"]);
   assert.ok(actions.some(a => a.uri === "tel:0870954441"), "the call button dials digits only");
   assert.ok(actions.some(a => a.uri === "https://www.facebook.com/share/1Cso5TZikx/?mibextid=wwXIfr"));
   for (const a of body.areas) assert.ok(a.bounds.x + a.bounds.width <= 2500 && a.bounds.y + a.bounds.height <= 1686);
@@ -1472,4 +1472,31 @@ test("LINE เช็คคะแนนสะสม: stars card shared with the t
   const linked = line.memberCardMessage(member, { trackUrl: "https://shop.example/track/abc" });
   assert.equal(linked.contents.footer.contents[0].action.uri, "https://shop.example/track/abc");
   assert.equal(linked.contents.footer.contents[0].action.label, "แลกของรางวัล");
+});
+
+test("LINE ราคาขึ้นเอ็น: owner edits the price text + picture in ตั้งค่าร้าน; LINE gets the whole picture, then the text", async t => {
+  const migration = await read("supabase/migrations/20260925030000_string_price_info.sql");
+  const data = await read("app/api/data/route.ts");
+  const webhook = await read("app/api/line/route.ts");
+  const image = await read("app/api/line/promo-image/[id]/route.ts");
+  const pos = await read("app/pos.tsx");
+  const settings = await read("app/shop-settings.tsx");
+  assert.match(migration, /add column if not exists string_price_text text not null default ''/);
+  assert.match(migration, /add column if not exists string_price_image text references public\.files\(id\) on delete set null/);
+  assert.match(data, /else if\(action==='stringPriceSave'\)\{owner\(me\);/, "owner only");
+  assert.match(data, /if\(priceImage\)await ownedFiles\(\[priceImage\]\);/, "only an uploaded file of this shop can be linked");
+  assert.match(webhook, /else if\(action==='price'\)await replyLine\(replyToken,await onPrice\(\)\);/);
+  assert.match(image, /to_jsonb\(c\)->>'string_price_image'/, "the price picture is public only while it is the current one");
+  assert.match(pos, /<StringPricePanel key=\{'string-price-'/);
+  assert.match(settings, /await priceListImage\(files\[0\]\)/);
+  let line;
+  try { line = await import("../lib/line-message.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const both = line.stringPriceMessages({ text: "BG80 320 บาท", image: "img1", siteUrl: "https://shop.example/", phone: "087-0954441" });
+  assert.deepEqual(both[0], { type: "image", originalContentUrl: "https://shop.example/api/line/promo-image/img1", previewImageUrl: "https://shop.example/api/line/promo-image/img1" });
+  assert.equal(both[1].text, "BG80 320 บาท\n\nสอบถามเพิ่มเติม โทร 087-0954441");
+  const empty = line.stringPriceMessages({ phone: "087-0954441" });
+  assert.equal(empty.length, 1);
+  assert.match(empty[0].text, /สอบถามราคาขึ้นเอ็นแบดมินตันได้ที่ร้านเลย/);
+  assert.equal(line.stringPriceMessages({ text: "x", image: "img1", siteUrl: "http://insecure" }).length, 1, "LINE only takes https images");
 });

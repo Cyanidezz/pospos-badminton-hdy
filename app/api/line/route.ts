@@ -1,6 +1,6 @@
 import {runtime,db,all,one,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {memberCardMessage,promotionsMessage,trackJobsMessage} from '@/lib/line-message';
+import {memberCardMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {memberStatus} from '@/lib/member-status';
 
 // LINE OA webhook. Every request is signed with the channel secret; anything unsigned is rejected before parsing.
@@ -67,6 +67,11 @@ async function onPromotions(){
   return message?[message]:[text('ตอนนี้ยังไม่มีโปรโมชั่น ติดตามข่าวสารได้ที่ Facebook ของร้าน')];
 }
 
+async function onPrice(){
+  const config:any=await one('SELECT * FROM config WHERE id=1');
+  return stringPriceMessages({text:config?.string_price_text??'',image:config?.string_price_image??null,siteUrl:siteUrl(),phone:config?.contact_phone??DEFAULT_SHOP.phone});
+}
+
 async function onLink(token:string,lineUser:string){
   const j=await db().prepare('SELECT id FROM jobs WHERE token=? AND (line_user IS NULL OR line_user=?)').bind(token,lineUser).first();
   if(!j)return;
@@ -86,6 +91,7 @@ export async function POST(req:Request){
         if(action==='track')await replyLine(replyToken,await onTrack(lineUser));
         else if(action==='promo')await replyLine(replyToken,await onPromotions());
         else if(action==='points')await replyLine(replyToken,await onPoints(lineUser));
+        else if(action==='price')await replyLine(replyToken,await onPrice());
         continue;
       }
       if(e.type!=='message'||e.message?.type!=='text')continue;
@@ -95,6 +101,7 @@ export async function POST(req:Request){
       // Typed text works the same as the rich-menu buttons, for anyone who types instead of tapping.
       if(/^ติดตาม/.test(message))await replyLine(replyToken,await onTrack(lineUser));
       else if(/^(เช็ค|เช็ก)?(คะแนน|แต้ม|ดาว)/.test(message))await replyLine(replyToken,await onPoints(lineUser));
+      else if(/^(สอบถาม)?ราคา/.test(message))await replyLine(replyToken,await onPrice());
       else if(/^โปรโมชั่น|^โปร$/.test(message))await replyLine(replyToken,await onPromotions());
       else{
         const digits=message.replace(/[\s-]/g,'');

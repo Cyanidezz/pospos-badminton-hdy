@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import {ImagePlus} from 'lucide-react';
 import {toast} from 'sonner';
-import {promoImage} from '@/lib/image-compress';
+import {priceListImage,promoImage} from '@/lib/image-compress';
 import {Switch} from '@/components/ui/switch';
 import {DAY_NAMES,DISPLAY_ORDER,parseHours} from '@/lib/shop-hours';
 
@@ -144,7 +144,7 @@ export function MemberPanel({form,setForm,config,products,busy,onSave,Field}:any
 
 // ---------------------------------------------------------------- LINE OA: rich menu + promotions
 
-// Installs the 5-button rich menu (ติดตามงานขึ้นเอ็น / เช็คคะแนนสะสม / โปรโมชั่น / Facebook / โทร) on the shop's LINE OA. The link and
+// Installs the 6-button rich menu (ติดตามงานขึ้นเอ็น / เช็คคะแนนสะสม / โปรโมชั่น / ราคาขึ้นเอ็น / Facebook / โทร) on the shop's LINE OA. The link and
 // phone number are saved as the shop's contact details too, so every customer-facing place shows the same ones.
 export function LineMenuPanel({config,lineReady,Field,onDone}:any){
   const [facebook,setFacebook]=useState(config.contact_facebook||''),[phone,setPhone]=useState(config.contact_phone||''),[busy,setBusy]=useState(false);
@@ -158,7 +158,7 @@ export function LineMenuPanel({config,lineReady,Field,onDone}:any){
     }catch(e:any){toast.error(e.message)}finally{setBusy(false)}
   };
   return <div className="panel report line-menu-panel"><h2>เมนูบน LINE OA (Rich menu)</h2>
-    <p className="muted">เมนู 5 ปุ่มด้านล่างแชท LINE ของร้าน: ติดตามงานขึ้นเอ็น, เช็คคะแนนสะสม (ลูกค้าพิมพ์เบอร์โทรเพื่อเช็ค), โปรโมชั่น, Facebook ร้าน และโทรหาร้าน · กดติดตั้งซ้ำเมื่อเปลี่ยนเมนู</p>
+    <p className="muted">เมนู 6 ปุ่มด้านล่างแชท LINE ของร้าน: ติดตามงานขึ้นเอ็น, เช็คคะแนนสะสม (ลูกค้าพิมพ์เบอร์โทรเพื่อเช็ค), โปรโมชั่น, ราคาขึ้นเอ็น, Facebook ร้าน และโทรหาร้าน · กดติดตั้งซ้ำเมื่อเปลี่ยนเมนู</p>
     <img className="line-menu-preview" src="/line-richmenu.jpg" alt="ตัวอย่าง rich menu"/>
     {!lineReady&&<div className="notice">ยังไม่ได้ตั้งค่า LINE Channel access token / secret จึงติดตั้งเมนูไม่ได้</div>}
     <Field label="ลิงก์ Facebook ร้าน"><input type="url" placeholder="https://www.facebook.com/..." value={facebook} onChange={e=>setFacebook(e.target.value)}/></Field>
@@ -216,5 +216,38 @@ export function PromotionPanel({Field,onAction}:any){
       </div>
     </li>)}</ul>}
     {!list.length&&!form&&<p className="muted">ยังไม่มีโปรโมชั่น</p>}
+  </div>;
+}
+
+// "ราคาขึ้นเอ็น" on LINE: what a customer gets back when they tap the button - the price-list picture, then this text.
+export function StringPricePanel({config,Field,onAction}:any){
+  const ready='string_price_text' in config;
+  const [text,setText]=useState(config.string_price_text||''),[image,setImage]=useState(config.string_price_image||'');
+  const [uploading,setUploading]=useState(false),[saving,setSaving]=useState(false);
+  const dirty=text!==(config.string_price_text||'')||image!==(config.string_price_image||'');
+  const upload=async(files:FileList|null)=>{
+    if(!files?.[0])return;
+    setUploading(true);
+    try{
+      const fd=new FormData();fd.append('file',await priceListImage(files[0]));
+      const r=await fetch('/api/upload',{method:'POST',body:fd}),d:any=await r.json();
+      if(!r.ok)throw new Error(d.error);
+      setImage(d.id);
+    }catch(e:any){toast.error(e.message)}finally{setUploading(false)}
+  };
+  return <div className="panel report string-price-panel"><h2>ราคาขึ้นเอ็น (LINE)</h2>
+    <p className="muted">เมื่อลูกค้ากด “ราคาขึ้นเอ็น” ในเมนู LINE จะได้รับรูปตารางราคา (ถ้ามี) ตามด้วยข้อความนี้ และเบอร์โทรร้านต่อท้ายให้อัตโนมัติ</p>
+    {!ready&&<div className="notice">ต้องรัน migration <code>20260925030000_string_price_info.sql</code> บน Supabase ก่อน</div>}
+    <Field label="ข้อความราคา"><textarea rows={7} maxLength={1500} disabled={!ready} placeholder={'เช่น\nค่าแรงขึ้นเอ็น 100 บาท (ลูกค้านำเอ็นมาเอง)\nYonex BG65 ติดไม้ 250 บาท\nYonex BG80 ติดไม้ 320 บาท\nรอรับได้ภายใน 1 ชั่วโมง'} value={text} onChange={e=>setText(e.target.value)}/></Field>
+    <div className="field"><span>รูปตารางราคา <small>(ไม่บังคับ)</small></span>
+      <div className="price-image-row">{image?<img src={'/api/files/'+image} alt="รูปตารางราคาขึ้นเอ็น"/>:<div className="promo-image-empty">ยังไม่มีรูป</div>}
+        <div className="qr-actions">
+          <label className={'attach-button secondary'+(uploading?' is-busy':'')}>{uploading?'กำลังอัปโหลด…':image?'เปลี่ยนรูป':'อัปโหลดรูป'}<input type="file" accept="image/*" disabled={!ready||uploading} onChange={e=>{upload(e.target.files);e.target.value=''}}/></label>
+          {image&&<button type="button" className="secondary small" onClick={()=>setImage('')}>เอารูปออก</button>}
+          {dirty&&<small className="muted">ยังไม่ได้บันทึก</small>}
+        </div>
+      </div>
+    </div>
+    <button type="button" disabled={!ready||saving||uploading||!dirty} onClick={async()=>{setSaving(true);await onAction('stringPriceSave',{text,image:image||null,requestId:crypto.randomUUID()},false);setSaving(false)}}>{saving?'กำลังบันทึก…':'บันทึกราคาขึ้นเอ็น'}</button>
   </div>;
 }

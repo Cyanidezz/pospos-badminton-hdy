@@ -262,3 +262,16 @@ export function memberCardMessage(member: Member, { trackUrl = "" }: { trackUrl?
     },
   };
 }
+
+// "ราคาขึ้นเอ็น": the owner's price-list picture as a real image message (LINE shows it whole and lets the customer
+// zoom in - a Flex hero would crop a tall price list), then the price text with the shop's phone number.
+export function stringPriceMessages({ text: body = "", image = "", siteUrl = "", phone = "" }: { text?: string; image?: string | null; siteUrl?: string; phone?: string }) {
+  const base = /^https:\/\//.test(siteUrl) ? siteUrl.replace(/\/$/, "") : "";
+  const url = base && image ? `${base}/api/line/promo-image/${image}` : "";
+  const contact = phone ? `สอบถามเพิ่มเติม โทร ${phone}` : "";
+  const message = String(body).trim();
+  return [
+    ...(url ? [{ type: "image", originalContentUrl: url, previewImageUrl: url }] : []),
+    { type: "text", text: message ? (contact ? `${message}\n\n${contact}` : message) : `สอบถามราคาขึ้นเอ็นแบดมินตันได้ที่ร้านเลย${contact ? `\n${contact}` : ""}` },
+  ];
+}

@@ -861,3 +861,5 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .promo-list li small{color:#8a94a6}
 .promo-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:640px){.promo-list li{grid-template-columns:96px minmax(0,1fr)}.promo-list img,.promo-list .promo-image-empty{width:96px}.promo-actions{grid-column:1/-1;justify-content:flex-start}}
+.price-image-row{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.price-image-row img{width:180px;max-height:260px;object-fit:contain;border-radius:10px;border:1px solid #e3e8f0;background:#f1f4f9}
