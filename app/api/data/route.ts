@@ -1,6 +1,7 @@
 import {auth,owner,permit,permissions,permissionKeys,defaultCashierPermissions,db,all,allInOne,one,uid,now,str,num,money,integer,categories,getCategories,statuses,normalizeJobStatus,transaction,ownedFiles,notifyJob,runtime} from '@/lib/server';
 import {createSupabaseAdminClient} from '@/lib/supabase/admin';
 import {normalizeHours} from '@/lib/shop-hours';
+import {bulkPrice} from '@/lib/bulk-price';
 import {starsSql} from '@/lib/member-reward';
 import {REWARD_REASON,rewardDiscount as rewardOff} from '@/lib/customers';
 export const dynamic='force-dynamic';
@@ -71,6 +72,10 @@ statements.push(q('INSERT INTO products(id,name,barcode,category,price,unit,stoc
 if(qty>0)statements.push(q('INSERT INTO receipts(id,product_id,qty,staff_id,created,cost) VALUES(?,?,?,?,?,?)',id+'-initial',id,qty,me.id,now(),cost));result={id,barcode};}
 
 else if(action==='receive'){const p=await one('SELECT * FROM products WHERE id=? AND active=1',b.productId);if(!p)throw new Error('ไม่พบสินค้า');const qty=integer(b.qty);statements.push(q('INSERT INTO receipts(id,product_id,qty,staff_id,created,cost) VALUES(?,?,?,?,?,?)',id,p.id,qty,me.id,now(),p.cost),q('UPDATE products SET stock=stock+? WHERE id=?',qty,p.id));}
+else if(action==='bulkProductPrice'){owner(me);if(!Array.isArray(b.productIds)||!b.productIds.length||b.productIds.length>200)throw new Error('เลือกสินค้าได้ครั้งละ 1–200 รายการ');const mode=b.mode;if(!['set','add','percent'].includes(mode))throw new Error('วิธีแก้ราคาไม่ถูกต้อง');const ids=[...new Set(b.productIds.map((x:any)=>str(x,80)))];
+// Recomputed here from each product's price in the database (bulkPrice, the same rule as the preview), never from
+// prices the browser sent.
+for(const productId of ids){const p=await one('SELECT id,name,price FROM products WHERE id=? AND active=1',productId);if(!p)throw new Error('มีสินค้าบางรายการไม่พร้อมแก้ไข กรุณาโหลดใหม่');const price=bulkPrice(p.price,mode,b.value);if(price===null)throw new Error('ราคาใหม่ของ '+p.name+' ไม่ถูกต้อง (ต้องไม่ติดลบ)');statements.push(q('UPDATE products SET price=? WHERE id=? AND active=1',price,productId));}result={id,updated:ids.length};}
 else if(action==='bulkProductCategory'){owner(me);if(!Array.isArray(b.productIds)||!b.productIds.length||b.productIds.length>200)throw new Error('เลือกสินค้าได้ครั้งละ 1–200 รายการ');const category=str(b.category,60);if(!(await getCategories()).includes(category))throw new Error('ไม่พบหมวดหมู่');const ids=[...new Set(b.productIds.map((x:any)=>str(x,80)))];for(const productId of ids){const p=await one('SELECT id FROM products WHERE id=? AND active=1',productId);if(!p)throw new Error('มีสินค้าบางรายการไม่พร้อมแก้ไข กรุณาโหลดใหม่');statements.push(q('UPDATE products SET category=? WHERE id=? AND active=1',category,productId));}result={id,updated:ids.length};}
 else if(action==='editProduct'){owner(me);const p=await one('SELECT * FROM products WHERE id=? AND active=1',b.productId);if(!p)throw new Error('ไม่พบสินค้า');const category=str(b.category);if(!(await getCategories()).includes(category))throw new Error('ไม่พบหมวดหมู่');if(b.image)await ownedFiles([b.image]);statements.push(q('UPDATE products SET name=?,barcode=?,category=?,price=?,unit=?,image=?,low_stock=? WHERE id=?',str(b.name),str(b.barcode,80),category,money(b.price),str(b.unit,20),b.image||null,integer(b.lowStock??5,0),p.id));
 // The owner can correct the cost here too. Only what is sold from now on uses it: every sale keeps the cost it was

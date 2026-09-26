@@ -886,3 +886,9 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .cost-lots ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}
 .cost-lots li{display:grid;grid-template-columns:1fr auto auto;gap:14px;color:#4e6659}
 .cost-lots li span:last-child{font-weight:600;color:#2f4164;text-align:right;min-width:90px}
+.bulk-price-preview{border:1px solid #e3e8f0;border-radius:12px;padding:10px 12px;font-size:13px;max-height:280px;overflow:auto}
+.bulk-price-preview ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}
+.bulk-price-preview li{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:8px;align-items:center;color:#7b8b81}
+.bulk-price-preview li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#2f4164}
+.bulk-price-preview li.is-changed strong{color:#3a70d4}
+.bulk-price-preview li.is-changed .old{text-decoration:line-through}

@@ -1625,3 +1625,24 @@ test("product cost: moving weighted average on receiving a PO; owner edits it in
   assert.match(pos, /cost:p\.cost===null\|\|p\.cost===undefined\?'':p\.cost\/100/);
   assert.match(editor, /ประวัติรับเข้า/);
 });
+
+test("คลังสินค้า: change the sale price of many selected products at once, previewed before saving", async t => {
+  const data = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  assert.match(data, /else if\(action==='bulkProductPrice'\)\{owner\(me\);/, "owner only");
+  assert.match(data, /const price=bulkPrice\(p\.price,mode,b\.value\);/, "recomputed from the database price with the preview's own rule");
+  assert.match(pos, />เปลี่ยนหมวดหมู่<\/button><button type="button" className="secondary" disabled=\{busy\} onClick=\{\(\)=>open\('bulkPrice',\{productIds:\[\.\.\.inventorySelected\],mode:'set',value:''\}\)\}>แก้ราคาขาย<\/button>/);
+  assert.match(pos, /else if\(modal==='bulkPrice'\)\{const d=await act\('bulkProductPrice',\{productIds:form\.productIds,mode:form\.mode,value:form\.value\}\);if\(d\)setInventorySelected\(\[\]\);\}/);
+  let lib;
+  try { lib = await import("../lib/bulk-price.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  assert.equal(lib.bulkPrice(32000, "set", "350"), 35000);
+  assert.equal(lib.bulkPrice(32000, "add", "20"), 34000);
+  assert.equal(lib.bulkPrice(32000, "add", "-20"), 30000);
+  assert.equal(lib.bulkPrice(32000, "percent", "10"), 35200);
+  assert.equal(lib.bulkPrice(31990, "percent", "10"), 35200, "a % change lands on whole baht");
+  assert.equal(lib.bulkPrice(32000, "percent", "-10"), 28800);
+  assert.equal(lib.bulkPrice(1000, "add", "-20"), null, "never negative");
+  assert.equal(lib.bulkPrice(32000, "set", ""), null);
+  assert.equal(lib.bulkPrice(32000, "set", "abc"), null);
+});
