@@ -1,9 +1,10 @@
 import {runtime,db,all,one,uid,now,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {brandOf,brandQuickReply,isService,memberCardMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
+import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {PRODUCT_INTENT,coreQuery,inquiryKey,isGeneralStringingQuestion,pickMatches,searchProducts} from '@/lib/product-search';
 import {askProductAi} from '@/lib/product-ai';
 import {memberProgram,memberStatus} from '@/lib/member-status';
+import {lineMembersReady,linePhones,maskPhone,memberToken} from '@/lib/line-member';
 
 // LINE OA webhook. Every request is signed with the channel secret; anything unsigned is rejected before parsing.
 async function verified(req:Request){
@@ -29,7 +30,11 @@ async function trackReply(jobs:any[],lineUser:string){
 
 // "ติดตามงานขึ้นเอ็น": jobs already linked to this LINE account come back straight away; otherwise ask for a phone.
 async function onTrack(lineUser:string){
-  const linked=await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE line_user=? AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,lineUser);
+  // Jobs linked to this LINE account, plus every job on a phone it is a verified member for (shown in full - the
+  // account proved that number is theirs).
+  const phones=(await lineMembersReady())?(await linePhones(lineUser)).filter(p=>p.status==='verified').map(p=>p.phone).slice(0,10):[];
+  const byPhone=phones.length?` OR regexp_replace(phone,'\\D','','g') IN (${phones.map(()=>'?').join(',')})`:'';
+  const linked=(await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE (line_user=?${byPhone}) AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,lineUser,...phones)).map((j:any)=>({...j,line_user:lineUser}));
   if(!linked.length)return [ASK_PHONE];
   return [...await trackReply(linked,lineUser),text('ถ้ามีไม้ที่ฝากด้วยเบอร์อื่น พิมพ์เบอร์นั้นมาได้เลย')];
 }
@@ -62,6 +67,27 @@ async function onPoints(lineUser:string){
   const open:any=await one(`SELECT token FROM jobs WHERE line_user=? AND paid=0 AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 1`,lineUser);
   const card=await pointsCard(latest.phone,open?.token||'');
   return card?[card]:[ASK_PHONE_POINTS];
+}
+
+// "บัตรสมาชิก" (rich menu; also "สมาชิก" / "สมัคร" / "เช็คคะแนน" typed): the LINE account's own member cards - one per
+// verified phone, with a link to its open job - then the button to the member page (sign up, add a phone). Not a
+// member yet: the programme card + "สมัครสมาชิก". Before the line_members migration it falls back to onPoints.
+async function onMember(lineUser:string){
+  if(!(await lineMembersReady()))return onPoints(lineUser);
+  const phones=await linePhones(lineUser),base=siteUrl().replace(/\/$/,'');
+  const url=base?`${base}/line/member?t=${encodeURIComponent(memberToken(lineUser))}`:'';
+  const config:any=await one('SELECT * FROM config WHERE id=1');
+  const verified=phones.filter(p=>p.status==='verified'),pending=phones.filter(p=>p.status!=='verified').map(p=>maskPhone(p.phone));
+  const messages:any[]=[];
+  for(const row of verified.slice(0,3)){
+    const member=await memberStatus(config,row.phone)||await memberProgram(config);
+    const open:any=await one(`SELECT token FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND paid=0 AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 1`,row.phone);
+    if(member)messages.push(memberCardMessage(member,{holder:`${row.name||'สมาชิก'} · ${maskPhone(row.phone)}`,trackUrl:open?.token&&base?`${base}/track/${open.token}`:''}));
+  }
+  if(!verified.length){const program=await memberProgram(config);if(program)messages.push(memberCardMessage(program,{known:false}));}
+  const link=memberLinkMessage(url,{registered:phones.length>0,pending});
+  if(link)messages.push(link);
+  return messages.length?messages.slice(0,5):[ASK_PHONE_POINTS];
 }
 
 async function onPromotions(){
@@ -188,7 +214,7 @@ export async function POST(req:Request){
         const action=new URLSearchParams(e.postback?.data||'').get('action');
         if(action==='track')await replyLine(replyToken,await onTrack(lineUser));
         else if(action==='promo')await replyLine(replyToken,await onPromotions());
-        else if(action==='points')await replyLine(replyToken,await onPoints(lineUser));
+        else if(action==='member'||action==='points')await replyLine(replyToken,await onMember(lineUser));
         else if(action==='price')await replyLine(replyToken,await onPrice());
         else if(action==='all'||action==='brand'){const params=new URLSearchParams(e.postback?.data||'');await replyLine(replyToken,await onAllProducts(params.get('q')||'',action==='brand'?params.get('b')||'':''));}
         continue;
@@ -199,7 +225,7 @@ export async function POST(req:Request){
       if(link){await onLink(link[1],lineUser);continue;}
       // Typed text works the same as the rich-menu buttons, for anyone who types instead of tapping.
       if(/^ติดตาม/.test(message))await replyLine(replyToken,await onTrack(lineUser));
-      else if(/^(เช็ค|เช็ก)?(คะแนน|แต้ม|ดาว)/.test(message))await replyLine(replyToken,await onPoints(lineUser));
+      else if(/^(สมัคร|สมาชิก|บัตรสมาชิก|(เช็ค|เช็ก)?(คะแนน|แต้ม|ดาว))/.test(message))await replyLine(replyToken,await onMember(lineUser));
       // Just "ราคา" / "ราคาขึ้นเอ็น" -> the shop's own price sheet; "ราคา BG80" is a product question (below).
       else if(/^(สอบถาม)?ราคา(ขึ้นเอ็น|เอ็น)?(ครับ|คับ|ค่ะ|คะ)?$/.test(message.replace(/\s+/g,'')))await replyLine(replyToken,await onPrice());
       else if(/^โปรโมชั่น|^โปร$/.test(message))await replyLine(replyToken,await onPromotions());

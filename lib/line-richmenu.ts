@@ -15,7 +15,7 @@ export function richMenuBody({ facebook, phone }: { facebook: string; phone: str
     chatBarText: "เมนูร้าน",
     areas: [
       { bounds: cell(0, 0), action: postback("ติดตามงานขึ้นเอ็น", "action=track") },
-      { bounds: cell(1, 0), action: postback("เช็คคะแนนสะสม", "action=points") },
+      { bounds: cell(1, 0), action: postback("บัตรสมาชิก", "action=member") },
       { bounds: cell(2, 0), action: postback("โปรโมชั่น", "action=promo") },
       { bounds: cell(0, 1), action: postback("ราคาขึ้นเอ็น", "action=price") },
       { bounds: cell(1, 1), action: { type: "uri", label: "Facebook ร้าน", uri: facebook } },

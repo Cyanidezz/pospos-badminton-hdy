@@ -1409,7 +1409,7 @@ test("LINE OA rich menu: 6 buttons over the menu image, installed by the owner f
   assert.deepEqual(body.size, { width: 2500, height: 1686 });
   assert.equal(body.areas.length, 6);
   const actions = body.areas.map(a => a.action);
-  assert.deepEqual(actions.filter(a => a.type === "postback").map(a => a.data), ["action=track", "action=points", "action=promo", "action=price"]);
+  assert.deepEqual(actions.filter(a => a.type === "postback").map(a => a.data), ["action=track", "action=member", "action=promo", "action=price"]);
   assert.ok(actions.some(a => a.uri === "tel:0870954441"), "the call button dials digits only");
   assert.ok(actions.some(a => a.uri === "https://www.facebook.com/share/1Cso5TZikx/?mibextid=wwXIfr"));
   for (const a of body.areas) assert.ok(a.bounds.x + a.bounds.width <= 2500 && a.bounds.y + a.bounds.height <= 1686);
@@ -1452,7 +1452,7 @@ test("LINE เช็คคะแนนสะสม: stars card shared with the t
   const webhook = await read("app/api/line/route.ts");
   const track = await read("app/api/track/[token]/route.ts");
   assert.match(track, /import \{memberStatus\} from '@\/lib\/member-status';/, "one memberStatus() for both, so LINE and the tracking page always agree");
-  assert.match(webhook, /else if\(action==='points'\)await replyLine\(replyToken,await onPoints\(lineUser\)\);/);
+  assert.match(webhook, /else if\(action==='member'\|\|action==='points'\)await replyLine\(replyToken,await onMember\(lineUser\)\);/);
   assert.match(webhook, /SELECT phone FROM jobs WHERE line_user=\?/, "a linked LINE account is recognised without typing a phone");
   assert.match(webhook, /const card=await pointsCard\(digits\);/, "a typed phone gets the card with no tracking link");
   let line;
@@ -1715,4 +1715,43 @@ test("PO payment terms: transfer or credit (creditor + due date); credit debts l
   assert.match(pos, /\.\.\.\(owner\?\[\['payables','เจ้าหนี้ค้างชำระ',Landmark\]\]:\[\]\)/, "owner-only menu");
   assert.match(pos, /\{page==='payables'&&owner&&<PayablesPage /);
   assert.match(payables, /export const openDebts=\(orders:any\[\]\)=>\(orders\|\|\[\]\)\.filter\(\(o:any\)=>o\.payment_method==='credit'&&!o\.paid_at&&\(o\.status==='approved'\|\|o\.status==='received'\)\);/);
+});
+
+test("สมาชิกผ่าน LINE: sign up / check membership from LINE, linked to the phone the whole shop uses", async t => {
+  const migration = await read("supabase/migrations/20260926030000_line_members.sql");
+  const member = await read("lib/line-member.ts");
+  const api = await read("app/api/line/member/route.ts");
+  const webhook = await read("app/api/line/route.ts");
+  const data = await read("app/api/data/route.ts");
+  const menu = await read("lib/line-richmenu.ts");
+  const staff = await read("app/members-page.tsx");
+  assert.match(migration, /primary key \(line_user, phone\)/, "a LINE account may hold several phones");
+  assert.match(migration, /status in \('pending','verified'\)/);
+  assert.match(migration, /revoke all on public\.line_members from anon, authenticated;/);
+  // A number with history needs proof - a receipt number, or staff approval - before its stamps are shown.
+  assert.match(member, /if \(!\(await phoneHasHistory\(digits\)\)\) method = "new";/);
+  assert.match(member, /lower\(left\(id,8\)\) LIKE \?/, "the #XXXXXXXX job number from one of that phone's receipts");
+  assert.match(member, /const status = method \? "verified" : "pending";/);
+  assert.match(member, /to_jsonb\(config\)->'manual_members'->\?/, "works before the manual_members migration too");
+  assert.doesNotMatch(member, /manual_members \? \?/, "jsonb ? would be taken for a bind placeholder");
+  assert.match(api, /const lineUser=readMemberToken\(/, "the public member API only acts for the LINE account in a valid signed token");
+  assert.match(webhook, /else if\(action==='member'\|\|action==='points'\)await replyLine\(replyToken,await onMember\(lineUser\)\);/, "the old เช็คคะแนน button keeps working");
+  assert.match(menu, /postback\("บัตรสมาชิก", "action=member"\)/);
+  assert.match(data, /SELECT line_user FROM line_members WHERE phone=\? AND status='verified'/, "new jobs notify the verified LINE member");
+  assert.match(data, /else if\(action==='lineMemberApprove'\|\|action==='lineMemberReject'\)/);
+  assert.match(staff, /คำขอสมาชิกผ่าน LINE รอยืนยัน/);
+  let token;
+  try { token = await import("../lib/line-token.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const user = "U" + "0123456789abcdef".repeat(2), now = 1_800_000_000_000;
+  const signed = token.signLineToken(user, "secret", 7, now);
+  assert.equal(token.readLineToken(signed, "secret", now), user);
+  assert.equal(token.readLineToken(signed, "other-secret", now), null, "forged with another key");
+  assert.equal(token.readLineToken(signed, "secret", now + 8 * 86400000), null, "expired after 7 days");
+  assert.equal(token.readLineToken(signed.slice(0, -2) + "xx", "secret", now), null, "tampered");
+  const [payload, mac] = signed.split(".");
+  const swapped = Buffer.from(JSON.stringify({ u: "U" + "f".repeat(32), e: now + 86400000 })).toString("base64url");
+  assert.equal(token.readLineToken(`${swapped}.${mac}`, "secret", now), null, "someone else's LINE id with this signature");
+  assert.equal(token.readLineToken(signed, "", now), null, "no secret configured -> nothing is trusted");
+  assert.ok(payload);
 });

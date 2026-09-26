@@ -144,7 +144,7 @@ export function MemberPanel({form,setForm,config,products,busy,onSave,Field}:any
 
 // ---------------------------------------------------------------- LINE OA: rich menu + promotions
 
-// Installs the 6-button rich menu (ติดตามงานขึ้นเอ็น / เช็คคะแนนสะสม / โปรโมชั่น / ราคาขึ้นเอ็น / Facebook / โทร) on the shop's LINE OA. The link and
+// Installs the 6-button rich menu (ติดตามงานขึ้นเอ็น / บัตรสมาชิก / โปรโมชั่น / ราคาขึ้นเอ็น / Facebook / โทร) on the shop's LINE OA. The link and
 // phone number are saved as the shop's contact details too, so every customer-facing place shows the same ones.
 export function LineMenuPanel({config,lineReady,Field,onDone}:any){
   const [facebook,setFacebook]=useState(config.contact_facebook||''),[phone,setPhone]=useState(config.contact_phone||''),[busy,setBusy]=useState(false);
@@ -158,7 +158,7 @@ export function LineMenuPanel({config,lineReady,Field,onDone}:any){
     }catch(e:any){toast.error(e.message)}finally{setBusy(false)}
   };
   return <div className="panel report line-menu-panel"><h2>เมนูบน LINE OA (Rich menu)</h2>
-    <p className="muted">เมนู 6 ปุ่มด้านล่างแชท LINE ของร้าน: ติดตามงานขึ้นเอ็น, เช็คคะแนนสะสม (ลูกค้าพิมพ์เบอร์โทรเพื่อเช็ค), โปรโมชั่น, ราคาขึ้นเอ็น, Facebook ร้าน และโทรหาร้าน · กดติดตั้งซ้ำเมื่อเปลี่ยนเมนู</p>
+    <p className="muted">เมนู 6 ปุ่มด้านล่างแชท LINE ของร้าน: ติดตามงานขึ้นเอ็น, บัตรสมาชิก (สมัครสมาชิก / ดาวสะสม), โปรโมชั่น, ราคาขึ้นเอ็น, Facebook ร้าน และโทรหาร้าน · กดติดตั้งซ้ำเมื่อเปลี่ยนเมนู</p>
     <img className="line-menu-preview" src="/line-richmenu.jpg" alt="ตัวอย่าง rich menu"/>
     {!lineReady&&<div className="notice">ยังไม่ได้ตั้งค่า LINE Channel access token / secret จึงติดตั้งเมนูไม่ได้</div>}
     <Field label="ลิงก์ Facebook ร้าน"><input type="url" placeholder="https://www.facebook.com/..." value={facebook} onChange={e=>setFacebook(e.target.value)}/></Field>

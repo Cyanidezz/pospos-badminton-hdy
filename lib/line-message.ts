@@ -210,7 +210,7 @@ export function promoNote(promo: Member["promo"]) {
 // trackUrl (the customer's own open job) is only passed for a LINE account already linked to that job - someone
 // who just typed a phone number sees the numbers, never a link into another person's job.
 // Only standard Flex properties: LINE rejects the WHOLE reply over one unknown property (no error reaches the chat).
-export function memberCardMessage(member: Member, { trackUrl = "", known = true }: { trackUrl?: string; known?: boolean } = {}) {
+export function memberCardMessage(member: Member, { trackUrl = "", known = true, holder = "" }: { trackUrl?: string; known?: boolean; holder?: string } = {}) {
   const need = Math.max(1, member.stringNeed);
   const fresh = !known || member.stars <= 0;
   const socksAt = member.socksProductName ? member.socksNeed : 0;
@@ -254,6 +254,7 @@ export function memberCardMessage(member: Member, { trackUrl = "", known = true 
         contents: [
           text("WINGPRO BADMINTON", { size: "xs", color: "#E5DBFF", weight: "bold" }),
           text("บัตรสะสมดาว", { size: "xl", color: "#FFFFFF", weight: "bold" }),
+          ...(holder ? [text(holder, { size: "sm", color: "#FFFFFF" })] : []),
           ...(fresh ? [text(earn, { size: "xs", color: "#E5DBFF" })] : []),
         ],
       },
@@ -467,5 +468,31 @@ export function productNotFoundMessage(wanted: string, phone = "") {
   return {
     type: "text",
     text: `ขออภัย ตอนนี้ร้านยังไม่มี${name ? ` “${name}”` : "สินค้านี้"} ร้านบันทึกไว้แล้วว่ามีลูกค้าต้องการ เผื่อนำเข้ามาขายในอนาคต${tel ? `\nสอบถามสินค้าใกล้เคียง โทร ${phone}` : ""}`,
+  };
+}
+
+// "บัตรสมาชิก": the button to the member web page (sign up, add a phone, see everything) - opened with a signed link
+// that identifies this LINE account (lib/line-member.ts). pending = phones still waiting for the shop to confirm.
+export function memberLinkMessage(url: string, { registered = false, pending = [] as string[] } = {}) {
+  if (!/^https:\/\//.test(url)) return null;
+  return {
+    type: "flex",
+    altText: registered ? "จัดการบัตรสมาชิก" : "สมัครสมาชิก Wingpro",
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box", layout: "vertical", paddingAll: "16px", spacing: "sm",
+        contents: [
+          text(registered ? "บัตรสมาชิก" : "ยังไม่ได้เป็นสมาชิก", { size: "md", weight: "bold", color: NAVY }),
+          text(registered ? "ดูดาวสะสม ไม้ที่อยู่ที่ร้าน หรือเพิ่มเบอร์โทรอื่น" : "สมัครฟรี กรอกแค่ชื่อและเบอร์โทร ดาวสะสมเดิมรวมให้อัตโนมัติ และรับแจ้งสถานะไม้ใน LINE", { size: "xs", color: MUTED }),
+          ...pending.map(phone => text(`⏳ ${phone} รอร้านยืนยัน`, { size: "xs", color: "#A77922" })),
+        ],
+      },
+      footer: {
+        type: "box", layout: "vertical", paddingAll: "12px",
+        contents: [{ type: "button", style: "primary", color: PURPLE, height: "sm", action: { type: "uri", label: registered ? "เปิดบัตรสมาชิก" : "สมัครสมาชิก", uri: url } }],
+      },
+    },
   };
 }

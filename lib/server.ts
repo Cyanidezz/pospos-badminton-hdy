@@ -157,6 +157,14 @@ const pushLine = (token: string, to: string, messages: unknown[]) => fetch("http
   headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
   body: JSON.stringify({ to, messages }),
 });
+// A message the shop starts (counts against the OA's monthly push quota, unlike replies). false = not sent.
+export async function pushLineMessages(to: string, messages: unknown[]) {
+  const token = runtime().LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token || !to || !messages.length) return false;
+  const response = await pushLine(token, to, messages.slice(0, 5)).catch(() => null);
+  if (response && !response.ok) console.error("LINE push failed", response.status, (await response.text().catch(() => "")).slice(0, 300));
+  return !!response?.ok;
+}
 // Answers a customer's own message or rich-menu tap. Replies are free (unlike pushes, which count against the
 // monthly quota) but the reply token is single-use and short-lived, so each event gets exactly one reply.
 export async function replyLine(replyToken: string, messages: unknown[]) {

@@ -1,6 +1,6 @@
 'use client';
-import {useMemo,useState} from 'react';
-import {Gift,Pencil,Phone,Search} from 'lucide-react';
+import {useEffect,useMemo,useState} from 'react';
+import {Gift,MessageCircle,Pencil,Phone,Search} from 'lucide-react';
 import {billEarnsStamp,buildCustomers,matchCustomers,phoneDigits,promoOf,type Customer} from '@/lib/customers';
 import {CustomerInput} from './job-form';
 
@@ -55,7 +55,28 @@ function Detail({customer,posMin,promo,socksProductName,onSave,setKey}:any){
   </div>;
 }
 
-export function MembersPage({jobs,sales,config,products,onSave}:any){
+// สมาชิกผ่าน LINE requests waiting for a staff member: a customer signed up in LINE with a number that already has
+// history here but had no receipt number to prove it. Approve only after checking it is really them (e.g. they
+// are at the counter, or the name matches the one on their jobs).
+function LineRequests({rows,onAction,reload}:any){
+  const pending=(rows||[]).filter((r:any)=>r.status==='pending');
+  const [busy,setBusy]=useState('');
+  if(!pending.length)return null;
+  const run=async(action:string,r:any)=>{
+    if(action==='lineMemberReject'&&!confirm(`ปฏิเสธคำขอของ ${r.name||r.phone}?`))return;
+    setBusy(r.line_user+r.phone);
+    try{if(await onAction(action,{lineUser:r.line_user,phone:r.phone,requestId:crypto.randomUUID()},false))await reload()}finally{setBusy('')}
+  };
+  return <section className="panel line-requests"><h2><MessageCircle size={18}/> คำขอสมาชิกผ่าน LINE รอยืนยัน <span className="badge amber">{pending.length}</span></h2>
+    <p className="muted">เบอร์เหล่านี้มีประวัติที่ร้านอยู่แล้ว ลูกค้าไม่ได้ใส่เลขรับไม้ ตรวจสอบก่อนยืนยัน เช่น ลูกค้าอยู่ที่ร้าน หรือชื่อตรงกับประวัติ เมื่อยืนยันแล้วลูกค้าจะเห็นดาวสะสมและรับแจ้งสถานะไม้ใน LINE</p>
+    <ul>{pending.map((r:any)=><li key={r.line_user+r.phone}>
+      <div><b>{r.name||'—'}</b><small>{r.phone.replace(/(\d{3})(\d{3})(\d+)/,'$1-$2-$3')}{r.shop_name?` · ชื่อในประวัติร้าน: ${r.shop_name}`:''} · ขอเมื่อ {day(r.created)}</small></div>
+      <div className="line-request-actions"><button type="button" className="secondary small danger" disabled={!!busy} onClick={()=>run('lineMemberReject',r)}>ปฏิเสธ</button><button type="button" className="small" disabled={!!busy} onClick={()=>run('lineMemberApprove',r)}>ยืนยัน</button></div>
+    </li>)}</ul>
+  </section>;
+}
+
+export function MembersPage({jobs,sales,config,products,onSave,onAction}:any){
   const [query,setQuery]=useState(''),[key,setKey]=useState('');
   const posMin=Number(config?.member_pos_min_amount)||0;
   const socksProductName=config?.member_socks_product_id?(products||[]).find((p:any)=>p.id===config.member_socks_product_id)?.name:null;
@@ -64,18 +85,22 @@ export function MembersPage({jobs,sales,config,products,onSave}:any){
   const shown=customers.filter(c=>!text||c.name.toLowerCase().includes(text)||(digits.length>=3&&phoneDigits(c.phone).includes(digits)));
   const selected=customers.find(c=>c.key===key)||shown[0]||null;
   const ready=customers.filter(c=>c.stringAvailable||(socksProductName&&c.socksAvailable)).length;
-  return <div className="members-layout">
+  const [lineRows,setLineRows]=useState<any[]>([]);
+  const reloadLine=async()=>{try{const r=await fetch('/api/line-members',{cache:'no-store'}),d:any=await r.json();setLineRows(r.ok&&d.ready?d.rows:[])}catch{setLineRows([])}};
+  useEffect(()=>{reloadLine()},[]);
+  const onLine=useMemo(()=>new Set(lineRows.filter((r:any)=>r.status==='verified').map((r:any)=>r.phone)),[lineRows]);
+  return <>{onAction&&<LineRequests rows={lineRows} onAction={onAction} reload={reloadLine}/>}<div className="members-layout">
     <section className="panel members-list">
       <div className="panel-tools"><div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ค้นหาชื่อหรือเบอร์โทร"/></div></div>
       <div className="members-summary"><span>สมาชิก {customers.length} คน</span>{ready>0&&<span className="badge green">มีสิทธิ์ฟรี {ready} คน</span>}</div>
       {shown.length===0?<div className="empty"><h3>{customers.length?'ไม่พบลูกค้าที่ค้นหา':'ยังไม่มีสมาชิก'}</h3><p>{customers.length?'ลองค้นหาด้วยชื่อหรือเบอร์โทรอื่น':'ลูกค้าจะขึ้นที่นี่อัตโนมัติหลังรับไม้งานแรก หรือเพิ่มสมาชิกตอนคิดเงินที่หน้าร้าน'}</p></div>:
       <ul className="members-rows">{shown.map(c=><li key={c.key}><button type="button" className={'member-row'+(selected?.key===c.key?' is-active':'')} onClick={()=>setKey(c.key)}>
-        <div><b>{c.name}</b><small>{c.phone||'ไม่มีเบอร์'} · มาแล้ว {c.visits} ครั้ง</small></div>
+        <div><b>{c.name}{onLine.has(phoneDigits(c.phone))&&<span className="line-chip" title="เชื่อม LINE แล้ว">LINE</span>}</b><small>{c.phone||'ไม่มีเบอร์'} · มาแล้ว {c.visits} ครั้ง</small></div>
         <div className="member-row-side">{c.stringAvailable||(socksProductName&&c.socksAvailable)?<span className="badge green"><Gift size={12}/> มีสิทธิ์ฟรี</span>:<span className="stamp-mini">{c.stars}/{c.stringNeed} ดาว</span>}</div>
       </button></li>)}</ul>}
     </section>
     <section className="panel members-detail">{selected?<Detail customer={selected} posMin={posMin} promo={promoOf(config)} socksProductName={socksProductName} onSave={onSave} setKey={setKey}/>:<div className="empty"><h3>เลือกลูกค้าเพื่อดูรายละเอียด</h3></div>}</section>
-  </div>;
+  </div></>;
 }
 
 // Pick a member while checking out at the POS: the bill is linked to them (and earns a stamp).

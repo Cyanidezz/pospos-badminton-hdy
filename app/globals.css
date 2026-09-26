@@ -960,3 +960,52 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .payables-paid ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .payables-paid li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;font-size:13px;color:#4e6659}
 @media(max-width:700px){.payables-summary{grid-template-columns:1fr}.payables-row{grid-template-columns:1fr auto}.payables-row .payables-due{grid-column:1}.payables-row button{grid-column:1/-1}.po-credit-fields{grid-template-columns:1fr}}
+
+/* สมาชิกผ่าน LINE (app/line/member) - customer-facing, phone first */
+.lm-page{max-width:520px;margin:0 auto;padding:16px 16px 40px;display:grid;gap:14px;align-content:start;background:#f3f1fb;min-height:100dvh}
+.lm-head{background:linear-gradient(145deg,#8b5cf6,#6d3fd6);color:#fff;border-radius:18px;padding:20px}
+.lm-head small{letter-spacing:1.5px;font-weight:700;color:#e5dbff}
+.lm-head h1{margin:4px 0 6px;font-size:26px;color:#fff}
+.lm-head p{margin:0;font-size:14px;line-height:1.6;color:#f1ebff}
+.lm-card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 6px 20px #2b185a14}
+.lm-card h2{margin:0 0 4px;font-size:18px}
+.lm-center{text-align:center}
+.lm-muted{font-size:13px;color:#6b6780;margin:0 0 12px}
+.lm-notice{background:#e6f6ee;color:#17804f;border-radius:12px;padding:12px 14px;font-size:14px;font-weight:600}
+.lm-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.lm-card-head span{font-size:14px;color:#6b6780}
+.lm-card-head em{font-style:normal;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.lm-card-head em.is-ok{background:#e6f6ee;color:#17804f}.lm-card-head em.is-wait{background:#fff3dc;color:#a77922}
+.lm-stamps{display:grid;gap:8px}
+.lm-stamps p{margin:0;padding:10px 12px;border-radius:12px;background:#f4f6fb;font-size:14px;color:#24406f}
+.lm-stamps p.is-ready{background:#e6f6ee;color:#17804f;font-weight:700}
+.lm-stamps small{color:#6b6780}.lm-stamps .lm-promo{color:#c0691a;font-weight:600}
+.lm-stars{display:flex;align-items:baseline;gap:6px}.lm-stars b{font-size:38px;color:#6d3fd6;line-height:1}.lm-stars span{color:#6b6780}
+.lm-dots{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:10px;background:#f7f4ff;border-radius:14px}
+.lm-dots i{font-style:normal;aspect-ratio:1;border-radius:50%;background:#fff;border:2px dashed #d6ccf5;display:grid;place-items:center;font-size:16px;color:#fff}
+.lm-dots i.is-on{background:#6d3fd6;border:2px solid #6d3fd6}
+.lm-dots i.is-goal:not(.is-on){border-color:#e0801a;border-style:solid}
+.lm-jobs{margin-top:12px;display:grid;gap:8px}
+.lm-jobs>b{font-size:14px}
+.lm-jobs a{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e6e1f5;border-radius:12px;color:#24406f;text-decoration:none}
+.lm-jobs a span{display:flex;flex-direction:column;font-weight:600}.lm-jobs a small{font-weight:400;color:#6b6780}
+.lm-jobs a em{font-style:normal;font-size:12px;font-weight:700;color:#3a70d4;white-space:nowrap}
+.lm-form{display:grid;gap:12px}
+.lm-form label{display:grid;gap:6px;font-size:13px;font-weight:600;color:#4b4760}
+.lm-form input{font-size:16px;padding:12px;border-radius:12px}
+.lm-form small{font-weight:400;color:#6b6780;line-height:1.5}
+.lm-error{margin:0;color:#b04742;font-size:14px;font-weight:600}
+.lm-actions{display:flex;gap:10px;justify-content:flex-end}
+.lm-actions button,.lm-add{padding:12px 18px!important;border-radius:12px!important;font-size:15px!important}
+.lm-page button:not(.lm-secondary){background:#6d3fd6}
+.lm-secondary{background:#fff!important;color:#6d3fd6!important;border:1px solid #d6ccf5!important}
+.lm-add{width:100%;background:#fff!important;color:#6d3fd6!important;border:1px dashed #b9a8ef!important}
+.lm-pending p{font-size:14px;color:#4b4760;margin:0 0 10px}
+.lm-foot{font-size:12px;color:#8a85a0;text-align:center}
+.line-requests{padding:16px 18px;margin-bottom:16px;border-color:#f0d9a8}
+.line-requests h2{display:flex;align-items:center;gap:8px;font-size:17px;margin:0 0 6px}
+.line-requests ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.line-requests li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid #eee3cc;border-radius:12px;background:#fffdf7;flex-wrap:wrap}
+.line-requests li>div:first-child{display:flex;flex-direction:column;gap:2px}
+.line-request-actions{display:flex;gap:8px}
+.line-chip{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;background:#06c755;color:#fff;font-size:10px;font-weight:700;vertical-align:middle}
