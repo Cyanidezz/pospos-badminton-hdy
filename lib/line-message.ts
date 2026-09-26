@@ -501,9 +501,11 @@ export function memberLinkMessage(url: string, { registered = false, pending = [
 // asking for a phone they already registered - with their last few finished jobs, and the member page button.
 export function noActiveJobsMessage({ phones, recent = [], url = "" }: { phones: string[]; recent?: { racket: string; status: string; created: string }[]; url?: string }) {
   const day = (iso: string) => new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit", timeZone: "Asia/Bangkok" });
+  const quickReply = otherPhoneQuickReply(url);
   return {
     type: "flex",
     altText: "ตอนนี้ไม่มีไม้ของคุณที่ร้าน",
+    ...(quickReply ? { quickReply } : {}),
     contents: {
       type: "bubble",
       size: "kilo",
@@ -520,7 +522,7 @@ export function noActiveJobsMessage({ phones, recent = [], url = "" }: { phones:
               contents: [text(job.racket, { size: "sm", color: NAVY, flex: 5 }), text(`${job.status}\n${day(job.created)}`, { size: "xxs", color: MUTED, align: "end", flex: 3 })],
             })),
           ] : []),
-          text("ฝากไม้ด้วยเบอร์อื่น? เพิ่มเบอร์ในบัตรสมาชิก หรือพิมพ์เบอร์นั้นมาได้เลย", { size: "xxs", color: MUTED, margin: "md" }),
+          text("ฝากไม้ด้วยเบอร์อื่น? กดปุ่มด้านล่างแชท หรือพิมพ์เบอร์โทรนั้นมาได้เลย เช่น 0812345678", { size: "xxs", color: MUTED, margin: "md" }),
         ],
       },
       ...(/^https:\/\//.test(url) ? {
@@ -531,4 +533,12 @@ export function noActiveJobsMessage({ phones, recent = [], url = "" }: { phones:
       } : {}),
     },
   };
+}
+
+// Chips under a tracking answer for "a racket left under another number": look it up now (asks for the number), or
+// add that number to the member card so it shows up by itself from then on.
+export function otherPhoneQuickReply(url = "") {
+  const items: any[] = [{ type: "action", action: { type: "postback", label: "ค้นหาด้วยเบอร์อื่น", data: "action=askphone", displayText: "ค้นหาด้วยเบอร์อื่น" } }];
+  if (/^https:\/\//.test(url)) items.push({ type: "action", action: { type: "uri", label: "เพิ่มเบอร์ในบัตรสมาชิก", uri: url } });
+  return { items };
 }

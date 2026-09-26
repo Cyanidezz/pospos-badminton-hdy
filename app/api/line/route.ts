@@ -1,6 +1,6 @@
 import {runtime,db,all,one,uid,now,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,noActiveJobsMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
+import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,noActiveJobsMessage,otherPhoneQuickReply,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {PRODUCT_INTENT,coreQuery,inquiryKey,isGeneralStringingQuestion,pickMatches,searchProducts} from '@/lib/product-search';
 import {askProductAi} from '@/lib/product-ai';
 import {memberProgram,memberStatus} from '@/lib/member-status';
@@ -41,9 +41,9 @@ async function onTrack(lineUser:string){
   const linked=(await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE (line_user=?${byPhone}) AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,lineUser,...phones)).map((j:any)=>({...j,line_user:lineUser}));
   const url=ready?memberUrl(lineUser):'';
   if(linked.length){
-    const hint=phones.length?'ฝากไม้ด้วยเบอร์อื่น? เพิ่มเบอร์ได้ในบัตรสมาชิก หรือพิมพ์เบอร์นั้นมาได้เลย':'ถ้ามีไม้ที่ฝากด้วยเบอร์อื่น พิมพ์เบอร์นั้นมาได้เลย';
+    const hint={...text('ฝากไม้ด้วยเบอร์อื่น? กดปุ่มด้านล่าง หรือพิมพ์เบอร์โทรนั้นมาได้เลย เช่น 0812345678'),quickReply:otherPhoneQuickReply(url)};
     const signup=ready&&!phones.length?memberLinkMessage(url,{registered:rows.length>0,pending}):null;
-    return [...await trackReply(linked,lineUser),text(hint),...(signup?[signup]:[])];
+    return [...await trackReply(linked,lineUser),...(signup?[signup]:[]),hint];
   }
   if(phones.length){
     const recent=(await all(`SELECT racket,status,created FROM jobs WHERE (line_user=?${byPhone}) AND status<>'ยกเลิก' ORDER BY created DESC LIMIT 3`,lineUser,...phones)).map((j:any)=>({...j,status:normalizeJobStatus(j.status)}));
@@ -231,6 +231,7 @@ export async function POST(req:Request){
         else if(action==='promo')await replyLine(replyToken,await onPromotions());
         else if(action==='member'||action==='points')await replyLine(replyToken,await onMember(lineUser));
         else if(action==='price')await replyLine(replyToken,await onPrice());
+        else if(action==='askphone')await replyLine(replyToken,[ASK_PHONE]);
         else if(action==='all'||action==='brand'){const params=new URLSearchParams(e.postback?.data||'');await replyLine(replyToken,await onAllProducts(params.get('q')||'',action==='brand'?params.get('b')||'':''));}
         continue;
       }
@@ -239,7 +240,13 @@ export async function POST(req:Request){
       const link=message.match(/^LINK ([a-f0-9-]{50,80})$/i);
       if(link){await onLink(link[1],lineUser);continue;}
       // Typed text works the same as the rich-menu buttons, for anyone who types instead of tapping.
-      if(/^ติดตาม/.test(message))await replyLine(replyToken,await onTrack(lineUser));
+      // Tracking in the customer's own words: "เบอร์อื่น" / "ฝากไม้ด้วยเบอร์อื่น" -> ask for that number; "ไม้เสร็จยัง",
+      // "สถานะไม้", "เช็คไม้" -> their jobs.
+      // A short message carrying a phone number ("เบอร์อื่น 081-234-5678", "0812345678 ครับ") looks that number up.
+      const phoneInText=message.length<=60?message.replace(/[\s-]/g,'').match(/(?<!\d)0\d{8,9}(?!\d)/):null;
+      if(phoneInText)await replyLine(replyToken,await onPhone(phoneInText[0],lineUser));
+      else if(/เบอร์อื่น|ค้นหาด้วยเบอร์/.test(message))await replyLine(replyToken,[ASK_PHONE]);
+      else if(/^ติดตาม|สถานะไม้|เช็คไม้|เช็กไม้|ไม้(ของ\S*)?(เสร็จ|ได้)(ยัง|หรือยัง|รึยัง)|ขึ้นเอ็นเสร็จ|งานขึ้นเอ็น/.test(message))await replyLine(replyToken,await onTrack(lineUser));
       else if(/^(สมัคร|สมาชิก|บัตรสมาชิก|(เช็ค|เช็ก)?(คะแนน|แต้ม|ดาว))/.test(message))await replyLine(replyToken,await onMember(lineUser));
       // Just "ราคา" / "ราคาขึ้นเอ็น" -> the shop's own price sheet; "ราคา BG80" is a product question (below).
       else if(/^(สอบถาม)?ราคา(ขึ้นเอ็น|เอ็น)?(ครับ|คับ|ค่ะ|คะ)?$/.test(message.replace(/\s+/g,'')))await replyLine(replyToken,await onPrice());

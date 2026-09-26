@@ -1774,3 +1774,18 @@ test("ติดตามงานขึ้นเอ็น follows สมาช�
   assert.match(json, /Li-Ning Halbertec 7000/);
   assert.equal(msg.contents.footer.contents[0].action.uri, "https://shop.example/line/member?t=x");
 });
+
+test("tracking in the customer's own words: 'ฝากไม้ด้วยเบอร์อื่น' gets an answer; a phone inside a sentence is looked up", async t => {
+  const webhook = await read("app/api/line/route.ts");
+  assert.match(webhook, /else if\(\/เบอร์อื่น\|ค้นหาด้วยเบอร์\/\.test\(message\)\)await replyLine\(replyToken,\[ASK_PHONE\]\);/, "the bot's own hint wording is understood");
+  assert.match(webhook, /const phoneInText=message\.length<=60\?message\.replace\(\/\[\\s-\]\/g,''\)\.match\(\/\(\?<!\\d\)0\\d\{8,9\}\(\?!\\d\)\/\):null;/);
+  assert.match(webhook, /else if\(action==='askphone'\)await replyLine\(replyToken,\[ASK_PHONE\]\);/, "the 'ค้นหาด้วยเบอร์อื่น' chip");
+  assert.match(webhook, /สถานะไม้\|เช็คไม้\|เช็กไม้/);
+  let line;
+  try { line = await import("../lib/line-message.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const chips = line.otherPhoneQuickReply("https://shop.example/line/member?t=x").items.map(i => i.action);
+  assert.deepEqual(chips.map(a => a.label), ["ค้นหาด้วยเบอร์อื่น", "เพิ่มเบอร์ในบัตรสมาชิก"]);
+  assert.equal(chips[0].data, "action=askphone");
+  assert.equal(line.noActiveJobsMessage({ phones: ["087-xxx-4441"], url: "https://shop.example/x" }).quickReply.items.length, 2);
+});
