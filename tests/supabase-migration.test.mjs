@@ -1889,3 +1889,9 @@ test("คลังสินค้า: a ⭐ สินค้าสำคัญ st
   assert.match(pos, /\{id:'สินค้าสำคัญ',label:'⭐ สินค้าสำคัญ',count:importantProducts\.length,tone:'important'/);
   assert.match(pos, /\(stockFilter==='สินค้าสำคัญ'\|\|\(p\.category==='เอ็นแบดมินตัน'\)===\(inventoryKind==='strings'\)\)/, "not limited to the strings / other products switch");
 });
+
+test("builds for Safari 15 too (iPad mini on iOS 15): browserslist below Next's default Safari 16.4", async () => {
+  const pkg = JSON.parse(await read("package.json"));
+  assert.ok(Array.isArray(pkg.browserslist) && pkg.browserslist.includes("safari >= 15") && pkg.browserslist.includes("ios_saf >= 15"),
+    "without it the build ships class static blocks, a syntax error on Safari 15 - no JavaScript runs, so login silently just reloads");
+});
