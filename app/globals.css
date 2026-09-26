@@ -892,3 +892,35 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .bulk-price-preview li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#2f4164}
 .bulk-price-preview li.is-changed strong{color:#3a70d4}
 .bulk-price-preview li.is-changed .old{text-decoration:line-through}
+
+/* แปลงสินค้าขายย่อย */
+.breakdown-page{display:grid;gap:18px;max-width:900px}
+.breakdown-add{justify-self:start}
+.breakdown-search{position:relative}
+.breakdown-search ul{list-style:none;margin:6px 0 0;padding:0;border:1px solid #e3e8f0;border-radius:10px;overflow:hidden;background:#fff}
+.breakdown-search li button{all:unset;cursor:pointer;box-sizing:border-box;width:100%;display:flex;justify-content:space-between;gap:12px;padding:10px 12px;font-size:14px;border-bottom:1px solid #f0f3f8}
+.breakdown-search li button:hover{background:#f4f8ff}
+.breakdown-search li small{color:#7b8b81;white-space:nowrap}
+.breakdown-picked{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid #cfe0fb;border-radius:10px;background:#f4f8ff}
+.breakdown-picked>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.breakdown-mode{display:flex;gap:18px;flex-wrap:wrap;margin:4px 0 10px;font-size:14px}
+.breakdown-mode label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.breakdown-mode input{width:auto}
+.breakdown-new{grid-template-columns:2fr 1fr 1fr}
+.breakdown-preview{display:grid;gap:6px;padding:12px 14px;border-radius:12px;background:#f7faf5;border:1px solid #dce5ce;margin:0 0 16px;font-size:14px}
+.breakdown-preview>div{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.breakdown-preview .is-good{color:#17804f}.breakdown-preview .is-bad{color:#b04742}
+.breakdown-rules{display:grid;gap:12px}
+.breakdown-rule{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px}
+.breakdown-pair{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;align-items:center}
+.breakdown-pair>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.breakdown-pair small{color:#7b8b81;font-size:12px}
+.breakdown-pair span{font-size:13px;color:#4e6659}
+.breakdown-pair>svg{color:#3a70d4}
+.breakdown-ratio{margin:10px 0;font-size:13px;color:#2f4164;font-weight:600}
+.breakdown-convert{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.breakdown-warn{display:block;margin-top:8px;color:#a77922}
+.breakdown-history ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.breakdown-history li>div{display:flex;flex-direction:column;gap:2px;font-size:14px}
+.breakdown-history small{color:#7b8b81}
+@media(max-width:640px){.breakdown-new{grid-template-columns:1fr}.breakdown-pair{grid-template-columns:1fr}.breakdown-pair>svg{transform:rotate(90deg)}}

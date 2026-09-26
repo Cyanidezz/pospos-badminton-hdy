@@ -1646,3 +1646,23 @@ test("คลังสินค้า: change the sale price of many selected pro
   assert.equal(lib.bulkPrice(32000, "set", ""), null);
   assert.equal(lib.bulkPrice(32000, "set", "abc"), null);
 });
+
+test("แปลงสินค้าขายย่อย: open packs into single units - stock moves, the unit's cost is the pack's cost / ratio", async () => {
+  const data = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  const api = await read("app/api/breakdowns/route.ts");
+  const migration = await read("supabase/migrations/20260926010000_product_breakdowns.sql");
+  assert.match(migration, /ratio integer not null check \(ratio between 2 and 10000\)/);
+  assert.match(migration, /unique \(parent_id, child_id\)/);
+  assert.match(migration, /staff_id uuid not null references public\.members\(id\)/);
+  assert.match(migration, /revoke all on public\.product_conversions from anon, authenticated;/);
+  assert.match(pos, /\['inventory','คลังสินค้า',Package\],\['breakdown','แปลงสินค้าขายย่อย',PackageOpen\]/, "right under คลังสินค้า");
+  assert.match(pos, /\{page==='breakdown'&&can\('inventory'\)&&<BreakdownPage /);
+  assert.match(data, /if\(action==='breakdownRule'\)\{owner\(me\);/, "only the owner sets up what breaks into what");
+  assert.match(data, /else\{permit\(me,'inventory'\);const rule=/, "staff with stock access can open packs");
+  assert.match(data, /unitCost=parent\.cost===null\|\|parent\.cost===undefined\?null:Math\.round\(parent\.cost\/rule\.ratio\)/, "690 / 12 = 57.50");
+  assert.match(data, /WITH taken AS \(UPDATE products SET stock=stock-\? WHERE id=\? AND stock>=\? RETURNING id\) INSERT INTO product_conversions/, "never takes more packs than the system has");
+  assert.match(data, /q\('SELECT 1\/\(SELECT COUNT\(\*\)::int FROM product_conversions WHERE id=\?\) AS ok',id\)/, "a lost race rolls the whole conversion back");
+  assert.match(data, /INSERT INTO stock_adjustments\(id,product_id,delta,reason,staff_id,created\) VALUES\(\?,\?,\?,\?,\?,\?\)',id\+'-out',parent\.id,-qty,reason/, "both sides show in the stock movement history");
+  assert.match(api, /const cost=\(t:string\)=>isOwner\?`\$\{t\}\.cost`:'NULL::integer';/, "costs stay owner-only");
+});
