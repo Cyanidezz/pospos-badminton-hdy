@@ -880,3 +880,9 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .inquiry-list li>div{display:flex;flex-direction:column;gap:4px;min-width:0}
 .inquiry-list li b{overflow-wrap:anywhere}
 .inquiry-list small{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cost-editor{border:1px solid #e3e8f0;border-radius:12px;padding:12px 14px;margin:0 0 17px;background:#fafcff}
+.cost-editor .field{margin-bottom:8px}
+.cost-lots{margin-top:8px;font-size:13px}
+.cost-lots ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}
+.cost-lots li{display:grid;grid-template-columns:1fr auto auto;gap:14px;color:#4e6659}
+.cost-lots li span:last-child{font-weight:600;color:#2f4164;text-align:right;min-width:90px}

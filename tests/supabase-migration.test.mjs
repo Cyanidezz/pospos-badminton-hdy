@@ -225,7 +225,7 @@ test("keeps purchase orders staged until inventory is received", async () => {
   assert.match(dataRoute, /transitions:any=\{pending_approval:'approved',approved:'paid',paid:'received'\}/);
   assert.match(dataRoute, /action==='purchaseOrderStatus'\)\{owner\(me\)/);
   assert.match(dataRoute, /targetStatus==='approved'\)owner\(me\)/);
-  assert.match(dataRoute, /UPDATE products SET stock=stock\+\?,cost=\?/);
+  assert.match(dataRoute, /UPDATE products SET stock=stock\+\?,\$\{averaged\}/);
   assert.match(pos, /รับสินค้าเข้า \(PO\)/);
   assert.doesNotMatch(pos, /id:'receive',name:'รับสินค้า'/);
   assert.match(purchaseOrders, /Number\(satang\|\|0\)\/100/);
@@ -1375,7 +1375,7 @@ test("PO editing: also allowed while รออนุมัติ, and the sale p
   assert.match(save, /if\(hasItemPrice\)\{cols\.push\('price'\);vals\.push\(row\.price\);\}/, "price only added to the INSERT once the column exists");
 
   const receive = dataRoute.slice(dataRoute.indexOf("else if(action==='purchaseOrderStatus')"), dataRoute.indexOf("else if(action==='customerEdit')"));
-  assert.match(receive, /statements\.push\('price' in row\?q\('UPDATE products SET stock=stock\+\?,cost=\?,price=COALESCE\(\?,price\) WHERE id=\?',row\.qty,row\.cost,row\.price,row\.product_id\):q\('UPDATE products SET stock=stock\+\?,cost=\? WHERE id=\?',row\.qty,row\.cost,row\.product_id\)\);/, "COALESCE - a row with no recorded price (old PO, or a cashier's save) never wipes the product's price to null");
+  assert.match(receive, /statements\.push\('price' in row\?q\(`UPDATE products SET stock=stock\+\?,\$\{averaged\},price=COALESCE\(\?,price\) WHERE id=\?`,row\.qty,row\.qty,row\.cost,row\.qty,row\.cost,row\.price,row\.product_id\):q\(`UPDATE products SET stock=stock\+\?,\$\{averaged\} WHERE id=\?`,row\.qty,row\.qty,row\.cost,row\.qty,row\.cost,row\.product_id\)\);/, "COALESCE - a row with no recorded price (old PO, or a cashier's save) never wipes the product's price to null");
 
   const getQuery = dataRoute.slice(0, dataRoute.indexOf("export async function POST"));
   assert.match(getQuery, /to_jsonb\(purchase_order_items\)->>'price' AS price FROM purchase_order_items/, "read defensively too, so the PO list never errors before the migration runs");
@@ -1609,4 +1609,19 @@ test("LINE product answers: price + stock left from the database; AI only picks 
   const service = JSON.stringify(line.productAnswerMessage([{ id: "s", name: "บริการขึ้นเอ็น", category: "เอ็นแบดมินตัน", price: 10000, available: -6 }]));
   assert.doesNotMatch(service, /หมด|มีสินค้า|รวมค่าขึ้นเอ็น/, "a service has no stock and is not a string");
   assert.match(line.productNotFoundMessage("Yonex Astrox 88D", "087-0954441").text, /ยังไม่มี “Yonex Astrox 88D” ร้านบันทึกไว้แล้ว/);
+});
+
+test("product cost: moving weighted average on receiving a PO; owner edits it in แก้ไขสินค้า; sold items keep their own cost", async () => {
+  const data = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  const editor = await read("app/cost-editor.tsx");
+  // (stock on hand x current cost + received qty x lot cost) / new stock - or the lot's cost when there is nothing to average.
+  assert.match(data, /const averaged='cost=CASE WHEN stock>0 AND cost IS NOT NULL THEN ROUND\(\(stock::numeric\*cost\+\?::numeric\*\?\)\/\(stock\+\?\)\)::integer ELSE \? END';/);
+  // Every sale line still snapshots the cost at the moment of sale.
+  assert.match(data, /INSERT INTO items\(id,sale_id,product_id,name,category,qty,price,original,net,cost,note,line_discount\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)',uid\(\),id,x\.p\.id,x\.p\.name,x\.p\.category,x\.qty,x\.price,x\.p\.price,net,x\.p\.cost/);
+  // Owner's edit: blank = unchanged; only sales/receipts that never had a cost are filled in.
+  assert.match(data, /if\(b\.cost!==undefined&&b\.cost!==null&&String\(b\.cost\)\.trim\(\)!==''\)\{const cost=money\(b\.cost\);if\(cost!==p\.cost\)statements\.push\(q\('UPDATE products SET cost=\? WHERE id=\?',cost,p\.id\),q\('UPDATE receipts SET cost=\? WHERE product_id=\? AND cost IS NULL',cost,p\.id\),q\('UPDATE items SET cost=\? WHERE product_id=\? AND cost IS NULL',cost,p\.id\)\);\}/);
+  assert.match(pos, /\{owner&&modal==='editProduct'&&<CostEditor form=\{form\} setForm=\{setForm\} receipts=\{data\.receipts\} Field=\{Field\}\/>\}/);
+  assert.match(pos, /cost:p\.cost===null\|\|p\.cost===undefined\?'':p\.cost\/100/);
+  assert.match(editor, /ประวัติรับเข้า/);
 });
