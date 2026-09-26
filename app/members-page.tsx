@@ -67,7 +67,7 @@ function LineMembersPanel({rows,onAction,reload}:any){
   const run=async(action:string,r:any,extra:any={})=>{setBusy(true);try{if(await onAction(action,{lineUser:r.line_user,phone:r.phone,...extra,requestId:crypto.randomUUID()},false)){setMatch(null);setCode('');await reload()}}finally{setBusy(false)}};
   return <section className="panel line-requests"><h2><MessageCircle size={18}/> สมาชิกผ่าน LINE {pending.length>0&&<span className="badge amber">รอยืนยัน {pending.length}</span>}</h2>
     <p className="muted">ลูกค้าสมัครใน LINE แล้ว ให้เปิด “บัตรสมาชิก” แล้วแสดงรหัส 6 หลักบนมือถือ กรอกรหัสที่นี่เพื่อยืนยันว่าเป็นเจ้าของเบอร์ (หรือให้ลูกค้าสแกน QR บนใบรับไม้ ระบบยืนยันให้อัตโนมัติ)</p>
-    <form className="line-code-form" onSubmit={find}><input inputMode="numeric" maxLength={7} placeholder="รหัส 6 หลักจากมือถือลูกค้า" value={code} onChange={e=>setCode(e.target.value)}/><button disabled={code.replace(/\D/g,'').length!==6}>ค้นหา</button></form>
+    <form className="line-code-form" onSubmit={find}><input inputMode="numeric" maxLength={7} placeholder="รหัส 6 หลักจากมือถือลูกค้า" value={code} onChange={e=>setCode(e.target.value)}/><button disabled={code.replace(/\D/g,'').length!==6}><Search size={17}/>ค้นหา</button></form>
     {error&&<p className="line-code-error">{error}</p>}
     {match&&<div className="line-code-match"><div><b>{match.name||'—'}</b><small>{fmtPhone(match.phone)}{match.shop_name?` · ชื่อในประวัติร้าน: ${match.shop_name}`:' · ลูกค้าใหม่'} · สมัคร {day(match.created)}</small></div>
       <button type="button" disabled={busy} onClick={()=>run('lineMemberApprove',match,{code:code.replace(/\D/g,'')})}>ยืนยันเป็นสมาชิก</button></div>}

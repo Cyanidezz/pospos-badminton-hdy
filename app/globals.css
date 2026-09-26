@@ -1009,8 +1009,9 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .line-requests li>div:first-child{display:flex;flex-direction:column;gap:2px}
 .line-request-actions{display:flex;gap:8px}
 .line-chip{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;background:#06c755;color:#fff;font-size:10px;font-weight:700;vertical-align:middle}
-.line-code-form{display:flex;gap:8px;max-width:420px;margin:8px 0}
-.line-code-form input{font-size:18px;letter-spacing:3px}
+.line-code-form{display:flex;gap:8px;max-width:440px;margin:8px 0;align-items:stretch}
+.line-code-form input{flex:1;min-width:0;height:48px;font-size:18px;letter-spacing:3px;padding:0 14px}
+.line-code-form button{flex-shrink:0;white-space:nowrap;height:48px;padding:0 20px!important;border-radius:10px!important;font-size:15px!important;gap:6px}
 .line-code-error{color:#b04742;font-size:13px;font-weight:600;margin:4px 0}
 .line-code-match{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid #9fd8b9;background:#effaf4;border-radius:12px;margin:6px 0}
 .line-code-match>div{display:flex;flex-direction:column;gap:2px}
