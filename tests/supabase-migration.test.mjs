@@ -1789,3 +1789,22 @@ test("tracking in the customer's own words: 'ฝากไม้ด้วยเ�
   assert.equal(chips[0].data, "action=askphone");
   assert.equal(line.noActiveJobsMessage({ phones: ["087-xxx-4441"], url: "https://shop.example/x" }).quickReply.items.length, 2);
 });
+
+test("LINE: a number the shop has never seen gets 'ไม่พบข้อมูล' + sign-up with it, not a 0-star card", async t => {
+  const webhook = await read("app/api/line/route.ts");
+  const page = await read("app/line/member/page.tsx");
+  assert.match(webhook, /if\(!jobs\.length&&!\(await phoneHasHistory\(digits\)\)\)return \[phoneNotFoundMessage\(digits,/);
+  assert.match(webhook, /memberCardMessage\(program,\{program:true\}\)/, "non-members see how it works, not a '0 / 10' balance");
+  assert.match(page, /const phone=\(params\.get\('phone'\)\|\|''\)\.replace\(\/\\D\/g,''\);if\(\/\^0\\d\{8,9\}\$\/\.test\(phone\)\)\{setPrefill\(phone\);setAdding\(true\)\}/);
+  let line;
+  try { line = await import("../lib/line-message.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const notFound = line.phoneNotFoundMessage("0894644296", "https://shop.example/line/member?t=abc");
+  assert.equal(notFound.altText, "ไม่พบข้อมูลของเบอร์ 089-464-4296");
+  assert.equal(notFound.contents.footer.contents[0].action.uri, "https://shop.example/line/member?t=abc&phone=0894644296");
+  assert.equal(notFound.quickReply.items[0].action.data, "action=askphone");
+  const program = { stars: 0, stringNeed: 10, socksNeed: 5, stringAvailable: false, socksAvailable: false, stringUsed: 0, socksUsed: 0, rewardCap: 30000, socksProductName: "ถุงเท้า", promo: null };
+  const intro = JSON.stringify(line.memberCardMessage(program, { program: true }));
+  assert.match(intro, /สะสมดาว แลกของรางวัล/);
+  assert.doesNotMatch(intro, /\/ 10 ดาว/, "no star count that reads like a balance");
+});

@@ -210,7 +210,9 @@ export function promoNote(promo: Member["promo"]) {
 // trackUrl (the customer's own open job) is only passed for a LINE account already linked to that job - someone
 // who just typed a phone number sees the numbers, never a link into another person's job.
 // Only standard Flex properties: LINE rejects the WHOLE reply over one unknown property (no error reaches the chat).
-export function memberCardMessage(member: Member, { trackUrl = "", known = true, holder = "" }: { trackUrl?: string; known?: boolean; holder?: string } = {}) {
+// program = explaining the programme to someone who isn't a member yet: no star count (a "0 / 10" there reads as
+// somebody's real balance), just how it works.
+export function memberCardMessage(member: Member, { trackUrl = "", known = true, holder = "", program = false }: { trackUrl?: string; known?: boolean; holder?: string; program?: boolean } = {}) {
   const need = Math.max(1, member.stringNeed);
   const fresh = !known || member.stars <= 0;
   const socksAt = member.socksProductName ? member.socksNeed : 0;
@@ -245,7 +247,7 @@ export function memberCardMessage(member: Member, { trackUrl = "", known = true,
   ];
   return {
     type: "flex",
-    altText: fresh ? "บัตรสะสมดาว Wingpro Badminton" : `คะแนนสะสม ${member.stars} ดาว`,
+    altText: program ? "สะสมดาวกับ Wingpro Badminton" : fresh ? "บัตรสะสมดาว Wingpro Badminton" : `คะแนนสะสม ${member.stars} ดาว`,
     contents: {
       type: "bubble",
       size: "mega",
@@ -253,7 +255,7 @@ export function memberCardMessage(member: Member, { trackUrl = "", known = true,
         type: "box", layout: "vertical", paddingAll: "18px", backgroundColor: PURPLE,
         contents: [
           text("WINGPRO BADMINTON", { size: "xs", color: "#E5DBFF", weight: "bold" }),
-          text("บัตรสะสมดาว", { size: "xl", color: "#FFFFFF", weight: "bold" }),
+          text(program ? "สะสมดาว แลกของรางวัล" : "บัตรสะสมดาว", { size: "xl", color: "#FFFFFF", weight: "bold" }),
           ...(holder ? [text(holder, { size: "sm", color: "#FFFFFF" })] : []),
           ...(fresh ? [text(earn, { size: "xs", color: "#E5DBFF" })] : []),
         ],
@@ -261,11 +263,13 @@ export function memberCardMessage(member: Member, { trackUrl = "", known = true,
       body: {
         type: "box", layout: "vertical", paddingAll: "18px", spacing: "md",
         contents: [
-          {
-            type: "box", layout: "baseline", spacing: "sm",
-            contents: [text(String(Math.max(0, member.stars)), { size: "3xl", weight: "bold", color: PURPLE, flex: 0 }), text(`/ ${need} ดาว`, { size: "md", color: MUTED })],
-          },
-          ...(fresh ? [text(known ? "ยังไม่มีดาวสะสม เริ่มสะสมได้ตั้งแต่ขึ้นเอ็นครั้งถัดไป" : "ยังไม่มีดาวสะสมของเบอร์นี้ เริ่มสะสมได้ตั้งแต่ขึ้นเอ็นครั้งแรก", { size: "sm", color: NAVY })] : []),
+          ...(program ? [text("สมัครสมาชิกฟรี แล้วเริ่มสะสมดาวได้ตั้งแต่ขึ้นเอ็นครั้งแรก", { size: "sm", color: NAVY })] : [
+            {
+              type: "box", layout: "baseline", spacing: "sm",
+              contents: [text(String(Math.max(0, member.stars)), { size: "3xl", weight: "bold", color: PURPLE, flex: 0 }), text(`/ ${need} ดาว`, { size: "md", color: MUTED })],
+            },
+            ...(fresh ? [text(known ? "ยังไม่มีดาวสะสม เริ่มสะสมได้ตั้งแต่ขึ้นเอ็นครั้งถัดไป" : "ยังไม่มีดาวสะสมของเบอร์นี้ เริ่มสะสมได้ตั้งแต่ขึ้นเอ็นครั้งแรก", { size: "sm", color: NAVY })] : []),
+          ]),
           ...(grid.length ? [{ type: "box", layout: "vertical", spacing: "xs", paddingAll: "8px", cornerRadius: "12px", backgroundColor: "#F7F4FF", contents: grid }] : []),
           ...rewards,
           ...(note ? [text(note, { size: "xs", color: "#E0801A", weight: "bold" })] : []),
@@ -541,4 +545,34 @@ export function otherPhoneQuickReply(url = "") {
   const items: any[] = [{ type: "action", action: { type: "postback", label: "ค้นหาด้วยเบอร์อื่น", data: "action=askphone", displayText: "ค้นหาด้วยเบอร์อื่น" } }];
   if (/^https:\/\//.test(url)) items.push({ type: "action", action: { type: "uri", label: "เพิ่มเบอร์ในบัตรสมาชิก", uri: url } });
   return { items };
+}
+
+// A typed number the shop has never seen (no job, no bill, not a member): say exactly that - a stamp card with
+// "0 ดาว" looked like the number was a member with nothing on it - and offer the sign-up with that number filled in.
+export function phoneNotFoundMessage(phone: string, url = "") {
+  const digits = String(phone).replace(/\D/g, "");
+  const shown = digits.length === 10 ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}` : digits;
+  const signUp = /^https:\/\//.test(url) ? `${url}${url.includes("?") ? "&" : "?"}phone=${digits}` : "";
+  return {
+    type: "flex",
+    altText: `ไม่พบข้อมูลของเบอร์ ${shown}`,
+    quickReply: otherPhoneQuickReply(""),
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box", layout: "vertical", paddingAll: "16px", spacing: "sm",
+        contents: [
+          text(`ไม่พบข้อมูลของเบอร์ ${shown}`, { size: "md", weight: "bold", color: NAVY }),
+          text("เบอร์นี้ยังไม่เคยฝากไม้ ซื้อสินค้า หรือสมัครสมาชิกกับร้าน ลองตรวจสอบเบอร์อีกครั้ง หรือสมัครสมาชิกด้วยเบอร์นี้ได้เลย", { size: "xs", color: MUTED }),
+        ],
+      },
+      ...(signUp ? {
+        footer: {
+          type: "box", layout: "vertical", paddingAll: "12px",
+          contents: [{ type: "button", style: "primary", color: PURPLE, height: "sm", action: { type: "uri", label: "สมัครสมาชิกด้วยเบอร์นี้", uri: signUp } }],
+        },
+      } : {}),
+    },
+  };
 }

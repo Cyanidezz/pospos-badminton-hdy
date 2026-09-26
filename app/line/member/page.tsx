@@ -25,8 +25,8 @@ function Stamps({member}:{member:any}){
   </div>;
 }
 
-function RegisterForm({token,initialPhone='',initialName='',needsJob=false,onDone,onCancel}:any){
-  const [name,setName]=useState(initialName),[phone,setPhone]=useState(initialPhone),[jobNumber,setJobNumber]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+function RegisterForm({token,initialPhone='',initialName='',suggestedPhone='',needsJob=false,onDone,onCancel}:any){
+  const [name,setName]=useState(initialName),[phone,setPhone]=useState(initialPhone||suggestedPhone),[jobNumber,setJobNumber]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const submit=async(e:any)=>{
     e.preventDefault();setBusy(true);setError('');
     try{
@@ -46,19 +46,21 @@ function RegisterForm({token,initialPhone='',initialName='',needsJob=false,onDon
 }
 
 export default function LineMemberPage(){
-  const [token,setToken]=useState(''),[view,setView]=useState<any>(null),[error,setError]=useState(''),[adding,setAdding]=useState(false),[verifying,setVerifying]=useState(''),[notice,setNotice]=useState('');
+  const [token,setToken]=useState(''),[prefill,setPrefill]=useState(''),[view,setView]=useState<any>(null),[error,setError]=useState(''),[adding,setAdding]=useState(false),[verifying,setVerifying]=useState(''),[notice,setNotice]=useState('');
   useEffect(()=>{
-    const t=new URLSearchParams(window.location.search).get('t')||'';setToken(t);
+    const params=new URLSearchParams(window.location.search),t=params.get('t')||'';setToken(t);
+    // ?phone= comes from "สมัครสมาชิกด้วยเบอร์นี้" in the chat: the number the customer just looked up.
+    const phone=(params.get('phone')||'').replace(/\D/g,'');if(/^0\d{8,9}$/.test(phone)){setPrefill(phone);setAdding(true)}
     fetch('/api/line/member?t='+encodeURIComponent(t),{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error);setView(d)}).catch(e=>setError(e.message));
   },[]);
-  const done=(d:any)=>{setView(d.view);setAdding(false);setVerifying('');setNotice(d.status==='verified'?`เชื่อมเบอร์ ${formatPhone(d.phone)} กับ LINE นี้แล้ว`:`ส่งคำขอแล้ว ร้านจะตรวจสอบและยืนยันเบอร์ ${formatPhone(d.phone)} ให้เร็วที่สุด`);window.scrollTo({top:0,behavior:'smooth'})};
+  const done=(d:any)=>{setView(d.view);setAdding(false);setPrefill('');setVerifying('');setNotice(d.status==='verified'?`เชื่อมเบอร์ ${formatPhone(d.phone)} กับ LINE นี้แล้ว`:`ส่งคำขอแล้ว ร้านจะตรวจสอบและยืนยันเบอร์ ${formatPhone(d.phone)} ให้เร็วที่สุด`);window.scrollTo({top:0,behavior:'smooth'})};
   if(error)return <main className="lm-page"><div className="lm-card lm-center"><h1>สมาชิก Wingpro</h1><p>{error}</p></div></main>;
   if(!view)return <main className="lm-page"><div className="lm-card lm-center"><p>กำลังโหลด…</p></div></main>;
   const phones=view.phones||[];
   return <main className="lm-page">
     <header className="lm-head"><small>WINGPRO BADMINTON</small><h1>บัตรสมาชิก</h1><p>สะสมดาวทุกครั้งที่ขึ้นเอ็น แลกถุงเท้าหรือขึ้นเอ็นฟรี และรับแจ้งสถานะไม้ใน LINE อัตโนมัติ</p></header>
     {notice&&<div className="lm-notice">{notice}</div>}
-    {!phones.length&&<section className="lm-card"><h2>สมัครสมาชิก</h2><p className="lm-muted">กรอกชื่อและเบอร์โทรที่ใช้กับร้าน ถ้าเคยขึ้นเอ็นหรือซื้อของที่ร้าน ดาวสะสมเดิมจะรวมให้อัตโนมัติ</p><RegisterForm token={token} onDone={done}/></section>}
+    {!phones.length&&<section className="lm-card"><h2>สมัครสมาชิก</h2><p className="lm-muted">กรอกชื่อและเบอร์โทรที่ใช้กับร้าน ถ้าเคยขึ้นเอ็นหรือซื้อของที่ร้าน ดาวสะสมเดิมจะรวมให้อัตโนมัติ</p><RegisterForm token={token} suggestedPhone={prefill} onDone={done}/></section>}
     {phones.map((p:any)=><section className="lm-card" key={p.phone}>
       <div className="lm-card-head"><div><h2>{p.name||'สมาชิก'}</h2><span>{formatPhone(p.phone)}</span></div><em className={p.status==='verified'?'is-ok':'is-wait'}>{p.status==='verified'?'✓ ยืนยันแล้ว':'รอร้านยืนยัน'}</em></div>
       {p.status==='verified'?<>
@@ -67,7 +69,7 @@ export default function LineMemberPage(){
       </>:verifying===p.phone?<RegisterForm token={token} initialPhone={p.phone} initialName={p.name} needsJob onDone={done} onCancel={()=>setVerifying('')}/>
       :<div className="lm-pending"><p>เบอร์นี้มีประวัติที่ร้านอยู่แล้ว เพื่อความปลอดภัยของข้อมูล ร้านจะตรวจสอบก่อนแสดงดาวสะสมและประวัติ</p><button type="button" className="lm-secondary" onClick={()=>setVerifying(p.phone)}>มีเลขรับไม้? ยืนยันเองได้ทันที</button></div>}
     </section>)}
-    {phones.length>0&&(adding?<section className="lm-card"><h2>เพิ่มเบอร์โทร</h2><p className="lm-muted">เช่น เบอร์ของลูกที่มาขึ้นเอ็นกับร้าน จะได้ดูดาวสะสมและรับแจ้งสถานะไม้ของเบอร์นั้นด้วย</p><RegisterForm token={token} onDone={done} onCancel={()=>setAdding(false)}/></section>
+    {phones.length>0&&(adding?<section className="lm-card"><h2>เพิ่มเบอร์โทร</h2><p className="lm-muted">เช่น เบอร์ของลูกที่มาขึ้นเอ็นกับร้าน จะได้ดูดาวสะสมและรับแจ้งสถานะไม้ของเบอร์นั้นด้วย</p><RegisterForm token={token} suggestedPhone={prefill} onDone={done} onCancel={()=>setAdding(false)}/></section>
       :<button type="button" className="lm-add" onClick={()=>setAdding(true)}>+ เพิ่มเบอร์โทรอื่น</button>)}
     <footer className="lm-foot">ข้อมูลของคุณใช้เฉพาะสะสมแต้มและแจ้งสถานะไม้ของร้าน Wingpro Badminton เท่านั้น</footer>
   </main>;

@@ -1,10 +1,10 @@
 import {runtime,db,all,one,uid,now,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,noActiveJobsMessage,otherPhoneQuickReply,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
+import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,noActiveJobsMessage,otherPhoneQuickReply,phoneNotFoundMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {PRODUCT_INTENT,coreQuery,inquiryKey,isGeneralStringingQuestion,pickMatches,searchProducts} from '@/lib/product-search';
 import {askProductAi} from '@/lib/product-ai';
 import {memberProgram,memberStatus} from '@/lib/member-status';
-import {lineMembersReady,linePhones,maskPhone,memberToken} from '@/lib/line-member';
+import {lineMembersReady,linePhones,maskPhone,memberToken,phoneHasHistory} from '@/lib/line-member';
 
 // LINE OA webhook. Every request is signed with the channel secret; anything unsigned is rejected before parsing.
 async function verified(req:Request){
@@ -68,10 +68,13 @@ async function pointsCard(phone:string,trackToken=''){
 // no link into the job (see trackJobsMessage / memberCardMessage).
 async function onPhone(digits:string,lineUser:string){
   const jobs=await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,digits);
+  const ready=await lineMembersReady();
+  // A number the shop has never seen: say so plainly and offer the sign-up with it (not a "0 ดาว" stamp card).
+  if(!jobs.length&&!(await phoneHasHistory(digits)))return [phoneNotFoundMessage(digits,ready?memberUrl(lineUser):'')];
   const card=await pointsCard(digits);
   const messages:any[]=[...(card?[card]:[]),...await trackReply(jobs,lineUser)];
   // Not this LINE account's registered number yet: offer the sign-up, so its jobs and stamps show without typing.
-  if(await lineMembersReady()){const rows=await linePhones(lineUser);if(!rows.some(r=>r.phone===digits&&r.status==='verified')){const signup=memberLinkMessage(memberUrl(lineUser),{registered:rows.length>0,pending:rows.filter(r=>r.status!=='verified').map(r=>maskPhone(r.phone))});if(signup&&messages.length)messages.push(signup);}}
+  if(ready){const rows=await linePhones(lineUser);if(!rows.some(r=>r.phone===digits&&r.status==='verified')){const signup=memberLinkMessage(memberUrl(lineUser),{registered:rows.length>0,pending:rows.filter(r=>r.status!=='verified').map(r=>maskPhone(r.phone))});if(signup&&messages.length)messages.push(signup);}}
   return messages.length?messages:[text('ไม่พบข้อมูลของเบอร์นี้ ถ้าคิดว่าไม่ถูกต้อง ติดต่อร้านได้เลย')];
 }
 
@@ -99,7 +102,7 @@ async function onMember(lineUser:string){
     const open:any=await one(`SELECT token FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND paid=0 AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 1`,row.phone);
     if(member)messages.push(memberCardMessage(member,{holder:`${row.name||'สมาชิก'} · ${maskPhone(row.phone)}`,trackUrl:open?.token&&base?`${base}/track/${open.token}`:''}));
   }
-  if(!verified.length){const program=await memberProgram(config);if(program)messages.push(memberCardMessage(program,{known:false}));}
+  if(!verified.length){const program=await memberProgram(config);if(program)messages.push(memberCardMessage(program,{program:true}));}
   const link=memberLinkMessage(url,{registered:phones.length>0,pending});
   if(link)messages.push(link);
   return messages.length?messages.slice(0,5):[ASK_PHONE_POINTS];
