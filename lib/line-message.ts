@@ -576,3 +576,37 @@ export function phoneNotFoundMessage(phone: string, url = "") {
     },
   };
 }
+
+// A typed number with history that this LINE account hasn't proved is theirs: its stamps and history stay hidden
+// (anyone can type anyone's number) - explain why, and link to the member page to verify it (receipt job number,
+// or staff approval). pending = a request for it is already waiting at the shop.
+export function verifyPhoneMessage(phone: string, url = "", { pending = false } = {}) {
+  const digits = String(phone).replace(/\D/g, "");
+  const shown = digits.length >= 9 ? `${digits.slice(0, 3)}-xxx-${digits.slice(-4)}` : digits;
+  const verify = /^https:\/\//.test(url) ? `${url}${url.includes("?") ? "&" : "?"}phone=${digits}` : "";
+  return {
+    type: "flex",
+    altText: `ดาวสะสมของเบอร์ ${shown} ดูได้หลังยืนยันเบอร์`,
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box", layout: "vertical", paddingAll: "16px", spacing: "sm",
+        contents: [
+          text(`ดาวสะสมของเบอร์ ${shown}`, { size: "md", weight: "bold", color: NAVY }),
+          text(pending
+            ? "ส่งคำขอยืนยันเบอร์นี้แล้ว รอร้านตรวจสอบ เมื่อยืนยันแล้วจะเห็นดาวสะสมและรับแจ้งสถานะไม้ใน LINE"
+            : "เพื่อความปลอดภัย ดาวสะสมและประวัติแสดงเฉพาะเจ้าของเบอร์ ยืนยันด้วยเลขรับไม้ (#XXXXXXXX บนใบรับไม้) ได้ทันที หรือให้ร้านยืนยันให้", { size: "xs", color: MUTED }),
+        ],
+      },
+      ...(verify ? {
+        footer: {
+          type: "box", layout: "vertical", paddingAll: "12px",
+          contents: [pending
+            ? { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "ดูสถานะคำขอ", uri: verify } }
+            : { type: "button", style: "primary", color: PURPLE, height: "sm", action: { type: "uri", label: "ยืนยันเบอร์นี้", uri: verify } }],
+        },
+      } : {}),
+    },
+  };
+}

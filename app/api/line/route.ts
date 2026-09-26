@@ -1,6 +1,6 @@
 import {runtime,db,all,one,uid,now,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,noActiveJobsMessage,otherPhoneQuickReply,phoneNotFoundMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
+import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,noActiveJobsMessage,otherPhoneQuickReply,phoneNotFoundMessage,verifyPhoneMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {PRODUCT_INTENT,coreQuery,inquiryKey,isGeneralStringingQuestion,pickMatches,searchProducts} from '@/lib/product-search';
 import {askProductAi} from '@/lib/product-ai';
 import {memberProgram,memberStatus} from '@/lib/member-status';
@@ -66,15 +66,22 @@ async function pointsCard(phone:string,trackToken=''){
 // A typed phone number answers both menu buttons at once (there is no conversation state to know which one asked):
 // that number's stars, then its jobs still at the shop. Anyone can type any number, so both stay compact - no name,
 // no link into the job (see trackJobsMessage / memberCardMessage).
+// A typed phone number. Anyone can type anyone's number, so what comes back depends on whether THIS LINE account
+// is a verified member for it:
+//  - never seen at the shop: "ไม่พบข้อมูล" + sign up with it;
+//  - verified for this account: its stamp card and its jobs in full;
+//  - otherwise: only the compact stringing status (no stamps, no link into the job) + how to verify the number.
 async function onPhone(digits:string,lineUser:string){
   const jobs=await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,digits);
   const ready=await lineMembersReady();
-  // A number the shop has never seen: say so plainly and offer the sign-up with it (not a "0 ดาว" stamp card).
   if(!jobs.length&&!(await phoneHasHistory(digits)))return [phoneNotFoundMessage(digits,ready?memberUrl(lineUser):'')];
-  const card=await pointsCard(digits);
-  const messages:any[]=[...(card?[card]:[]),...await trackReply(jobs,lineUser)];
-  // Not this LINE account's registered number yet: offer the sign-up, so its jobs and stamps show without typing.
-  if(ready){const rows=await linePhones(lineUser);if(!rows.some(r=>r.phone===digits&&r.status==='verified')){const signup=memberLinkMessage(memberUrl(lineUser),{registered:rows.length>0,pending:rows.filter(r=>r.status!=='verified').map(r=>maskPhone(r.phone))});if(signup&&messages.length)messages.push(signup);}}
+  const rows=ready?await linePhones(lineUser):[];
+  const mine=rows.find(r=>r.phone===digits);
+  const owned=!ready||mine?.status==='verified';
+  const messages:any[]=[];
+  if(owned){const card=await pointsCard(digits);if(card)messages.push(card);}
+  messages.push(...await trackReply(owned&&ready?jobs.map((j:any)=>({...j,line_user:lineUser})):jobs,lineUser));
+  if(!owned)messages.push(verifyPhoneMessage(digits,memberUrl(lineUser),{pending:mine?.status==='pending'}));
   return messages.length?messages:[text('ไม่พบข้อมูลของเบอร์นี้ ถ้าคิดว่าไม่ถูกต้อง ติดต่อร้านได้เลย')];
 }
 
