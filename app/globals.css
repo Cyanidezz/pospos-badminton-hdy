@@ -924,3 +924,39 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .breakdown-history li>div{display:flex;flex-direction:column;gap:2px;font-size:14px}
 .breakdown-history small{color:#7b8b81}
 @media(max-width:640px){.breakdown-new{grid-template-columns:1fr}.breakdown-pair{grid-template-columns:1fr}.breakdown-pair>svg{transform:rotate(90deg)}}
+
+/* PO payment terms + เจ้าหนี้ค้างชำระ */
+.po-payment-terms{display:grid;gap:10px;margin:0 0 16px;padding:14px;border:1px solid #e3e8f0;border-radius:14px;background:#fff}
+.po-payment-terms>span{font-size:13px;font-weight:600;color:#4e6659}
+.po-pay-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.po-pay-tabs>button{all:unset;cursor:pointer;padding:9px 16px;border-radius:999px;border:1px solid #d9e0ec;background:#fff;color:#2f4164;font-size:14px;font-weight:600}
+.po-pay-tabs>button.is-active{background:#3a70d4;border-color:#3a70d4;color:#fff}
+.po-credit-fields{display:grid;grid-template-columns:2fr 1fr;gap:12px;align-items:end}
+.po-credit-fields label{display:grid;gap:6px;font-size:13px;font-weight:600;color:#4e6659}
+.po-credit-fields small{grid-column:1/-1}
+.po-credit-line{margin:2px 0 0;font-size:12px;color:#8a5a12}
+.po-credit-line.is-overdue{color:#b04742;font-weight:700}
+.nav-count-alert{background:#e0525a!important;color:#fff!important}
+.payables-page{display:grid;gap:16px;max-width:1000px}
+.payables-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.payables-summary>button{all:unset;cursor:pointer;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;padding:16px 18px;border:1px solid #d9e0ec;border-radius:15px;background:#fff}
+.payables-summary>button span{font-size:13px;color:#728279}
+.payables-summary>button strong{font-size:24px;letter-spacing:-.5px;color:#1d3c76}
+.payables-summary>button small{color:#7b8b81}
+.payables-summary>button.is-overdue strong{color:#b04742}
+.payables-summary>button.is-soon strong{color:#a77922}
+.payables-summary>button.is-active{border-color:#3a70d4;box-shadow:0 0 0 2px #3a70d433}
+.payables-group{padding:6px 16px 10px}
+.payables-group-head{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #edf0f5;font-size:15px}
+.payables-group-head span{color:#4e6659;font-weight:600}
+.payables-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.2fr) auto auto;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid #f1f3f8}
+.payables-row:last-child{border-bottom:0}
+.payables-row>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.payables-row small{color:#7b8b81}
+.payables-due span{font-size:13px}
+.payables-due em{font-style:normal;font-size:12px;font-weight:700;color:#4e6659}
+.payables-due em.is-overdue{color:#b04742}.payables-due em.is-soon{color:#a77922}
+.payables-row strong{font-size:16px;color:#1d3c76;text-align:right}
+.payables-paid ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.payables-paid li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;font-size:13px;color:#4e6659}
+@media(max-width:700px){.payables-summary{grid-template-columns:1fr}.payables-row{grid-template-columns:1fr auto}.payables-row .payables-due{grid-column:1}.payables-row button{grid-column:1/-1}.po-credit-fields{grid-template-columns:1fr}}

@@ -182,7 +182,7 @@ test("cashiers never see product cost, on the PO page or over the network", asyn
   // already are - so a cashier session never receives the figures at all, not just a UI that hides them
   const getBlock = dataRoute.slice(dataRoute.indexOf("export async function GET"), dataRoute.indexOf("export async function POST"));
   assert.match(getBlock, /poTotal=isOwner\?'total':'NULL as total'/);
-  assert.match(getBlock, /SELECT id,date,supplier_id,note,evidence,\$\{poTotal\},status,created_by,created,updated,approved_by,approved_at,paid_at,received_at FROM purchase_orders/);
+  assert.match(getBlock, /SELECT id,date,supplier_id,note,evidence,\$\{poTotal\},status,created_by,created,updated,approved_by,approved_at,paid_at,received_at,COALESCE\(to_jsonb\(purchase_orders\)->>'payment_method','transfer'\) AS payment_method,COALESCE\(to_jsonb\(purchase_orders\)->>'creditor',''\) AS creditor,to_jsonb\(purchase_orders\)->>'due_date' AS due_date FROM purchase_orders/);
   assert.match(getBlock, /SELECT id,purchase_order_id,product_id,name,qty,\$\{cost\},to_jsonb\(purchase_order_items\)->>'price' AS price FROM purchase_order_items/);
   assert.doesNotMatch(getBlock, /SELECT \* FROM purchase_orders/);
   assert.doesNotMatch(getBlock, /SELECT \* FROM purchase_order_items/);
@@ -222,7 +222,7 @@ test("keeps purchase orders staged until inventory is received", async () => {
     assert.match(migration, new RegExp(`policy "server only" on public\\.${table}`, "i"));
   }
   assert.match(approvalMigration, /pending_approval/);
-  assert.match(dataRoute, /transitions:any=\{pending_approval:'approved',approved:'paid',paid:'received'\}/);
+  assert.match(dataRoute, /transitions:any=\{pending_approval:\['approved'\],approved:credit\?\['received','paid'\]:\['paid'\],paid:\['received'\]\}/, "transfer: approved -> paid -> received; credit may receive first");
   assert.match(dataRoute, /action==='purchaseOrderStatus'\)\{owner\(me\)/);
   assert.match(dataRoute, /targetStatus==='approved'\)owner\(me\)/);
   assert.match(dataRoute, /UPDATE products SET stock=stock\+\?,\$\{averaged\}/);
@@ -1665,4 +1665,23 @@ test("แปลงสินค้าขายย่อย: open packs into singl
   assert.match(data, /q\('SELECT 1\/\(SELECT COUNT\(\*\)::int FROM product_conversions WHERE id=\?\) AS ok',id\)/, "a lost race rolls the whole conversion back");
   assert.match(data, /INSERT INTO stock_adjustments\(id,product_id,delta,reason,staff_id,created\) VALUES\(\?,\?,\?,\?,\?,\?\)',id\+'-out',parent\.id,-qty,reason/, "both sides show in the stock movement history");
   assert.match(api, /const cost=\(t:string\)=>isOwner\?`\$\{t\}\.cost`:'NULL::integer';/, "costs stay owner-only");
+});
+
+test("PO payment terms: transfer or credit (creditor + due date); credit debts listed in เจ้าหนี้ค้างชำระ until paid", async t => {
+  const migration = await read("supabase/migrations/20260926020000_po_payment_terms.sql");
+  const data = await read("app/api/data/route.ts");
+  const po = await read("app/purchase-orders.tsx");
+  const payables = await read("app/payables-page.tsx");
+  const pos = await read("app/pos.tsx");
+  assert.match(migration, /check \(payment_method in \('transfer','credit'\)\)/);
+  assert.match(migration, /add column if not exists due_date text/);
+  assert.match(data, /if\(paymentMethod==='credit'&&\(!creditor\|\|!\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(dueDate\|\|''\)\)\)throw new Error\('ซื้อแบบเครดิต กรุณาระบุชื่อเจ้าหนี้และวันที่ต้องชำระ'\);/);
+  assert.match(data, /else if\(action==='purchaseOrderPayDebt'\)\{owner\(me\);/);
+  assert.match(data, /UPDATE purchase_orders SET paid_at=\?,debt_paid_by=\?,updated=\? WHERE id=\? AND paid_at IS NULL/, "settling a received credit PO keeps it 'received'");
+  assert.match(data, /UPDATE purchase_orders SET status='received',received_at=\?,updated=\? WHERE id=\? AND status=\?",stamp,stamp,po\.id,po\.status/);
+  assert.match(po, /\['transfer','โอนเงิน'\],\['credit','เครดิต \(ค้างจ่าย\)'\]/);
+  assert.match(po, /\[\['received','รับสินค้าเข้าคลัง \(ค้างชำระ\)'\],\['paid','ชำระหนี้แล้ว'\]\]/);
+  assert.match(pos, /\.\.\.\(owner\?\[\['payables','เจ้าหนี้ค้างชำระ',Landmark\]\]:\[\]\)/, "owner-only menu");
+  assert.match(pos, /\{page==='payables'&&owner&&<PayablesPage /);
+  assert.match(payables, /export const openDebts=\(orders:any\[\]\)=>\(orders\|\|\[\]\)\.filter\(\(o:any\)=>o\.payment_method==='credit'&&!o\.paid_at&&\(o\.status==='approved'\|\|o\.status==='received'\)\);/);
 });
