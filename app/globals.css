@@ -1061,12 +1061,6 @@ button.stock-edit-reasons,.stock-edit-reasons>button:not([data-slot]){padding:6p
 .inventory-status-card.important{color:#a86a00;background:linear-gradient(145deg,#fff1c7,#fffaeb)!important}
 @media(max-width:900px){.inventory-status-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-status-card.important{grid-column:1/-1}}
 .inventory-status-card.important{box-shadow:inset 0 4px 0 #e39a1f,0 8px 22px rgba(27,49,88,.06)!important}.inventory-status-card.important.is-active{box-shadow:inset 0 4px 0 #e39a1f,0 0 0 2px #e39a1f,0 10px 24px rgba(27,49,88,.1)!important}
-/* ขายหน้าร้าน: มีสินค้า / ทั้งหมด */
-.pos-stock-view{display:inline-flex;gap:4px;padding:4px;border-radius:12px;background:#eef2f9}
-.pos-stock-view>button:not([data-slot]){padding:7px 14px;border-radius:9px;background:transparent;color:#4e6078;font-size:13px;font-weight:600;box-shadow:none;gap:6px;white-space:nowrap}
-.pos-stock-view>button:not([data-slot]) b{font-weight:700;color:#8391a7}
-.pos-stock-view>button.is-active:not([data-slot]){background:#fff;color:#2c5fc4;box-shadow:0 1px 4px #1d3c7620}
-.pos-stock-view>button.is-active:not([data-slot]) b{color:#2c5fc4}
 
 /* Safari 15 (iPad on iOS 15) has no container queries: the same narrow-list layouts by screen width instead.
    Browsers that do support them skip this block, so nothing changes there. */
