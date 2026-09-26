@@ -307,7 +307,7 @@ const LIST_LIMIT = 15;
 // products here are one model in several colours): one list card - a row each with price and stock, in-stock
 // first. Stock shown = stock minus strings already reserved for rackets in the queue, so a customer never hears
 // "มี" for one that is spoken for.
-export function productAnswerMessage(products: ShopProduct[], { siteUrl = "", phone = "" }: { siteUrl?: string; phone?: string } = {}) {
+export function productAnswerMessage(products: ShopProduct[], { siteUrl = "", phone = "", allQuery = "" }: { siteUrl?: string; phone?: string; allQuery?: string } = {}) {
   if (!products.length) return null;
   const base = /^https:\/\//.test(siteUrl) ? siteUrl.replace(/\/$/, "") : "";
   const tel = String(phone).replace(/[^0-9+]/g, "");
@@ -335,9 +335,14 @@ export function productAnswerMessage(products: ShopProduct[], { siteUrl = "", ph
       },
     };
   }
-  const sorted = [...products].sort((a, b) => Number(b.available > 0 || isService(b)) - Number(a.available > 0 || isService(a)));
-  const shown = sorted.slice(0, LIST_LIMIT), more = sorted.length - shown.length;
-  const rows = shown.map(product => ({
+  // Several products: only what can be sold right now - "เอ็นทั้งหมดที่มีสินค้า" is 34 strings, not all 106 the shop
+  // carries - with services (บริการขึ้นเอ็น) listed last and not counted as products. If every match is sold out, the
+  // list shows them marked "หมด" so the customer still learns the shop carries them.
+  const services = products.filter(isService), goods = products.filter(p => !isService(p));
+  const inStock = goods.filter(p => p.available > 0);
+  const listed = inStock.length ? inStock : goods;
+  const shown = listed.slice(0, LIST_LIMIT), more = listed.length - shown.length;
+  const row = (product: ShopProduct) => ({
     type: "box", layout: "horizontal", spacing: "sm", paddingTop: "6px",
     contents: [
       text(product.name, { size: "sm", color: NAVY, flex: 6 }),
@@ -349,26 +354,89 @@ export function productAnswerMessage(products: ShopProduct[], { siteUrl = "", ph
         ],
       },
     ],
-  }));
+  });
+  const title = !goods.length ? `ค่าบริการ ${services.length} รายการ` : inStock.length ? `มีสินค้า ${inStock.length} รายการ` : `หมดชั่วคราวทุกรายการ (${goods.length})`;
+  // "ดูทั้งหมด" re-runs the same search (no AI) and answers with one card per brand - see productBrandCarousel.
+  const moreButton = more > 0 && inStock.length && allQuery ? [{ type: "button", style: "primary", height: "sm", action: { type: "postback", label: "ดูทั้งหมด (แยกตามยี่ห้อ)", data: allQuery, displayText: "ดูทั้งหมด (แยกตามยี่ห้อ)" } }] : [];
+  const callButton = tel ? [{ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "โทรสอบถาม / จองสินค้า", uri: `tel:${tel}` } }] : [];
   return {
     type: "flex",
-    altText: `สินค้าที่ตรงกับที่ถาม ${products.length} รายการ`,
+    altText: title,
     contents: {
       type: "bubble",
       size: "mega",
       body: {
         type: "box", layout: "vertical", paddingAll: "16px", spacing: "xs",
         contents: [
-          text(`พบ ${products.length} รายการ`, { size: "md", weight: "bold", color: NAVY }),
-          ...(products.some(isStringProduct) ? [text("ราคาเอ็นรวมค่าขึ้นเอ็นแล้ว", { size: "xs", color: "#17804F" })] : []),
+          text(title, { size: "md", weight: "bold", color: inStock.length || !goods.length ? NAVY : "#CF4A44" }),
+          ...(goods.some(isStringProduct) ? [text("ราคาเอ็นรวมค่าขึ้นเอ็นแล้ว", { size: "xs", color: "#17804F" })] : []),
           { type: "separator", margin: "md" },
-          ...rows,
-          ...(more > 0 ? [text(`และอีก ${more} รายการ พิมพ์ชื่อรุ่นหรือสีให้ละเอียดขึ้นเพื่อดูเพิ่ม`, { size: "xs", color: MUTED, margin: "md" })] : []),
+          ...shown.map(row),
+          ...(more > 0 ? [text(`และอีก ${more} รายการ${moreButton.length ? " กด “ดูทั้งหมด” ด้านล่าง" : " พิมพ์ชื่อรุ่นหรือสีให้ละเอียดขึ้นเพื่อดูเพิ่ม"}`, { size: "xs", color: MUTED, margin: "md" })] : []),
+          ...(services.length && goods.length ? [{ type: "separator", margin: "md" }, text("ค่าบริการ", { size: "xs", color: MUTED, margin: "md" })] : []),
+          ...services.slice(0, 5).map(row),
         ],
       },
-      ...footer("โทรสอบถาม / จองสินค้า"),
+      ...(moreButton.length || callButton.length ? { footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "12px", contents: [...moreButton, ...callButton] } } : {}),
     },
   };
+}
+
+// The brand a product belongs to, for "ดูทั้งหมด (แยกตามยี่ห้อ)": a known brand anywhere in the name ("เอ็น Li-Ning
+// No.1" and "เอ็น Lining No.1" both -> Li-Ning), else the name's first Latin word ("เอ็น Kizuna Z58" -> Kizuna).
+const BRAND_NAMES: [RegExp, string][] = [
+  [/li[\s.\-_]*ning/i, "Li-Ning"], [/yonex/i, "Yonex"], [/victor/i, "Victor"], [/mizuno/i, "Mizuno"], [/gosen/i, "Gosen"],
+  [/kizuna/i, "Kizuna"], [/toalson/i, "Toalson"], [/felet/i, "Felet"], [/apacs/i, "Apacs"], [/kawasaki/i, "Kawasaki"],
+  [/babolat/i, "Babolat"], [/rsl/i, "RSL"], [/excella/i, "Excella"],
+  // Model names the shop sometimes writes without the brand ("เอ็น Aerosonic Bright Pink", "เอ็นExbolt 65 White").
+  [/aerosonic|exbolt|aerobite|\bbg ?\d|astrox|arcsaber|nanoflare|nanoray|duora|voltric|power cushion|aerus|eclipsion/i, "Yonex"],
+  [/\bvbs|thruster|jetspeed|auraspeed|brave ?sword/i, "Victor"],
+  [/aeronaut|axforce|halbertec|windstorm|calibar|bladex|tectonic/i, "Li-Ning"],
+];
+export function brandOf(name: string) {
+  for (const [pattern, brand] of BRAND_NAMES) if (pattern.test(name)) return brand;
+  const word = String(name).match(/[A-Za-z][A-Za-z0-9-]+/)?.[0];
+  return word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : "อื่นๆ";
+}
+
+// "ดูทั้งหมด (แยกตามยี่ห้อ)": every in-stock match as a carousel, one card per brand (most first), in stock only.
+// LINE allows at most 12 cards, so the smallest brands beyond 11 share an "อื่นๆ" card; rows per card are capped
+// to keep the message well inside LINE's size limit.
+export function productBrandCarousel(products: ShopProduct[], { phone = "" }: { phone?: string } = {}) {
+  const goods = products.filter(p => !isService(p) && p.available > 0);
+  if (!goods.length) return null;
+  const groups = new Map<string, ShopProduct[]>();
+  for (const product of goods) groups.set(brandOf(product.name), [...(groups.get(brandOf(product.name)) || []), product]);
+  let entries = [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  if (entries.length > 12) entries = [...entries.slice(0, 11), ["อื่นๆ", entries.slice(11).flatMap(([, list]) => list)]];
+  // A big brand is split over several cards ("Yonex (1/2)") so no single card gets near LINE's per-card size limit.
+  const ROWS = 20;
+  const cards = entries.flatMap(([brand, list]) => {
+    const parts = Math.ceil(list.length / ROWS);
+    return Array.from({ length: parts }, (_, i) => ({ brand: parts > 1 ? `${brand} (${i + 1}/${parts})` : brand, total: list.length, list: list.slice(i * ROWS, (i + 1) * ROWS) }));
+  }).slice(0, 12);
+  const tel = String(phone).replace(/[^0-9+]/g, "");
+  const bubbles = cards.map(({ brand, total, list }) => ({
+    type: "bubble",
+    size: "kilo",
+    body: {
+      type: "box", layout: "vertical", paddingAll: "14px", spacing: "xs",
+      contents: [
+        text(brand, { size: "lg", weight: "bold", color: NAVY }),
+        text(`มีสินค้า ${total} รายการ${list.some(isStringProduct) ? " · ราคารวมค่าขึ้นเอ็น" : ""}`, { size: "xxs", color: "#17804F" }),
+        { type: "separator", margin: "sm" },
+        ...list.map(product => ({
+          type: "box", layout: "horizontal", spacing: "sm", paddingTop: "4px",
+          contents: [
+            text(product.name, { size: "xs", color: NAVY, flex: 6 }),
+            text(`${priceText(product)}\nเหลือ ${product.available}`, { size: "xs", color: BLUE, align: "end", flex: 4 }),
+          ],
+        })),
+      ],
+    },
+    ...(tel ? { footer: { type: "box", layout: "vertical", paddingAll: "10px", contents: [{ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "โทรสั่ง / จอง", uri: `tel:${tel}` } }] } } : {}),
+  }));
+  return carousel(`มีสินค้า ${goods.length} รายการ แยกตามยี่ห้อ`, bubbles);
 }
 
 // Nothing in the shop matches: say so plainly, and that the shop has been told (the request is logged).

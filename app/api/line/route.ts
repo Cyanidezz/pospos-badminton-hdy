@@ -1,6 +1,6 @@
 import {runtime,db,all,one,uid,now,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {isService,memberCardMessage,productAnswerMessage,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
+import {isService,memberCardMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {PRODUCT_INTENT,coreQuery,inquiryKey,isGeneralStringingQuestion,pickMatches,searchProducts} from '@/lib/product-search';
 import {askProductAi} from '@/lib/product-ai';
 import {memberProgram,memberStatus} from '@/lib/member-status';
@@ -106,13 +106,30 @@ async function logInquiry(kind:'missing'|'out_of_stock',key:string,query:string,
   }catch(error:any){console.error('Product inquiry log failed',error?.message);}
 }
 
-async function productReply(found:any[],lineUser:string){
+// Postback data for "ดูทั้งหมด (แยกตามยี่ห้อ)": the search text, trimmed until it fits LINE's 300-character limit
+// (Thai letters take 9 characters each once URL-encoded).
+function allQueryData(query:string){
+  let q=String(query||'').trim().slice(0,120);
+  while(q&&('action=all&q='+encodeURIComponent(q)).length>300)q=q.slice(0,-1);
+  return q?'action=all&q='+encodeURIComponent(q):'';
+}
+
+async function productReply(found:any[],lineUser:string,query=''){
   const config:any=await one('SELECT contact_phone FROM config WHERE id=1');
   const phone=config?.contact_phone??DEFAULT_SHOP.phone;
   // A sold-out product someone asked for specifically (not one of a long list) is worth restocking - log it.
   if(found.length<=3)for(const p of found)if(!isService(p))if(Number(p.available)<=0)await logInquiry('out_of_stock',p.id,p.name,lineUser,p.id);
-  const message=productAnswerMessage(found.map(p=>({...p,available:Math.max(0,Number(p.available)||0),price:Number(p.price)||0})),{siteUrl:siteUrl(),phone});
+  const message=productAnswerMessage(found.map(p=>({...p,available:Math.max(0,Number(p.available)||0),price:Number(p.price)||0})),{siteUrl:siteUrl(),phone,allQuery:allQueryData(query)});
   return message?[message]:[];
+}
+
+// "ดูทั้งหมด (แยกตามยี่ห้อ)": the same search again (rules only - no AI, no cost), every in-stock match, a card per brand.
+async function onAllProducts(query:string){
+  const products=await shopProducts();
+  const found=pickMatches(searchProducts(query,products)).products.map((p:any)=>products.find(x=>x.id===p.id)).filter(Boolean);
+  const config:any=await one('SELECT contact_phone FROM config WHERE id=1');
+  const message=productBrandCarousel(found.map((p:any)=>({...p,available:Math.max(0,Number(p.available)||0),price:Number(p.price)||0})),{phone:config?.contact_phone??DEFAULT_SHOP.phone});
+  return message?[message]:[text('ตอนนี้สินค้าที่ตรงกับที่ถามหมดชั่วคราว สอบถามร้านได้เลย')];
 }
 
 async function notFoundReply(wanted:string,message:string,lineUser:string){
@@ -133,21 +150,21 @@ async function onProductQuestion(message:string,lineUser:string){
   const rule=pickMatches(ranked);
   const byId=new Map(products.map(p=>[p.id,p]));
   // A strong name match ("lining no1", "bg80") needs no AI - answered straight away, at no cost.
-  if(rule.kind!=='none'&&ranked[0].score>=0.85)return productReply(rule.products.map(p=>byId.get(p.id)),lineUser);
+  if(rule.kind!=='none'&&ranked[0].score>=0.85)return productReply(rule.products.map(p=>byId.get(p.id)),lineUser,message);
   const env=runtime();
   if(env.ANTHROPIC_API_KEY){
     const shortlist=products.length<=60?products:ranked.slice(0,30).map(m=>byId.get(m.product.id));
     const ai=await askProductAi(message,shortlist,{apiKey:env.ANTHROPIC_API_KEY,model:env.ANTHROPIC_MODEL});
     if(ai){
       if(!ai.isProductQuestion)return [];
-      if(ai.productIds.length)return productReply(ai.productIds.map(id=>byId.get(id)).filter(Boolean),lineUser);
+      if(ai.productIds.length)return productReply(ai.productIds.map(id=>byId.get(id)).filter(Boolean),lineUser,ai.wanted||message);
       // The AI's cleaned-up name ("ลีนนิ่งนัมเบอวัน" -> "Li-Ning No.1") may find what the raw text couldn't.
       const again=ai.wanted?searchProducts(ai.wanted,products):[];
-      if(again.length&&again[0].score>=0.6)return productReply(pickMatches(again).products.map(p=>byId.get(p.id)),lineUser);
+      if(again.length&&again[0].score>=0.6)return productReply(pickMatches(again).products.map(p=>byId.get(p.id)),lineUser,ai.wanted);
       return notFoundReply(ai.wanted,message,lineUser);
     }
   }
-  if(rule.kind!=='none')return productReply(rule.products.map(p=>byId.get(p.id)),lineUser);
+  if(rule.kind!=='none')return productReply(rule.products.map(p=>byId.get(p.id)),lineUser,message);
   if(PRODUCT_INTENT.test(message)&&coreQuery(message))return notFoundReply('',message,lineUser);
   return [];
 }
@@ -165,6 +182,7 @@ export async function POST(req:Request){
         else if(action==='promo')await replyLine(replyToken,await onPromotions());
         else if(action==='points')await replyLine(replyToken,await onPoints(lineUser));
         else if(action==='price')await replyLine(replyToken,await onPrice());
+        else if(action==='all')await replyLine(replyToken,await onAllProducts(new URLSearchParams(e.postback?.data||'').get('q')||''));
         continue;
       }
       if(e.type!=='message'||e.message?.type!=='text')continue;

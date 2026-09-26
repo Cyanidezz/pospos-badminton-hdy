@@ -1571,6 +1571,8 @@ test("LINE product answers: price + stock left from the database; AI only picks 
   assert.match(webhook, /if\(rule\.kind!=='none'&&ranked\[0\]\.score>=0\.85\)return productReply/, "a strong name match skips the AI (no cost)");
   assert.match(webhook, /const again=ai\.wanted\?searchProducts\(ai\.wanted,products\):\[\];/, "the AI's cleaned-up name gets a second search before 'ไม่มี'");
   assert.match(webhook, /AND category<>'สินค้าเทียบ'/);
+  assert.match(webhook, /else if\(action==='all'\)await replyLine\(replyToken,await onAllProducts\(/, "ดูทั้งหมด re-runs the search without the AI");
+  assert.match(webhook, /while\(q&&\('action=all&q='\+encodeURIComponent\(q\)\)\.length>300\)q=q\.slice\(0,-1\);/, "postback data stays within LINE's 300 characters");
   assert.match(webhook, /if\(PRODUCT_INTENT\.test\(message\)&&coreQuery\(message\)\)return notFoundReply/, "rules only log 'not stocked' for a clear buying question");
   assert.match(webhook, /\/\^\(สอบถาม\)\?ราคา\(ขึ้นเอ็น\|เอ็น\)\?/, "a bare 'ราคา' still gets the shop's price sheet");
   assert.match(ai, /filter\(\(id: string\) => known\.has\(id\)\)/, "an id the AI made up is dropped");
@@ -1592,20 +1594,38 @@ test("LINE product answers: price + stock left from the database; AI only picks 
   const out = JSON.stringify(line.productAnswerMessage([{ id: "6", name: "Grip", category: "กริป", price: 9000, available: 0 }]));
   assert.match(out, /สินค้าหมดชั่วคราว/);
   assert.doesNotMatch(out, /ราคารวมค่าขึ้นเอ็น/, "only strings include stringing");
-  // Several products (one model in several colours): one list card, in-stock first, price 0 -> "สอบถามราคา".
+  // Several products: only what is in stock is listed ("มีสินค้า N รายการ"), services last and not counted,
+  // price 0 -> "สอบถามราคา"; more than 15 -> a "ดูทั้งหมด (แยกตามยี่ห้อ)" button.
   const list = line.productAnswerMessage([
     { id: "a", name: "เอ็น Yonex BG80 Yellow", category: "เอ็นแบดมินตัน", price: 32000, available: 0 },
     { id: "b", name: "เอ็น Yonex BG80 White", category: "เอ็นแบดมินตัน", price: 32000, available: 3 },
     { id: "c", name: "เอ็น Yonex BG80 Power", category: "เอ็นแบดมินตัน", price: 0, available: 1 },
-  ]);
+    { id: "s", name: "บริการขึ้นเอ็น", category: "เอ็นแบดมินตัน", price: 10000, available: -6 },
+  ], { allQuery: "action=all&q=bg80" });
   const listJson = JSON.stringify(list);
   assert.equal(list.contents.type, "bubble");
-  assert.match(listJson, /พบ 3 รายการ/);
+  assert.match(listJson, /มีสินค้า 2 รายการ/, "the sold-out one and the service are not counted");
+  assert.doesNotMatch(listJson, /BG80 Yellow/, "sold out -> not listed");
   assert.match(listJson, /ราคาเอ็นรวมค่าขึ้นเอ็นแล้ว/);
   assert.match(listJson, /สอบถามราคา/);
-  assert.ok(listJson.indexOf("BG80 White") < listJson.indexOf("BG80 Yellow"), "in stock first");
-  const many = JSON.stringify(line.productAnswerMessage(Array.from({ length: 20 }, (_, i) => ({ id: String(i), name: "P" + i, price: 100, available: 1 }))));
-  assert.match(many, /และอีก 5 รายการ/);
+  assert.ok(listJson.indexOf("BG80 White") < listJson.indexOf("บริการขึ้นเอ็น"), "services come last");
+  assert.doesNotMatch(listJson, /ดูทั้งหมด/, "no button when everything fits");
+  const soldOut = JSON.stringify(line.productAnswerMessage([{ id: "a", name: "A", category: "กริป", price: 100, available: 0 }, { id: "b", name: "B", category: "กริป", price: 100, available: 0 }]));
+  assert.match(soldOut, /หมดชั่วคราวทุกรายการ \(2\)/, "all sold out: still shown, marked หมด");
+  const many = line.productAnswerMessage(Array.from({ length: 20 }, (_, i) => ({ id: String(i), name: "P" + i, price: 100, available: 1 })), { allQuery: "action=all&q=x" });
+  assert.match(JSON.stringify(many), /และอีก 5 รายการ กด “ดูทั้งหมด” ด้านล่าง/);
+  assert.equal(many.contents.footer.contents[0].action.data, "action=all&q=x");
+  // ดูทั้งหมด: a card per brand, in stock only, big brands split so no card gets too large.
+  assert.equal(line.brandOf("เอ็น Lining No.1 Blue"), "Li-Ning");
+  assert.equal(line.brandOf("เอ็น Aerosonic Bright Pink"), "Yonex", "a Yonex model written without the brand");
+  assert.equal(line.brandOf("เอ็น Kizuna Z58"), "Kizuna");
+  const car = line.productBrandCarousel([
+    ...Array.from({ length: 27 }, (_, i) => ({ id: "y" + i, name: "เอ็น Yonex BG" + i, category: "เอ็นแบดมินตัน", price: 100, available: 1 })),
+    { id: "l", name: "เอ็น Li-Ning No.1", category: "เอ็นแบดมินตัน", price: 100, available: 2 },
+    { id: "z", name: "เอ็น Li-Ning No.5", category: "เอ็นแบดมินตัน", price: 100, available: 0 },
+  ]);
+  assert.deepEqual(car.contents.contents.map(b => b.body.contents[0].text), ["Yonex (1/2)", "Yonex (2/2)", "Li-Ning"]);
+  assert.doesNotMatch(JSON.stringify(car), /No\.5/, "sold out -> not in ดูทั้งหมด either");
   const service = JSON.stringify(line.productAnswerMessage([{ id: "s", name: "บริการขึ้นเอ็น", category: "เอ็นแบดมินตัน", price: 10000, available: -6 }]));
   assert.doesNotMatch(service, /หมด|มีสินค้า|รวมค่าขึ้นเอ็น/, "a service has no stock and is not a string");
   assert.match(line.productNotFoundMessage("Yonex Astrox 88D", "087-0954441").text, /ยังไม่มี “Yonex Astrox 88D” ร้านบันทึกไว้แล้ว/);
