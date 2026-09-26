@@ -21,7 +21,7 @@ export async function POST(req:Request){
     const lineUser=readMemberToken(b.t);
     if(!lineUser)return fail('ลิงก์หมดอายุหรือไม่ถูกต้อง กรุณากด “บัตรสมาชิก” ใน LINE ของร้านอีกครั้ง',401);
     if(!(await lineMembersReady()))return fail('ระบบสมาชิกผ่าน LINE ยังไม่พร้อมใช้งาน',503);
-    const result=await registerLineMember({lineUser,name:String(b.name||''),phone:String(b.phone||''),jobNumber:String(b.jobNumber||'')});
+    const result=await registerLineMember({lineUser,name:String(b.name||''),phone:String(b.phone||'')});
     return Response.json({...result,view:await memberView(lineUser)},{headers});
   }catch(e:any){return fail(e.message||'บันทึกไม่สำเร็จ')}
 }

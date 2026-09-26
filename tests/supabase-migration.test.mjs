@@ -1728,26 +1728,30 @@ test("สมาชิกผ่าน LINE: sign up / check membership from LINE,
   assert.match(migration, /primary key \(line_user, phone\)/, "a LINE account may hold several phones");
   assert.match(migration, /status in \('pending','verified'\)/);
   assert.match(migration, /revoke all on public\.line_members from anon, authenticated;/);
-  // A number with history needs proof - a receipt number, or staff approval - before its stamps are shown.
-  assert.match(member, /if \(!\(await phoneHasHistory\(digits\)\)\) method = "new";/);
-  assert.match(member, /lower\(left\(id,8\)\) LIKE \?/, "the #XXXXXXXX job number from one of that phone's receipts");
-  assert.match(member, /const status = method \? "verified" : "pending";/);
+  // Knowing a number proves nothing: every sign-up waits until the code on the customer's own member page is shown at
+  // the counter, or a receipt QR for that number is scanned. The receipt job number is no longer proof.
+  assert.match(member, /VALUES\(\?,\?,\?,'pending','',\?,\?,\?\)/, "sign-ups start pending");
+  assert.doesNotMatch(member, /lower\(left\(id,8\)\)/, "the job number (visible to others) no longer verifies");
+  assert.match(member, /String\(randomInt\(0, 1000000\)\)\.padStart\(6, "0"\)/);
+  assert.match(member, /export async function verifyByReceipt\(/);
   assert.match(member, /to_jsonb\(config\)->'manual_members'->\?/, "works before the manual_members migration too");
   assert.doesNotMatch(member, /manual_members \? \?/, "jsonb ? would be taken for a bind placeholder");
   assert.match(api, /const lineUser=readMemberToken\(/, "the public member API only acts for the LINE account in a valid signed token");
   assert.match(webhook, /else if\(action==='member'\|\|action==='points'\)await replyLine\(replyToken,await onMember\(lineUser\)\);/, "the old เช็คคะแนน button keeps working");
   assert.match(menu, /postback\("บัตรสมาชิก", "action=member"\)/);
   assert.match(data, /SELECT line_user FROM line_members WHERE phone=\? AND status='verified'/, "new jobs notify the verified LINE member");
-  assert.match(data, /else if\(action==='lineMemberApprove'\|\|action==='lineMemberReject'\)/);
-  assert.match(staff, /คำขอสมาชิกผ่าน LINE รอยืนยัน/);
+  assert.match(data, /else if\(action==='lineMemberApprove'\|\|action==='lineMemberReject'\|\|action==='lineMemberUnlink'\)/);
+  assert.match(data, /String\(b\.code\)!==row\.verify_code\)throw new Error\('รหัสยืนยันไม่ถูกต้อง'\)/, "staff can only verify with the customer's code");
+  assert.match(staff, /รหัส 6 หลักจากมือถือลูกค้า/);
+  assert.doesNotMatch(await read("app/api/line-members/route.ts"), /verify_code AS|l\.verify_code,/, "the codes are never listed to staff");
   let token;
   try { token = await import("../lib/line-token.ts"); }
   catch { t.skip("this Node version cannot import .ts files directly"); return; }
   const user = "U" + "0123456789abcdef".repeat(2), now = 1_800_000_000_000;
-  const signed = token.signLineToken(user, "secret", 7, now);
+  const signed = token.signLineToken(user, "secret", undefined, now);
   assert.equal(token.readLineToken(signed, "secret", now), user);
   assert.equal(token.readLineToken(signed, "other-secret", now), null, "forged with another key");
-  assert.equal(token.readLineToken(signed, "secret", now + 8 * 86400000), null, "expired after 7 days");
+  assert.equal(token.readLineToken(signed, "secret", now + 2 * 86400000), null, "expired after a day");
   assert.equal(token.readLineToken(signed.slice(0, -2) + "xx", "secret", now), null, "tampered");
   const [payload, mac] = signed.split(".");
   const swapped = Buffer.from(JSON.stringify({ u: "U" + "f".repeat(32), e: now + 86400000 })).toString("base64url");
@@ -1763,7 +1767,7 @@ test("ติดตามงานขึ้นเอ็น follows สมาช�
   assert.match(track, /if\(phones\.length\)\{[\s\S]*return \[noActiveJobsMessage\(/, "a member with nothing at the shop isn't asked for their phone again");
   assert.match(track, /return \[ASK_PHONE,\.\.\.\(signup\?\[signup\]:\[\]\)\];/, "a non-member is asked for a phone and offered the sign-up");
   const phone = webhook.slice(webhook.indexOf("async function onPhone("), webhook.indexOf("async function onPoints("));
-  assert.match(phone, /if\(!owned\)messages\.push\(verifyPhoneMessage\(digits,memberUrl\(lineUser\),\{pending:mine\?\.status==='pending'\}\)\);/, "typing a number that isn't yours yet offers to verify it");
+  assert.match(phone, /if\(ready&&mine\?\.status!=='verified'\)return \[verifyPhoneMessage\(digits,memberUrl\(lineUser\),\{pending:mine\?\.status==='pending'\}\)\];/, "typing a number that isn't yours shows nothing about it - only how to verify");
   let line;
   try { line = await import("../lib/line-message.ts"); }
   catch { t.skip("this Node version cannot import .ts files directly"); return; }
@@ -1790,40 +1794,37 @@ test("tracking in the customer's own words: 'ฝากไม้ด้วยเ�
   assert.equal(line.noActiveJobsMessage({ phones: ["087-xxx-4441"], url: "https://shop.example/x" }).quickReply.items.length, 2);
 });
 
-test("LINE: a number the shop has never seen gets 'ไม่พบข้อมูล' + sign-up with it, not a 0-star card", async t => {
+test("LINE: non-members see how stars work, not a 0-star balance; the member page opens on the looked-up number", async t => {
   const webhook = await read("app/api/line/route.ts");
   const page = await read("app/line/member/page.tsx");
-  assert.match(webhook, /if\(!jobs\.length&&!\(await phoneHasHistory\(digits\)\)\)return \[phoneNotFoundMessage\(digits,/);
   assert.match(webhook, /memberCardMessage\(program,\{program:true\}\)/, "non-members see how it works, not a '0 / 10' balance");
   assert.match(page, /const phone=\(params\.get\('phone'\)\|\|''\)\.replace\(\/\\D\/g,''\);if\(\/\^0\\d\{8,9\}\$\/\.test\(phone\)\)\{setPrefill\(phone\);setAdding\(true\)\}/);
+  assert.doesNotMatch(page, /jobNumber|เลขรับไม้ \{/, "no receipt-number field any more");
+  assert.match(page, /className="lm-code"/, "a pending number shows its code to show at the counter");
   let line;
   try { line = await import("../lib/line-message.ts"); }
   catch { t.skip("this Node version cannot import .ts files directly"); return; }
-  const notFound = line.phoneNotFoundMessage("0894644296", "https://shop.example/line/member?t=abc");
-  assert.equal(notFound.altText, "ไม่พบข้อมูลของเบอร์ 089-464-4296");
-  assert.equal(notFound.contents.footer.contents[0].action.uri, "https://shop.example/line/member?t=abc&phone=0894644296");
-  assert.equal(notFound.quickReply.items[0].action.data, "action=askphone");
   const program = { stars: 0, stringNeed: 10, socksNeed: 5, stringAvailable: false, socksAvailable: false, stringUsed: 0, socksUsed: 0, rewardCap: 30000, socksProductName: "ถุงเท้า", promo: null };
   const intro = JSON.stringify(line.memberCardMessage(program, { program: true }));
   assert.match(intro, /สะสมดาว แลกของรางวัล/);
   assert.doesNotMatch(intro, /\/ 10 ดาว/, "no star count that reads like a balance");
 });
 
-test("LINE: a typed number's stamps show only to the LINE account verified for it; others see job status + how to verify", async t => {
+test("LINE: a typed number shows nothing unless this LINE account is verified for it - same answer for every number", async t => {
   const webhook = await read("app/api/line/route.ts");
   const phone = webhook.slice(webhook.indexOf("async function onPhone("), webhook.indexOf("async function onPoints("));
-  assert.match(phone, /const owned=!ready\|\|mine\?\.status==='verified';/);
-  assert.match(phone, /if\(owned\)\{const card=await pointsCard\(digits\);/, "no stamp card for a number this account hasn't verified");
-  assert.match(phone, /trackReply\(owned&&ready\?jobs\.map\(\(j:any\)=>\(\{\.\.\.j,line_user:lineUser\}\)\):jobs,lineUser\)/, "someone else's number: compact job status only");
+  assert.match(phone, /if\(ready&&mine\?\.status!=='verified'\)return \[verifyPhoneMessage\(/, "not verified: no stamps, no jobs, not even whether the number is known");
+  assert.doesNotMatch(phone, /phoneHasHistory|phoneNotFoundMessage/, "'not found' would itself reveal whether someone is a customer");
+  assert.match(webhook, /if\(await lineMembersReady\(\)\)await verifyByReceipt\(lineUser,j\.phone,j\.customer\);/, "scanning the receipt QR verifies the number");
   const page = await read("app/line/member/page.tsx");
   assert.match(page, /\{phones\.length>0&&adding&&prefill&&addCard\}/, "the looked-up number's form comes first on the member page");
   let line;
   try { line = await import("../lib/line-message.ts"); }
   catch { t.skip("this Node version cannot import .ts files directly"); return; }
   const verify = line.verifyPhoneMessage("0805390444", "https://shop.example/line/member?t=abc");
-  assert.match(JSON.stringify(verify), /ดาวสะสมของเบอร์ 080-xxx-0444/);
+  assert.match(JSON.stringify(verify), /ข้อมูลของเบอร์ 080-xxx-0444/);
   assert.equal(verify.contents.footer.contents[0].action.uri, "https://shop.example/line/member?t=abc&phone=0805390444");
-  assert.equal(verify.contents.footer.contents[0].action.label, "ยืนยันเบอร์นี้");
-  assert.equal(line.verifyPhoneMessage("0805390444", "https://shop.example/x", { pending: true }).contents.footer.contents[0].action.label, "ดูสถานะคำขอ");
-  assert.doesNotMatch(JSON.stringify(verify), /ดาว\s*\d|\/ 10/, "no star count for a number that isn't theirs");
+  assert.equal(verify.contents.footer.contents[0].action.label, "สมัคร / ยืนยันเบอร์นี้");
+  assert.equal(line.verifyPhoneMessage("0805390444", "https://shop.example/x", { pending: true }).contents.footer.contents[0].action.label, "ดูรหัสยืนยัน");
+  assert.doesNotMatch(JSON.stringify(verify), /เลขรับไม้|#[0-9A-F]{8}/, "no job number anywhere");
 });

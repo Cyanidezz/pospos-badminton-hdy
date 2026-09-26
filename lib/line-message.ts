@@ -577,34 +577,34 @@ export function phoneNotFoundMessage(phone: string, url = "") {
   };
 }
 
-// A typed number with history that this LINE account hasn't proved is theirs: its stamps and history stay hidden
-// (anyone can type anyone's number) - explain why, and link to the member page to verify it (receipt job number,
-// or staff approval). pending = a request for it is already waiting at the shop.
+// A typed number this LINE account isn't verified for - the same answer whether or not the shop knows the number
+// (saying "not found" would itself tell a stranger whether someone is a customer). How to see it: sign up / add the
+// number, then show the code from the member page at the shop, or scan the QR on a stringing receipt.
 export function verifyPhoneMessage(phone: string, url = "", { pending = false } = {}) {
   const digits = String(phone).replace(/\D/g, "");
   const shown = digits.length >= 9 ? `${digits.slice(0, 3)}-xxx-${digits.slice(-4)}` : digits;
   const verify = /^https:\/\//.test(url) ? `${url}${url.includes("?") ? "&" : "?"}phone=${digits}` : "";
   return {
     type: "flex",
-    altText: `ดาวสะสมของเบอร์ ${shown} ดูได้หลังยืนยันเบอร์`,
+    altText: `ข้อมูลของเบอร์ ${shown} ดูได้เฉพาะเจ้าของเบอร์ที่ยืนยันแล้ว`,
     contents: {
       type: "bubble",
       size: "kilo",
       body: {
         type: "box", layout: "vertical", paddingAll: "16px", spacing: "sm",
         contents: [
-          text(`ดาวสะสมของเบอร์ ${shown}`, { size: "md", weight: "bold", color: NAVY }),
+          text(`ข้อมูลของเบอร์ ${shown}`, { size: "md", weight: "bold", color: NAVY }),
           text(pending
-            ? "ส่งคำขอยืนยันเบอร์นี้แล้ว รอร้านตรวจสอบ เมื่อยืนยันแล้วจะเห็นดาวสะสมและรับแจ้งสถานะไม้ใน LINE"
-            : "เพื่อความปลอดภัย ดาวสะสมและประวัติแสดงเฉพาะเจ้าของเบอร์ ยืนยันด้วยเลขรับไม้ (#XXXXXXXX บนใบรับไม้) ได้ทันที หรือให้ร้านยืนยันให้", { size: "xs", color: MUTED }),
+            ? "เบอร์นี้รอยืนยันอยู่ แสดงรหัสยืนยันในบัตรสมาชิกให้พนักงานที่ร้าน หรือสแกน QR บนใบรับไม้ของเบอร์นี้ แล้วจะเห็นสถานะไม้และดาวสะสม"
+            : "เพื่อความปลอดภัย สถานะไม้และดาวสะสมดูได้เฉพาะเจ้าของเบอร์ที่ยืนยันแล้ว สมัครสมาชิกด้วยเบอร์นี้ แล้วแสดงรหัสยืนยันให้พนักงานที่ร้าน หรือสแกน QR บนใบรับไม้", { size: "xs", color: MUTED }),
         ],
       },
       ...(verify ? {
         footer: {
           type: "box", layout: "vertical", paddingAll: "12px",
           contents: [pending
-            ? { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "ดูสถานะคำขอ", uri: verify } }
-            : { type: "button", style: "primary", color: PURPLE, height: "sm", action: { type: "uri", label: "ยืนยันเบอร์นี้", uri: verify } }],
+            ? { type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "ดูรหัสยืนยัน", uri: verify } }
+            : { type: "button", style: "primary", color: PURPLE, height: "sm", action: { type: "uri", label: "สมัคร / ยืนยันเบอร์นี้", uri: verify } }],
         },
       } : {}),
     },

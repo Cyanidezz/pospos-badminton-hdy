@@ -1,10 +1,10 @@
 import {runtime,db,all,one,uid,now,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,noActiveJobsMessage,otherPhoneQuickReply,phoneNotFoundMessage,verifyPhoneMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
+import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,noActiveJobsMessage,otherPhoneQuickReply,verifyPhoneMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {PRODUCT_INTENT,coreQuery,inquiryKey,isGeneralStringingQuestion,pickMatches,searchProducts} from '@/lib/product-search';
 import {askProductAi} from '@/lib/product-ai';
 import {memberProgram,memberStatus} from '@/lib/member-status';
-import {lineMembersReady,linePhones,maskPhone,memberToken,phoneHasHistory} from '@/lib/line-member';
+import {lineMembersReady,linePhones,maskPhone,memberToken,verifyByReceipt} from '@/lib/line-member';
 
 // LINE OA webhook. Every request is signed with the channel secret; anything unsigned is rejected before parsing.
 async function verified(req:Request){
@@ -66,22 +66,16 @@ async function pointsCard(phone:string,trackToken=''){
 // A typed phone number answers both menu buttons at once (there is no conversation state to know which one asked):
 // that number's stars, then its jobs still at the shop. Anyone can type any number, so both stay compact - no name,
 // no link into the job (see trackJobsMessage / memberCardMessage).
-// A typed phone number. Anyone can type anyone's number, so what comes back depends on whether THIS LINE account
-// is a verified member for it:
-//  - never seen at the shop: "ไม่พบข้อมูล" + sign up with it;
-//  - verified for this account: its stamp card and its jobs in full;
-//  - otherwise: only the compact stringing status (no stamps, no link into the job) + how to verify the number.
+// A typed phone number. Anyone can type anyone's number, so a number's stamps, jobs - and even whether the shop
+// knows it at all - are only shown to a LINE account verified for it (member-page code shown at the shop, or the
+// receipt QR). Everyone else gets the same answer for every number: how to sign up / verify it.
 async function onPhone(digits:string,lineUser:string){
-  const jobs=await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,digits);
   const ready=await lineMembersReady();
-  if(!jobs.length&&!(await phoneHasHistory(digits)))return [phoneNotFoundMessage(digits,ready?memberUrl(lineUser):'')];
-  const rows=ready?await linePhones(lineUser):[];
-  const mine=rows.find(r=>r.phone===digits);
-  const owned=!ready||mine?.status==='verified';
-  const messages:any[]=[];
-  if(owned){const card=await pointsCard(digits);if(card)messages.push(card);}
-  messages.push(...await trackReply(owned&&ready?jobs.map((j:any)=>({...j,line_user:lineUser})):jobs,lineUser));
-  if(!owned)messages.push(verifyPhoneMessage(digits,memberUrl(lineUser),{pending:mine?.status==='pending'}));
+  const rows=ready?await linePhones(lineUser):[],mine=rows.find(r=>r.phone===digits);
+  if(ready&&mine?.status!=='verified')return [verifyPhoneMessage(digits,memberUrl(lineUser),{pending:mine?.status==='pending'})];
+  const jobs=await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,digits);
+  const card=await pointsCard(digits);
+  const messages:any[]=[...(card?[card]:[]),...await trackReply(ready?jobs.map((j:any)=>({...j,line_user:lineUser})):jobs,lineUser)];
   return messages.length?messages:[text('ไม่พบข้อมูลของเบอร์นี้ ถ้าคิดว่าไม่ถูกต้อง ติดต่อร้านได้เลย')];
 }
 
@@ -129,9 +123,11 @@ async function onPrice(){
 }
 
 async function onLink(token:string,lineUser:string){
-  const j=await db().prepare('SELECT id FROM jobs WHERE token=? AND (line_user IS NULL OR line_user=?)').bind(token,lineUser).first();
+  const j:any=await db().prepare('SELECT id,phone,customer FROM jobs WHERE token=? AND (line_user IS NULL OR line_user=?)').bind(token,lineUser).first();
   if(!j)return;
   await db().prepare('UPDATE jobs SET line_user=? WHERE id=? AND (line_user IS NULL OR line_user=?)').bind(lineUser,j.id,lineUser).run();
+  // Holding the receipt proves the number: this LINE account becomes a verified member for it.
+  if(await lineMembersReady())await verifyByReceipt(lineUser,j.phone,j.customer);
   await notifyJob(j.id);
 }
 

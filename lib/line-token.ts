@@ -7,7 +7,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const b64 = (value: string) => Buffer.from(value).toString("base64url");
 const sign = (payload: string, secret: string) => createHmac("sha256", `${secret}:line-member`).update(payload).digest("base64url");
 
-export function signLineToken(lineUser: string, secret: string, days = 7, now = Date.now()) {
+export function signLineToken(lineUser: string, secret: string, days = 1, now = Date.now()) {
   const payload = b64(JSON.stringify({ u: lineUser, e: now + days * 86400000 }));
   return `${payload}.${sign(payload, secret)}`;
 }

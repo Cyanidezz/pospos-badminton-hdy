@@ -1009,3 +1009,15 @@ select:focus{outline:2px solid #b5d7cb;border-color:#3a70d4}
 .line-requests li>div:first-child{display:flex;flex-direction:column;gap:2px}
 .line-request-actions{display:flex;gap:8px}
 .line-chip{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;background:#06c755;color:#fff;font-size:10px;font-weight:700;vertical-align:middle}
+.line-code-form{display:flex;gap:8px;max-width:420px;margin:8px 0}
+.line-code-form input{font-size:18px;letter-spacing:3px}
+.line-code-error{color:#b04742;font-size:13px;font-weight:600;margin:4px 0}
+.line-code-match{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid #9fd8b9;background:#effaf4;border-radius:12px;margin:6px 0}
+.line-code-match>div{display:flex;flex-direction:column;gap:2px}
+.line-list{margin-top:10px}
+.line-list summary{cursor:pointer;font-size:14px;font-weight:600;color:#2f4164}
+.line-list ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:8px}
+.line-list li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid #e3e8f0;border-radius:12px;flex-wrap:wrap}
+.line-list li>div{display:flex;flex-direction:column;gap:2px}
+.lm-code{font-size:40px;font-weight:800;letter-spacing:6px;text-align:center;color:#6d3fd6;background:#f7f4ff;border:2px dashed #b9a8ef;border-radius:16px;padding:14px 8px;margin:6px 0 10px;font-variant-numeric:tabular-nums}
+.lm-pending small{display:block;color:#6b6780;line-height:1.5}

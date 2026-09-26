@@ -25,38 +25,37 @@ function Stamps({member}:{member:any}){
   </div>;
 }
 
-function RegisterForm({token,initialPhone='',initialName='',suggestedPhone='',needsJob=false,submitLabel='สมัครสมาชิก',onDone,onCancel}:any){
-  const [name,setName]=useState(initialName),[phone,setPhone]=useState(initialPhone||suggestedPhone),[jobNumber,setJobNumber]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+function RegisterForm({token,initialName='',suggestedPhone='',submitLabel='สมัครสมาชิก',onDone,onCancel}:any){
+  const [name,setName]=useState(initialName),[phone,setPhone]=useState(suggestedPhone),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const submit=async(e:any)=>{
     e.preventDefault();setBusy(true);setError('');
     try{
-      const r=await fetch('/api/line/member',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:token,name,phone,jobNumber})});
+      const r=await fetch('/api/line/member',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:token,name,phone})});
       const d=await r.json();if(!r.ok)throw new Error(d.error);
       onDone(d);
     }catch(err:any){setError(err.message)}finally{setBusy(false)}
   };
   return <form className="lm-form" onSubmit={submit}>
     <label><span>ชื่อ</span><input required maxLength={100} autoComplete="name" value={name} onChange={e=>setName(e.target.value)} placeholder="ชื่อ-นามสกุล หรือชื่อเล่น"/></label>
-    <label><span>เบอร์โทร</span><input required type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="0812345678" readOnly={!!initialPhone}/></label>
-    <label><span>เลขรับไม้ {needsJob?'':'(ถ้าเคยขึ้นเอ็นที่ร้าน)'}</span><input value={jobNumber} onChange={e=>setJobNumber(e.target.value)} placeholder="เช่น 502E4A3F" autoCapitalize="characters"/>
-      <small>ดูได้จากใบรับไม้หรือข้อความแจ้งสถานะใน LINE (#XXXXXXXX) ใส่แล้วยืนยันได้ทันที ถ้าไม่มี ร้านจะตรวจสอบและยืนยันให้</small></label>
+    <label><span>เบอร์โทร</span><input required type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="0812345678"/></label>
+    <small className="lm-muted">หลังสมัคร จะได้รหัสยืนยัน 6 หลัก แสดงให้พนักงานที่ร้านเพื่อยืนยันว่าเป็นเจ้าของเบอร์ (หรือสแกน QR บนใบรับไม้ของเบอร์นี้)</small>
     {error&&<p className="lm-error">{error}</p>}
-    <div className="lm-actions">{onCancel&&<button type="button" className="lm-secondary" onClick={onCancel}>ยกเลิก</button>}<button disabled={busy}>{busy?'กำลังบันทึก…':needsJob?'ยืนยันด้วยเลขรับไม้':submitLabel}</button></div>
+    <div className="lm-actions">{onCancel&&<button type="button" className="lm-secondary" onClick={onCancel}>ยกเลิก</button>}<button disabled={busy}>{busy?'กำลังบันทึก…':submitLabel}</button></div>
   </form>;
 }
 
 export default function LineMemberPage(){
-  const [token,setToken]=useState(''),[prefill,setPrefill]=useState(''),[view,setView]=useState<any>(null),[error,setError]=useState(''),[adding,setAdding]=useState(false),[verifying,setVerifying]=useState(''),[notice,setNotice]=useState('');
+  const [token,setToken]=useState(''),[prefill,setPrefill]=useState(''),[view,setView]=useState<any>(null),[error,setError]=useState(''),[adding,setAdding]=useState(false),[notice,setNotice]=useState('');
   useEffect(()=>{
     const params=new URLSearchParams(window.location.search),t=params.get('t')||'';setToken(t);
     // ?phone= comes from "สมัครสมาชิกด้วยเบอร์นี้" in the chat: the number the customer just looked up.
     const phone=(params.get('phone')||'').replace(/\D/g,'');if(/^0\d{8,9}$/.test(phone)){setPrefill(phone);setAdding(true)}
     fetch('/api/line/member?t='+encodeURIComponent(t),{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error);setView(d);
       // The number is already on this card (e.g. waiting for approval): show that one instead of an "add" form.
-      const known=(d.phones||[]).find((p:any)=>p.phone===phone);if(known){setAdding(false);setPrefill('');if(known.status!=='verified')setVerifying(known.phone)}
+      const known=(d.phones||[]).find((p:any)=>p.phone===phone);if(known){setAdding(false);setPrefill('')}
     }).catch(e=>setError(e.message));
   },[]);
-  const done=(d:any)=>{setView(d.view);setAdding(false);setPrefill('');setVerifying('');setNotice(d.status==='verified'?`เชื่อมเบอร์ ${formatPhone(d.phone)} กับ LINE นี้แล้ว`:`ส่งคำขอแล้ว ร้านจะตรวจสอบและยืนยันเบอร์ ${formatPhone(d.phone)} ให้เร็วที่สุด`);window.scrollTo({top:0,behavior:'smooth'})};
+  const done=(d:any)=>{setView(d.view);setAdding(false);setPrefill('');setNotice(d.status==='verified'?`อัปเดตข้อมูลเบอร์ ${formatPhone(d.phone)} แล้ว`:`บันทึกแล้ว แสดงรหัสยืนยันของเบอร์ ${formatPhone(d.phone)} ให้พนักงานที่ร้านเพื่อเริ่มใช้งาน`);window.scrollTo({top:0,behavior:'smooth'})};
   if(error)return <main className="lm-page"><div className="lm-card lm-center"><h1>สมาชิก Wingpro</h1><p>{error}</p></div></main>;
   if(!view)return <main className="lm-page"><div className="lm-card lm-center"><p>กำลังโหลด…</p></div></main>;
   const phones=view.phones||[];
@@ -73,8 +72,11 @@ export default function LineMemberPage(){
       {p.status==='verified'?<>
         <Stamps member={p.member||view.program}/>
         {p.jobs.length>0&&<div className="lm-jobs"><b>ไม้ที่อยู่ที่ร้าน</b>{p.jobs.map((j:any)=><a key={j.token} href={'/track/'+j.token}><span>{j.racket}<small>รับไม้ {day(j.created)}</small></span><em>{j.status==='รับไม้'?'รอขึ้นเอ็น':j.status}</em></a>)}</div>}
-      </>:verifying===p.phone?<RegisterForm token={token} initialPhone={p.phone} initialName={p.name} needsJob onDone={done} onCancel={()=>setVerifying('')}/>
-      :<div className="lm-pending"><p>เบอร์นี้มีประวัติที่ร้านอยู่แล้ว เพื่อความปลอดภัยของข้อมูล ร้านจะตรวจสอบก่อนแสดงดาวสะสมและประวัติ</p><button type="button" className="lm-secondary" onClick={()=>setVerifying(p.phone)}>มีเลขรับไม้? ยืนยันเองได้ทันที</button></div>}
+      </>:<div className="lm-pending">
+        <p>รอยืนยันที่ร้าน · แสดงรหัสนี้ให้พนักงานเมื่อมาที่ร้าน</p>
+        <div className="lm-code" aria-label="รหัสยืนยัน">{String(p.code||'').replace(/(\d{3})(\d{3})/,'$1 $2')}</div>
+        <small>หรือสแกน QR บนใบรับไม้ของเบอร์นี้ ระบบจะยืนยันให้อัตโนมัติ · เพื่อความปลอดภัย ดาวสะสมและสถานะไม้จะแสดงหลังยืนยันแล้ว</small>
+      </div>}
     </section>)}
     {phones.length>0&&!(adding&&prefill)&&(adding?addCard:<button type="button" className="lm-add" onClick={()=>setAdding(true)}>+ เพิ่มเบอร์โทรอื่น</button>)}
     <footer className="lm-foot">ข้อมูลของคุณใช้เฉพาะสะสมแต้มและแจ้งสถานะไม้ของร้าน Wingpro Badminton เท่านั้น</footer>

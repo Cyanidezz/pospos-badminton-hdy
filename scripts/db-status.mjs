@@ -43,6 +43,7 @@ const CHECKS = [
   ["20260926010000_product_breakdowns.sql", "product_breakdowns"],
   ["20260926020000_po_payment_terms.sql", "purchase_orders", "payment_method"],
   ["20260926030000_line_members.sql", "line_members"],
+  ["20260926040000_line_member_codes.sql", "line_members", "verify_code"],
 ];
 
 const url = connectionUrl();

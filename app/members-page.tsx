@@ -55,24 +55,30 @@ function Detail({customer,posMin,promo,socksProductName,onSave,setKey}:any){
   </div>;
 }
 
-// สมาชิกผ่าน LINE requests waiting for a staff member: a customer signed up in LINE with a number that already has
-// history here but had no receipt number to prove it. Approve only after checking it is really them (e.g. they
-// are at the counter, or the name matches the one on their jobs).
-function LineRequests({rows,onAction,reload}:any){
-  const pending=(rows||[]).filter((r:any)=>r.status==='pending');
-  const [busy,setBusy]=useState('');
-  if(!pending.length)return null;
-  const run=async(action:string,r:any)=>{
-    if(action==='lineMemberReject'&&!confirm(`ปฏิเสธคำขอของ ${r.name||r.phone}?`))return;
-    setBusy(r.line_user+r.phone);
-    try{if(await onAction(action,{lineUser:r.line_user,phone:r.phone,requestId:crypto.randomUUID()},false))await reload()}finally{setBusy('')}
-  };
-  return <section className="panel line-requests"><h2><MessageCircle size={18}/> คำขอสมาชิกผ่าน LINE รอยืนยัน <span className="badge amber">{pending.length}</span></h2>
-    <p className="muted">เบอร์เหล่านี้มีประวัติที่ร้านอยู่แล้ว ลูกค้าไม่ได้ใส่เลขรับไม้ ตรวจสอบก่อนยืนยัน เช่น ลูกค้าอยู่ที่ร้าน หรือชื่อตรงกับประวัติ เมื่อยืนยันแล้วลูกค้าจะเห็นดาวสะสมและรับแจ้งสถานะไม้ใน LINE</p>
-    <ul>{pending.map((r:any)=><li key={r.line_user+r.phone}>
-      <div><b>{r.name||'—'}</b><small>{r.phone.replace(/(\d{3})(\d{3})(\d+)/,'$1-$2-$3')}{r.shop_name?` · ชื่อในประวัติร้าน: ${r.shop_name}`:''} · ขอเมื่อ {day(r.created)}</small></div>
-      <div className="line-request-actions"><button type="button" className="secondary small danger" disabled={!!busy} onClick={()=>run('lineMemberReject',r)}>ปฏิเสธ</button><button type="button" className="small" disabled={!!busy} onClick={()=>run('lineMemberApprove',r)}>ยืนยัน</button></div>
-    </li>)}</ul>
+// สมาชิกผ่าน LINE at the counter. A customer signs up in LINE and gets a 6-digit code on their member page; staff type
+// that code here (the codes are never listed - only the customer's own phone shows it), check the name and number,
+// and confirm. Also: requests still waiting (reject only), and linked members (unlink if linked to the wrong person).
+function LineMembersPanel({rows,onAction,reload}:any){
+  const [code,setCode]=useState(''),[match,setMatch]=useState<any>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[showLinked,setShowLinked]=useState(false);
+  const pending=(rows||[]).filter((r:any)=>r.status==='pending'),linked=(rows||[]).filter((r:any)=>r.status==='verified');
+  const fmtPhone=(p:string)=>p.replace(/(\d{3})(\d{3})(\d+)/,'$1-$2-$3');
+  const find=async(e:any)=>{e.preventDefault();setError('');setMatch(null);
+    try{const r=await fetch('/api/line-members?code='+encodeURIComponent(code.replace(/\D/g,'')),{cache:'no-store'}),d:any=await r.json();if(!r.ok)throw new Error(d.error);setMatch(d.match)}catch(err:any){setError(err.message)}};
+  const run=async(action:string,r:any,extra:any={})=>{setBusy(true);try{if(await onAction(action,{lineUser:r.line_user,phone:r.phone,...extra,requestId:crypto.randomUUID()},false)){setMatch(null);setCode('');await reload()}}finally{setBusy(false)}};
+  return <section className="panel line-requests"><h2><MessageCircle size={18}/> สมาชิกผ่าน LINE {pending.length>0&&<span className="badge amber">รอยืนยัน {pending.length}</span>}</h2>
+    <p className="muted">ลูกค้าสมัครใน LINE แล้ว ให้เปิด “บัตรสมาชิก” แล้วแสดงรหัส 6 หลักบนมือถือ กรอกรหัสที่นี่เพื่อยืนยันว่าเป็นเจ้าของเบอร์ (หรือให้ลูกค้าสแกน QR บนใบรับไม้ ระบบยืนยันให้อัตโนมัติ)</p>
+    <form className="line-code-form" onSubmit={find}><input inputMode="numeric" maxLength={7} placeholder="รหัส 6 หลักจากมือถือลูกค้า" value={code} onChange={e=>setCode(e.target.value)}/><button disabled={code.replace(/\D/g,'').length!==6}>ค้นหา</button></form>
+    {error&&<p className="line-code-error">{error}</p>}
+    {match&&<div className="line-code-match"><div><b>{match.name||'—'}</b><small>{fmtPhone(match.phone)}{match.shop_name?` · ชื่อในประวัติร้าน: ${match.shop_name}`:' · ลูกค้าใหม่'} · สมัคร {day(match.created)}</small></div>
+      <button type="button" disabled={busy} onClick={()=>run('lineMemberApprove',match,{code:code.replace(/\D/g,'')})}>ยืนยันเป็นสมาชิก</button></div>}
+    {pending.length>0&&<details className="line-list"><summary>รอยืนยัน {pending.length} คำขอ</summary><ul>{pending.map((r:any)=><li key={r.line_user+r.phone}>
+      <div><b>{r.name||'—'}</b><small>{fmtPhone(r.phone)}{r.shop_name?` · ชื่อในประวัติร้าน: ${r.shop_name}`:''} · ขอเมื่อ {day(r.created)}</small></div>
+      <button type="button" className="secondary small danger" disabled={busy} onClick={()=>{if(confirm(`ปฏิเสธคำขอของ ${r.name||r.phone}?`))run('lineMemberReject',r)}}>ปฏิเสธ</button>
+    </li>)}</ul></details>}
+    {linked.length>0&&<details className="line-list" open={showLinked} onToggle={(e:any)=>setShowLinked(e.currentTarget.open)}><summary>เชื่อม LINE แล้ว {linked.length} เบอร์</summary><ul>{linked.map((r:any)=><li key={r.line_user+r.phone}>
+      <div><b>{r.name||r.shop_name||'—'}</b><small>{fmtPhone(r.phone)} · {r.method==='link'?'สแกน QR ใบรับไม้':r.method==='code'?`ยืนยันที่ร้าน${r.verified_by_name?` โดย ${r.verified_by_name}`:''}`:'ยืนยันแล้ว'} · {day(r.verified_at||r.created)}</small></div>
+      <button type="button" className="secondary small danger" disabled={busy} onClick={()=>{if(confirm(`ยกเลิกการเชื่อม LINE ของเบอร์ ${fmtPhone(r.phone)}? LINE นั้นจะไม่เห็นข้อมูลและไม่ได้รับแจ้งเตือนของเบอร์นี้อีก`))run('lineMemberUnlink',r)}}>ยกเลิกการเชื่อม</button>
+    </li>)}</ul></details>}
   </section>;
 }
 
@@ -86,10 +92,11 @@ export function MembersPage({jobs,sales,config,products,onSave,onAction}:any){
   const selected=customers.find(c=>c.key===key)||shown[0]||null;
   const ready=customers.filter(c=>c.stringAvailable||(socksProductName&&c.socksAvailable)).length;
   const [lineRows,setLineRows]=useState<any[]>([]);
-  const reloadLine=async()=>{try{const r=await fetch('/api/line-members',{cache:'no-store'}),d:any=await r.json();setLineRows(r.ok&&d.ready?d.rows:[])}catch{setLineRows([])}};
+  const [lineReady,setLineReady]=useState(false);
+  const reloadLine=async()=>{try{const r=await fetch('/api/line-members',{cache:'no-store'}),d:any=await r.json();setLineReady(r.ok&&!!d.ready);setLineRows(r.ok&&d.ready?d.rows:[])}catch{setLineRows([])}};
   useEffect(()=>{reloadLine()},[]);
   const onLine=useMemo(()=>new Set(lineRows.filter((r:any)=>r.status==='verified').map((r:any)=>r.phone)),[lineRows]);
-  return <>{onAction&&<LineRequests rows={lineRows} onAction={onAction} reload={reloadLine}/>}<div className="members-layout">
+  return <>{onAction&&lineReady&&<LineMembersPanel rows={lineRows} onAction={onAction} reload={reloadLine}/>}<div className="members-layout">
     <section className="panel members-list">
       <div className="panel-tools"><div className="search-box"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ค้นหาชื่อหรือเบอร์โทร"/></div></div>
       <div className="members-summary"><span>สมาชิก {customers.length} คน</span>{ready>0&&<span className="badge green">มีสิทธิ์ฟรี {ready} คน</span>}</div>
