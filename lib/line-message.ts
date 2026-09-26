@@ -359,9 +359,11 @@ export function productAnswerMessage(products: ShopProduct[], { siteUrl = "", ph
   // "ดูทั้งหมด" re-runs the same search (no AI) and answers with one card per brand - see productBrandCarousel.
   const moreButton = more > 0 && inStock.length && allQuery ? [{ type: "button", style: "primary", height: "sm", action: { type: "postback", label: "ดูทั้งหมด (แยกตามยี่ห้อ)", data: allQuery, displayText: "ดูทั้งหมด (แยกตามยี่ห้อ)" } }] : [];
   const callButton = tel ? [{ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "โทรสอบถาม / จองสินค้า", uri: `tel:${tel}` } }] : [];
+  const quickReply = brandQuickReply(goods, allQuery);
   return {
     type: "flex",
     altText: title,
+    ...(quickReply ? { quickReply } : {}),
     contents: {
       type: "bubble",
       size: "mega",
@@ -399,10 +401,27 @@ export function brandOf(name: string) {
   return word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : "อื่นๆ";
 }
 
+// Quick-reply buttons (the row of chips above the chat's text box) - one per brand among the in-stock matches, most
+// items first, so a customer can narrow a long list with one tap. LINE: at most 13 buttons, labels up to 20
+// characters, postback data up to 300 characters; the chips disappear once the customer taps one or types.
+export function brandQuickReply(products: ShopProduct[], allQuery = "") {
+  const q = new URLSearchParams(allQuery).get("q") || "";
+  if (!q) return null;
+  const counts = new Map<string, number>();
+  for (const product of products) if (!isService(product) && product.available > 0) counts.set(brandOf(product.name), (counts.get(brandOf(product.name)) || 0) + 1);
+  if (counts.size < 2) return null;
+  const items = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 13).map(([brand, n]) => {
+    let query = q, data = "";
+    do { data = `action=brand&b=${encodeURIComponent(brand)}&q=${encodeURIComponent(query)}`; if (data.length > 300) query = query.slice(0, -1); } while (data.length > 300 && query);
+    return data.length <= 300 && query ? { type: "action", action: { type: "postback", label: `${brand} (${n})`.slice(0, 20), data, displayText: `ดู ${brand}` } } : null;
+  }).filter(Boolean);
+  return items.length >= 2 ? { items } : null;
+}
+
 // "ดูทั้งหมด (แยกตามยี่ห้อ)": every in-stock match as a carousel, one card per brand (most first), in stock only.
 // LINE allows at most 12 cards, so the smallest brands beyond 11 share an "อื่นๆ" card; rows per card are capped
 // to keep the message well inside LINE's size limit.
-export function productBrandCarousel(products: ShopProduct[], { phone = "" }: { phone?: string } = {}) {
+export function productBrandCarousel(products: ShopProduct[], { phone = "", allQuery = "" }: { phone?: string; allQuery?: string } = {}) {
   const goods = products.filter(p => !isService(p) && p.available > 0);
   if (!goods.length) return null;
   const groups = new Map<string, ShopProduct[]>();
@@ -436,7 +455,9 @@ export function productBrandCarousel(products: ShopProduct[], { phone = "" }: { 
     },
     ...(tel ? { footer: { type: "box", layout: "vertical", paddingAll: "10px", contents: [{ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "โทรสั่ง / จอง", uri: `tel:${tel}` } }] } } : {}),
   }));
-  return carousel(`มีสินค้า ${goods.length} รายการ แยกตามยี่ห้อ`, bubbles);
+  const message = carousel(`มีสินค้า ${goods.length} รายการ แยกตามยี่ห้อ`, bubbles);
+  const quickReply = brandQuickReply(goods, allQuery);
+  return message && quickReply ? { ...message, quickReply } : message;
 }
 
 // Nothing in the shop matches: say so plainly, and that the shop has been told (the request is logged).

@@ -1571,7 +1571,8 @@ test("LINE product answers: price + stock left from the database; AI only picks 
   assert.match(webhook, /if\(rule\.kind!=='none'&&ranked\[0\]\.score>=0\.85\)return productReply/, "a strong name match skips the AI (no cost)");
   assert.match(webhook, /const again=ai\.wanted\?searchProducts\(ai\.wanted,products\):\[\];/, "the AI's cleaned-up name gets a second search before 'ไม่มี'");
   assert.match(webhook, /AND category<>'สินค้าเทียบ'/);
-  assert.match(webhook, /else if\(action==='all'\)await replyLine\(replyToken,await onAllProducts\(/, "ดูทั้งหมด re-runs the search without the AI");
+  assert.match(webhook, /else if\(action==='all'\|\|action==='brand'\)\{const params=new URLSearchParams\(e\.postback\?\.data\|\|''\);await replyLine\(replyToken,await onAllProducts\(params\.get\('q'\)\|\|'',action==='brand'\?params\.get\('b'\)\|\|'':''\)\);\}/, "ดูทั้งหมด and the brand chips re-run the search without the AI");
+  assert.match(webhook, /let q=\(coreQuery\(query\)\|\|String\(query\|\|''\)\)\.trim\(\)\.slice\(0,120\);/, "the short normalized query goes in the postback, not the whole sentence");
   assert.match(webhook, /while\(q&&\('action=all&q='\+encodeURIComponent\(q\)\)\.length>300\)q=q\.slice\(0,-1\);/, "postback data stays within LINE's 300 characters");
   assert.match(webhook, /if\(PRODUCT_INTENT\.test\(message\)&&coreQuery\(message\)\)return notFoundReply/, "rules only log 'not stocked' for a clear buying question");
   assert.match(webhook, /\/\^\(สอบถาม\)\?ราคา\(ขึ้นเอ็น\|เอ็น\)\?/, "a bare 'ราคา' still gets the shop's price sheet");
@@ -1626,6 +1627,16 @@ test("LINE product answers: price + stock left from the database; AI only picks 
   ]);
   assert.deepEqual(car.contents.contents.map(b => b.body.contents[0].text), ["Yonex (1/2)", "Yonex (2/2)", "Li-Ning"]);
   assert.doesNotMatch(JSON.stringify(car), /No\.5/, "sold out -> not in ดูทั้งหมด either");
+  // Brand chips (quick reply) on a list with 2+ brands in stock: most items first, postback per brand.
+  const mixed = line.productAnswerMessage([
+    { id: "y1", name: "เอ็น Yonex BG80", category: "เอ็นแบดมินตัน", price: 100, available: 1 },
+    { id: "y2", name: "เอ็น Yonex BG65", category: "เอ็นแบดมินตัน", price: 100, available: 1 },
+    { id: "l1", name: "เอ็น Li-Ning No.1", category: "เอ็นแบดมินตัน", price: 100, available: 1 },
+    { id: "v1", name: "เอ็น Victor VBS-63", category: "เอ็นแบดมินตัน", price: 100, available: 0 },
+  ], { allQuery: "action=all&q=" + encodeURIComponent("เอ็น") });
+  assert.deepEqual(mixed.quickReply.items.map(i => i.action.label), ["Yonex (2)", "Li-Ning (1)"], "sold-out brands get no chip");
+  assert.equal(new URLSearchParams(mixed.quickReply.items[1].action.data).get("b"), "Li-Ning");
+  assert.equal(line.productAnswerMessage([{ id: "y1", name: "เอ็น Yonex BG80", price: 100, available: 1 }, { id: "y2", name: "เอ็น Yonex BG65", price: 100, available: 1 }], { allQuery: "action=all&q=x" }).quickReply, undefined, "one brand -> no chips");
   const service = JSON.stringify(line.productAnswerMessage([{ id: "s", name: "บริการขึ้นเอ็น", category: "เอ็นแบดมินตัน", price: 10000, available: -6 }]));
   assert.doesNotMatch(service, /หมด|มีสินค้า|รวมค่าขึ้นเอ็น/, "a service has no stock and is not a string");
   assert.match(line.productNotFoundMessage("Yonex Astrox 88D", "087-0954441").text, /ยังไม่มี “Yonex Astrox 88D” ร้านบันทึกไว้แล้ว/);

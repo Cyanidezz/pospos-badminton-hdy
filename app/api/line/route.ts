@@ -1,6 +1,6 @@
 import {runtime,db,all,one,uid,now,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {isService,memberCardMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
+import {brandOf,brandQuickReply,isService,memberCardMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {PRODUCT_INTENT,coreQuery,inquiryKey,isGeneralStringingQuestion,pickMatches,searchProducts} from '@/lib/product-search';
 import {askProductAi} from '@/lib/product-ai';
 import {memberProgram,memberStatus} from '@/lib/member-status';
@@ -109,7 +109,8 @@ async function logInquiry(kind:'missing'|'out_of_stock',key:string,query:string,
 // Postback data for "ดูทั้งหมด (แยกตามยี่ห้อ)": the search text, trimmed until it fits LINE's 300-character limit
 // (Thai letters take 9 characters each once URL-encoded).
 function allQueryData(query:string){
-  let q=String(query||'').trim().slice(0,120);
+  // The normalized core ("เอ็น yonex") rather than the whole sentence: much shorter once encoded, same search.
+  let q=(coreQuery(query)||String(query||'')).trim().slice(0,120);
   while(q&&('action=all&q='+encodeURIComponent(q)).length>300)q=q.slice(0,-1);
   return q?'action=all&q='+encodeURIComponent(q):'';
 }
@@ -123,12 +124,19 @@ async function productReply(found:any[],lineUser:string,query=''){
   return message?[message]:[];
 }
 
-// "ดูทั้งหมด (แยกตามยี่ห้อ)": the same search again (rules only - no AI, no cost), every in-stock match, a card per brand.
-async function onAllProducts(query:string){
+// "ดูทั้งหมด (แยกตามยี่ห้อ)" and the brand quick-reply chips: the same search again (rules only - no AI, no cost),
+// in-stock matches only. brand = one brand's list (a card per 20 items if it is long); no brand = a card per brand.
+// Both keep the brand chips so the customer can hop between brands.
+async function onAllProducts(query:string,brand=''){
   const products=await shopProducts();
-  const found=pickMatches(searchProducts(query,products)).products.map((p:any)=>products.find(x=>x.id===p.id)).filter(Boolean);
+  const found=pickMatches(searchProducts(query,products)).products.map((p:any)=>products.find(x=>x.id===p.id)).filter(Boolean)
+    .map((p:any)=>({...p,available:Math.max(0,Number(p.available)||0),price:Number(p.price)||0}));
   const config:any=await one('SELECT contact_phone FROM config WHERE id=1');
-  const message=productBrandCarousel(found.map((p:any)=>({...p,available:Math.max(0,Number(p.available)||0),price:Number(p.price)||0})),{phone:config?.contact_phone??DEFAULT_SHOP.phone});
+  const phone=config?.contact_phone??DEFAULT_SHOP.phone,allQuery=allQueryData(query);
+  const picked=brand?found.filter((p:any)=>!isService(p)&&p.available>0&&brandOf(p.name)===brand):found;
+  let message:any=brand&&picked.length&&picked.length<=15?productAnswerMessage(picked,{siteUrl:siteUrl(),phone}):productBrandCarousel(picked,{phone});
+  const chips=brandQuickReply(found,allQuery);
+  if(message&&chips)message={...message,quickReply:chips};
   return message?[message]:[text('ตอนนี้สินค้าที่ตรงกับที่ถามหมดชั่วคราว สอบถามร้านได้เลย')];
 }
 
@@ -182,7 +190,7 @@ export async function POST(req:Request){
         else if(action==='promo')await replyLine(replyToken,await onPromotions());
         else if(action==='points')await replyLine(replyToken,await onPoints(lineUser));
         else if(action==='price')await replyLine(replyToken,await onPrice());
-        else if(action==='all')await replyLine(replyToken,await onAllProducts(new URLSearchParams(e.postback?.data||'').get('q')||''));
+        else if(action==='all'||action==='brand'){const params=new URLSearchParams(e.postback?.data||'');await replyLine(replyToken,await onAllProducts(params.get('q')||'',action==='brand'?params.get('b')||'':''));}
         continue;
       }
       if(e.type!=='message'||e.message?.type!=='text')continue;
