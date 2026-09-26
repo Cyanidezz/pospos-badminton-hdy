@@ -1067,3 +1067,34 @@ button.stock-edit-reasons,.stock-edit-reasons>button:not([data-slot]){padding:6p
 .pos-stock-view>button:not([data-slot]) b{font-weight:700;color:#8391a7}
 .pos-stock-view>button.is-active:not([data-slot]){background:#fff;color:#2c5fc4;box-shadow:0 1px 4px #1d3c7620}
 .pos-stock-view>button.is-active:not([data-slot]) b{color:#2c5fc4}
+
+/* Safari 15 (iPad on iOS 15) has no container queries: the same narrow-list layouts by screen width instead.
+   Browsers that do support them skip this block, so nothing changes there. */
+@supports not (container-type:inline-size){
+@media (max-width:700px){
+.inventory-list-table tbody tr{padding:10px 12px;gap:0 8px}
+.inventory-list-table.has-select tbody tr:has(.inv-sel){padding-left:40px}
+.inventory-list-table td.inv-sel{left:12px;top:18px}
+.inventory-list-table tbody tr:before{content:'';order:2;flex-basis:100%;height:0}
+.inventory-list-table td.inv-product{order:1}
+.inventory-list-table td.inv-actions{order:1}
+.inventory-list-table td.inv-price,.inventory-list-table td.inv-stock,.inventory-list-table td.inv-status{order:3;width:auto!important;text-align:left;margin-top:6px}
+.inventory-list-table td.inv-price,.inventory-list-table td.inv-stock{flex-direction:row;align-items:baseline;gap:5px}
+.inventory-list-table td.inv-price{margin-left:43px}
+.inventory-list-table td.inv-status{margin-left:auto}
+.inventory-list-table td.inv-status .stock-state{padding:4px 8px!important}
+.inventory-list-table tr.is-open td.inv-code{margin-left:0;flex-basis:100%}
+.inventory-list-table tr.is-open td.inv-cost,.inventory-list-table tr.is-open td.inv-cat{flex:1 1 40%;margin-top:6px}
+.inventory-list-table tr.is-open td.inv-code{margin-top:8px}
+.inventory-list-table tr.is-open td.inv-cost{margin-right:6px}
+.inventory-list-table thead tr{padding:8px 12px;gap:4px 10px}
+.inventory-list-table th{font-size:12px}
+.inventory-list-product{gap:9px}.inv-thumb>img,.inv-thumb>span{width:34px;height:34px}
+}
+@media (max-width:470px){.inventory-list-table td.inv-price{margin-left:0}}
+@media (max-width:700px){.inventory-toolbar{grid-template-columns:1fr 1fr}.inventory-toolbar .search-box{grid-column:1/-1}.inventory-toolbar label:last-child{grid-column:1/-1}}
+}
+/* shown for the split-off pages while their code loads */
+.page-loading{display:flex;align-items:center;justify-content:center;gap:10px;min-height:120px;color:#7b8b81;font-size:14px}
+.page-loading-spinner{width:18px;height:18px;border-radius:50%;border:2px solid #d9e0ec;border-top-color:#3a70d4;animation:page-loading-spin .8s linear infinite}
+@keyframes page-loading-spin{to{transform:rotate(360deg)}}

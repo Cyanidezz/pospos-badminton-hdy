@@ -1,14 +1,13 @@
 'use client';
 import {useMemo,useState} from 'react';
 import {Landmark} from 'lucide-react';
-import {daysUntil,dueText} from './purchase-orders';
+import {daysUntil,dueText,openDebts} from '@/lib/due-dates';
 
 // เจ้าหนี้ค้างชำระ (owner): what the shop still owes for goods bought on credit - approved credit POs whose debt has
 // not been recorded as paid yet - by creditor, soonest due first, overdue ones flagged.
 const money=(satang:number)=>'฿'+(Number(satang||0)/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const thaiDate=(date:string)=>date?new Date(date.slice(0,10)+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}):'—';
 
-export const openDebts=(orders:any[])=>(orders||[]).filter((o:any)=>o.payment_method==='credit'&&!o.paid_at&&(o.status==='approved'||o.status==='received'));
 
 export function PayablesPage({data,busy,onAction}:any){
   const [filter,setFilter]=useState<'all'|'overdue'|'soon'>('all');

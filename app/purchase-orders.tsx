@@ -4,14 +4,12 @@ import {useMemo,useState} from 'react';
 import BarcodeScanner from './barcode-scanner';
 import {ChevronRight,FileText,PackagePlus,Plus,ScanBarcode,Trash2,Truck} from 'lucide-react';
 import {toast} from 'sonner';
+import {daysUntil,dueText} from '@/lib/due-dates';
 
 const localDate=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'});
 const statusName:any={draft:'ร่าง',pending_approval:'รออนุมัติ',approved:'อนุมัติแล้ว',paid:'จ่ายเงินแล้ว',received:'รับสินค้าแล้ว'};
 const plusDays=(days:number)=>{const d=new Date(localDate()+'T00:00:00');d.setDate(d.getDate()+days);return d.toLocaleDateString('en-CA')};
 const thaiDate=(date:string)=>new Date(date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
-// Days until a credit PO's due date (negative = overdue), counted in Thai calendar days.
-export const daysUntil=(date:string)=>Math.round((new Date(date+'T00:00:00').getTime()-new Date(localDate()+'T00:00:00').getTime())/86400000);
-export const dueText=(date:string)=>{const d=daysUntil(date);return d<0?`เกินกำหนด ${-d} วัน`:d===0?'ครบกำหนดวันนี้':`อีก ${d} วัน`};
 // Next steps a PO can take. Credit: goods may be received right after approval (the debt stays open) or paid first.
 const actionsFor=(order:any)=>order.status==='pending_approval'?[['approved','อนุมัติใบสั่งซื้อ']]
   :order.status==='approved'?(order.payment_method==='credit'?[['received','รับสินค้าเข้าคลัง (ค้างชำระ)'],['paid','ชำระหนี้แล้ว']]:[['paid','ยืนยันจ่ายเงินแล้ว']])

@@ -76,15 +76,21 @@ export async function auth() {
   const ownerEmail = runtime().POS_OWNER_EMAIL?.trim().toLowerCase();
   if (!ownerEmail) throw new Error("ยังไม่ได้ตั้งค่าบัญชีเจ้าของร้าน");
 
-  await db().batch([
-    db().prepare("INSERT INTO config(id,shop) VALUES(1,'Wingpro') ON CONFLICT(id) DO NOTHING"),
-    db().prepare("UPDATE config SET shop='Wingpro' WHERE id=1 AND shop IN ('Badminton Shop','Badminton POS')"),
-    ...(email === ownerEmail ? [
-      db().prepare("INSERT INTO members(id,email,name,role,active) VALUES(?,?,?,'owner',1) ON CONFLICT((lower(email))) DO UPDATE SET id=excluded.id,name=excluded.name,role='owner',active=1")
-        .bind(data.user.id,email,String(data.user.user_metadata?.full_name || email)),
-    ] : []),
-  ]);
-  const member = await one("SELECT * FROM members WHERE id=? AND email=?", data.user.id, email);
+  // Every request comes through here (each API call, each picture), so the usual case is one read. The setup writes -
+  // the config row, and the owner's own member row - only run when that read shows they are needed (first sign-in,
+  // or the owner's row missing / changed).
+  let member: any = await one("SELECT * FROM members WHERE id=? AND email=?", data.user.id, email);
+  if (!member || (email === ownerEmail && (member.role !== "owner" || !member.active))) {
+    await db().batch([
+      db().prepare("INSERT INTO config(id,shop) VALUES(1,'Wingpro') ON CONFLICT(id) DO NOTHING"),
+      db().prepare("UPDATE config SET shop='Wingpro' WHERE id=1 AND shop IN ('Badminton Shop','Badminton POS')"),
+      ...(email === ownerEmail ? [
+        db().prepare("INSERT INTO members(id,email,name,role,active) VALUES(?,?,?,'owner',1) ON CONFLICT((lower(email))) DO UPDATE SET id=excluded.id,name=excluded.name,role='owner',active=1")
+          .bind(data.user.id,email,String(data.user.user_metadata?.full_name || email)),
+      ] : []),
+    ]);
+    member = await one("SELECT * FROM members WHERE id=? AND email=?", data.user.id, email);
+  }
   if (!member || !(member as any).active) throw new Error("บัญชีนี้ยังไม่ได้รับสิทธิ์จากเจ้าของร้าน");
   return member as any;
 }

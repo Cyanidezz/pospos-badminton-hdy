@@ -35,7 +35,7 @@ test("bulk-select in inventory can download every selected product's barcode as 
   assert.match(label, /\.filter\(\(c\):c is HTMLCanvasElement=>!!c\)/, "a product with no usable barcode is dropped, not left as a gap");
   assert.match(label, /return \{printed:labels\.length,skipped:items\.length-labels\.length\}/);
   assert.match(label, /triggerDownload\(sheet,`barcodes-\$\{new Date\(\)\.toISOString\(\)\.slice\(0,10\)\}\.png`\)/, "one combined download, not one popup per product");
-  assert.match(pos, /import \{BarcodeLabel,downloadBarcodeSheet\} from '\.\/barcode-label';/);
+  assert.match(pos, /const BarcodeLabel=lazy\(\(\)=>import\('\.\/barcode-label'\),'BarcodeLabel'\);/, "loaded only when a product form needs it");
   const bulkBar = pos.slice(pos.indexOf('bulk-edit-bar'), pos.indexOf('inventory-table-wrap'));
   assert.match(bulkBar, /downloadBarcodeSheet\(items\)/);
   assert.match(bulkBar, /inventorySelected\.map\(id=>allProducts\.find\(\(p:any\)=>p\.id===id\)\)/, "resolves against every product (including archived), not just the current filtered page");
@@ -54,7 +54,7 @@ test("product form shows a printable barcode label with a download button", asyn
   assert.match(label, /if\(!code\.trim\(\)\)return null;/, "hidden until there is a code to show (a brand-new product with no barcode yet has nothing to print)");
   assert.match(label, /ctx\.fillText\(name\|\|'สินค้า',/, "the product name is drawn into the downloaded image itself, not just shown on screen");
   assert.match(label, /triggerDownload\(label,`barcode-\$\{code\.trim\(\)\}\.png`\)/);
-  assert.match(pos, /import \{BarcodeLabel,downloadBarcodeSheet\} from '\.\/barcode-label';/);
+  assert.match(pos, /const \{downloadBarcodeSheet\}=await import\('\.\/barcode-label'\);/, "loaded only when the sheet is downloaded");
   assert.match(pos, /<BarcodeLabel name=\{form\.name\|\|''\} code=\{form\.barcode\|\|''\}\/>/, "wired into both the add-product and edit-product dialogs (they share this markup)");
   assert.match(css, /\.barcode-label\{/);
   assert.match(label, /marginTop:2/, "the barcode's own top margin is trimmed so it sits close under the product name");
@@ -478,7 +478,7 @@ test("shop contact and bank settings are stored, validated and shown", async () 
   const track = await readTrackApi();
   const page = await read("app/track/[token]/page.tsx");
   const pos = await read("app/pos.tsx");
-  const settings = await read("app/shop-settings.tsx");
+  const settings = (await read("app/shop-settings.tsx")) + "\n" + (await read("lib/settings-payload.ts"));
   for (const column of ["contact_phone", "contact_facebook", "opening_hours", "bank_name", "bank_account_name", "bank_account_no", "bank_qr"]) assert.match(migration, new RegExp(`add column if not exists ${column}`));
   const action = route.slice(route.indexOf("action==='settings'"), route.indexOf("action==='expense'"));
   assert.match(action, /owner\(me\)/);
@@ -561,7 +561,7 @@ test("member program: server rules, settings and screens", async () => {
   const migration = await read("supabase/migrations/20260922010000_members.sql");
   const route = await read("app/api/data/route.ts");
   const pos = await read("app/pos.tsx");
-  const settings = await read("app/shop-settings.tsx");
+  const settings = (await read("app/shop-settings.tsx")) + "\n" + (await read("lib/settings-payload.ts"));
   const form = await read("app/job-form.tsx");
   for (const column of ["member_stamps_required", "member_reward_cap", "reward_used", "reward_discount", "customer_key", "customer_name"]) assert.match(migration, new RegExp(`add column if not exists ${column}`));
   assert.match(migration, /'สิทธิ์สมาชิก'/);
@@ -721,7 +721,7 @@ test("member stamp promotion has an optional date window and an on/off switch", 
   const dataRoute = await read("app/api/data/route.ts");
   const trackRoute = await readTrackApi();
   const membersPage = await read("app/members-page.tsx");
-  const settings = await read("app/shop-settings.tsx");
+  const settings = (await read("app/shop-settings.tsx")) + "\n" + (await read("lib/settings-payload.ts"));
 
   assert.match(migration, /add column if not exists member_promo_enabled smallint not null default 1/, "defaults to on, so an untouched shop keeps earning stamps exactly as before");
   assert.match(migration, /add column if not exists member_promo_start text/);
@@ -816,7 +816,7 @@ test("editing a member: server rules, migration and screens", async () => {
   const route = await read("app/api/data/route.ts");
   const page = await read("app/members-page.tsx");
   const pos = await read("app/pos.tsx");
-  const settings = await read("app/shop-settings.tsx");
+  const settings = (await read("app/shop-settings.tsx")) + "\n" + (await read("lib/settings-payload.ts"));
   assert.match(migration, /add column if not exists customer_notes jsonb/);
   assert.match(migration, /add column if not exists member_pos_min_amount/);
   const edit = route.slice(route.indexOf("else if(action==='customerEdit')"), route.indexOf("else if(action==='leave')"));
@@ -1230,7 +1230,7 @@ test("job intake: when the customer brings their own string (บริการ�
 test("second reward tier: 5 stars redeems free socks (a real POS discount), redeeming either tier resets the star count", async () => {
   const migration = await read("supabase/migrations/20260924030000_member_socks_reward.sql");
   const lib = await read("lib/customers.ts");
-  const settings = await read("app/shop-settings.tsx");
+  const settings = (await read("app/shop-settings.tsx")) + "\n" + (await read("lib/settings-payload.ts"));
   const dataRoute = await read("app/api/data/route.ts");
   const redeemSocks = await read("app/api/track/[token]/redeem-socks/route.ts");
   const trackApi = await readTrackApi();
@@ -1286,7 +1286,7 @@ test("second reward tier: 5 stars redeems free socks (a real POS discount), rede
 });
 
 test("ระบบสมาชิก settings: each reward tier gets its own labelled section, native <select> matches the other inputs", async () => {
-  const settings = await read("app/shop-settings.tsx");
+  const settings = (await read("app/shop-settings.tsx")) + "\n" + (await read("lib/settings-payload.ts"));
   const css = await read("app/globals.css");
   assert.match(settings, /<h3 className="reward-tier-title">🎁 ขึ้นเอ็นฟรี<\/h3>/);
   assert.match(settings, /<h3 className="reward-tier-title">🧦 ถุงเท้าฟรี<\/h3>/);
@@ -1329,8 +1329,8 @@ test("customer transfer slips are compressed client-side before upload, and the 
   assert.match(compress, /if \(!blob \|\| \(!force && blob\.size >= file\.size\)\) return file;/, "never makes an already-small slip bigger");
   assert.match(compress, /\} catch \{\n    return file;\n  \}/, "compression failing (an odd format, an old browser) never blocks the upload itself");
   // staff-side: only the slip key is compressed - job condition photos and product images are untouched
-  assert.match(pos, /import \{compressSlip\} from '@\/lib\/image-compress';/);
-  assert.match(pos, /fd\.append\('file',key==='slip'\?await compressSlip\(file\):file\);/);
+  assert.match(pos, /import \{compressImage,compressSlip\} from '@\/lib\/image-compress';/);
+  assert.match(pos, /fd\.append\('file',key==='slip'\?await compressSlip\(file\):key==='bankQr'\?file:await compressImage\(file,\{maxDim:1600,quality:0\.8\}\)\);/, "slips small, the shop's QR untouched, other photos at most 1600px");
   // customer's own slip upload (tracking page) is always a slip, so always compressed
   assert.match(trackPage, /import \{compressSlip\} from '@\/lib\/image-compress';/);
   assert.match(trackPage, /body\.append\('file',await compressSlip\(files\[0\]\)\);/);
@@ -1395,7 +1395,7 @@ test("รับสินค้าเข้า (PO) lands on this month's still-p
 test("LINE OA rich menu: 6 buttons over the menu image, installed by the owner from ตั้งค่าร้าน", async t => {
   const route = await read("app/api/line/richmenu/route.ts");
   const pos = await read("app/pos.tsx");
-  const settings = await read("app/shop-settings.tsx");
+  const settings = (await read("app/shop-settings.tsx")) + "\n" + (await read("lib/settings-payload.ts"));
   assert.match(route, /const me=await auth\(\);owner\(me\);/, "only the owner can replace the shop's LINE menu");
   assert.match(route, /line\(`richmenu\/\$\{richMenuId\}\/content`,\{method:'POST',headers:\{'Content-Type':'image\/jpeg'\}[^\n]*'api-data\.line\.me'\)/, "the image goes to the data host");
   assert.match(route, /line\(`user\/all\/richmenu\/\$\{richMenuId\}`,\{method:'POST'\}\)/, "set as every customer's default menu");
@@ -1496,7 +1496,7 @@ test("LINE ราคาขึ้นเอ็น: owner edits the price text + pi
   const webhook = await read("app/api/line/route.ts");
   const image = await read("app/api/line/promo-image/[id]/route.ts");
   const pos = await read("app/pos.tsx");
-  const settings = await read("app/shop-settings.tsx");
+  const settings = (await read("app/shop-settings.tsx")) + "\n" + (await read("lib/settings-payload.ts"));
   assert.match(migration, /add column if not exists string_price_text text not null default ''/);
   assert.match(migration, /add column if not exists string_price_image text references public\.files\(id\) on delete set null/);
   assert.match(data, /else if\(action==='stringPriceSave'\)\{owner\(me\);/, "owner only");
@@ -1714,7 +1714,8 @@ test("PO payment terms: transfer or credit (creditor + due date); credit debts l
   assert.match(po, /\[\['received','รับสินค้าเข้าคลัง \(ค้างชำระ\)'\],\['paid','ชำระหนี้แล้ว'\]\]/);
   assert.match(pos, /\.\.\.\(owner\?\[\['payables','เจ้าหนี้ค้างชำระ',Landmark\]\]:\[\]\)/, "owner-only menu");
   assert.match(pos, /\{page==='payables'&&owner&&<PayablesPage /);
-  assert.match(payables, /export const openDebts=\(orders:any\[\]\)=>\(orders\|\|\[\]\)\.filter\(\(o:any\)=>o\.payment_method==='credit'&&!o\.paid_at&&\(o\.status==='approved'\|\|o\.status==='received'\)\);/);
+  assert.match(await read("lib/due-dates.ts"), /export const openDebts = \(orders: any\[\]\) => \(orders \|\| \[\]\)\.filter\(\(o: any\) => o\.payment_method === "credit" && !o\.paid_at && \(o\.status === "approved" \|\| o\.status === "received"\)\);/);
+  assert.match(payables, /import \{daysUntil,dueText,openDebts\} from '@\/lib\/due-dates';/);
 });
 
 test("สมาชิกผ่าน LINE: sign up / check membership from LINE, linked to the phone the whole shop uses", async t => {
@@ -1836,7 +1837,7 @@ test("สินค้าสำคัญ: low-stock alerts to the owner's LINE - 
   const count = await read("app/api/count/route.ts");
   const webhook = await read("app/api/line/route.ts");
   const pos = await read("app/pos.tsx");
-  const settings = await read("app/shop-settings.tsx");
+  const settings = (await read("app/shop-settings.tsx")) + "\n" + (await read("lib/settings-payload.ts"));
   assert.match(migration, /add column if not exists important smallint not null default 0/);
   assert.match(migration, /add column if not exists low_stock_line smallint not null default 0/, "off until the owner turns it on");
   assert.match(low, /if \(!c\.low_stock_line \|\| !recipients\.length\) return;/);
@@ -1901,4 +1902,16 @@ test("ขายหน้าร้าน opens on in-stock products; services alw
   assert.match(pos, /\[posStockView,setPosStockView\]=useState<'instock'\|'all'>\('instock'\)/);
   assert.match(pos, /posSellable=\(p:any\)=>p\.stock-p\.reserved>0\|\|\/ค่าบริการ\/\.test\(p\.category\|\|''\)\|\|\/\^\(บริการ\|ค่า\)\/\.test/, "บริการขึ้นเอ็น has no real stock but is always sellable");
   assert.match(pos, /filtered=posStockView==='instock'&&!search\.trim\(\)\?posInStock:posMatches/, "searching / scanning finds sold-out items too - a wrong count never blocks a sale");
+});
+
+test("performance: rarely opened pages load on demand; auth() writes only when needed; pictures cached for good", async () => {
+  const pos = await read("app/pos.tsx");
+  const server = await read("lib/server.ts");
+  const files = await read("app/api/files/[id]/route.ts");
+  for (const [name, file] of [["PurchaseOrders", "purchase-orders"], ["StockCountPage", "stock-count"], ["BreakdownPage", "breakdown-page"], ["PayablesPage", "payables-page"], ["ProductImport", "excel-manager"]])
+    assert.match(pos, new RegExp(`const ${name}=lazy\\(\\(\\)=>import\\('\\./${file}'\\)`), name + " is split out");
+  assert.doesNotMatch(pos, /^import .* from '\.\/(purchase-orders|shop-settings|members-page|stock-count|excel-manager|breakdown-page|payables-page|barcode-scanner)';/m, "no static import pulls a page back into the first load");
+  assert.doesNotMatch(pos, /^import QRCode/m, "qrcode only when a receipt is shown");
+  assert.match(server, /let member: any = await one\("SELECT \* FROM members WHERE id=\? AND email=\?", data\.user\.id, email\);\n  if \(!member \|\| \(email === ownerEmail && \(member\.role !== "owner" \|\| !member\.active\)\)\) \{/, "one read per request; the setup writes only when needed");
+  assert.match(files, /'Cache-Control':'private, max-age=31536000, immutable'/);
 });
