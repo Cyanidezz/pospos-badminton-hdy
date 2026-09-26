@@ -1092,3 +1092,17 @@ button.stock-edit-reasons,.stock-edit-reasons>button:not([data-slot]){padding:6p
 .page-loading{display:flex;align-items:center;justify-content:center;gap:10px;min-height:120px;color:#7b8b81;font-size:14px}
 .page-loading-spinner{width:18px;height:18px;border-radius:50%;border:2px solid #d9e0ec;border-top-color:#3a70d4;animation:page-loading-spin .8s linear infinite}
 @keyframes page-loading-spin{to{transform:rotate(360deg)}}
+/* ภาพรวมร้าน: ใส่ต้นทุนที่ยังขาด */
+.missing-cost{margin:0 0 22px;border-color:#f3dfb2}
+.missing-cost h2{margin-bottom:6px}
+.missing-cost ul{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}
+.missing-cost li{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 14px;border:1px solid #e3e8f0;border-radius:12px;background:#fff}
+.missing-cost-name{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 240px}
+.missing-cost-name small{color:#7b8b81}
+.missing-cost-form{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.missing-cost-form label{display:grid;gap:4px;font-size:12px;font-weight:600;color:#4e6659}
+.missing-cost-form input{width:130px;height:42px}
+.missing-cost-form button{height:42px}
+.missing-cost-form small{align-self:center;font-weight:700}
+.missing-cost-form .is-good{color:#17804f}.missing-cost-form .is-bad{color:#b04742}
+.missing-cost-link{color:inherit;text-decoration:underline;text-underline-offset:2px}

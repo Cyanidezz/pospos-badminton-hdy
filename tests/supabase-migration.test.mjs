@@ -1915,3 +1915,11 @@ test("performance: rarely opened pages load on demand; auth() writes only when n
   assert.match(server, /let member: any = await one\("SELECT \* FROM members WHERE id=\? AND email=\?", data\.user\.id, email\);\n  if \(!member \|\| \(email === ownerEmail && \(member\.role !== "owner" \|\| !member\.active\)\)\) \{/, "one read per request; the setup writes only when needed");
   assert.match(files, /'Cache-Control':'private, max-age=31536000, immutable'/);
 });
+
+test("ภาพรวมร้าน: products sold without a cost are listed with a cost field right there (same 'cost' action)", async () => {
+  const pos = await read("app/pos.tsx");
+  const panel = await read("app/missing-cost.tsx");
+  assert.match(pos, /\{missing\.length>0&&<MissingCostPanel missing=\{missing\} products=\{allProducts\} busy=\{busy\} onAction=\{act\}\/>\}/);
+  assert.match(pos, /<a className="missing-cost-link" href="#missing-cost">ยังไม่ครบ/, "the cost card links to the list");
+  assert.match(panel, /onAction\('cost',\{productId:g\.productId,cost:value,requestId:crypto\.randomUUID\(\)\},false\)/, "fills every earlier sale / receipt of that product that had no cost");
+});
