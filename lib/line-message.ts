@@ -496,3 +496,39 @@ export function memberLinkMessage(url: string, { registered = false, pending = [
     },
   };
 }
+
+// "ติดตามงานขึ้นเอ็น" for a LINE member with nothing at the shop right now: say so for their number(s) - rather than
+// asking for a phone they already registered - with their last few finished jobs, and the member page button.
+export function noActiveJobsMessage({ phones, recent = [], url = "" }: { phones: string[]; recent?: { racket: string; status: string; created: string }[]; url?: string }) {
+  const day = (iso: string) => new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit", timeZone: "Asia/Bangkok" });
+  return {
+    type: "flex",
+    altText: "ตอนนี้ไม่มีไม้ของคุณที่ร้าน",
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box", layout: "vertical", paddingAll: "16px", spacing: "sm",
+        contents: [
+          text("ตอนนี้ไม่มีไม้ของคุณที่ร้าน", { size: "md", weight: "bold", color: NAVY }),
+          text(`สมาชิก ${phones.join(", ")}`, { size: "xs", color: MUTED }),
+          ...(recent.length ? [
+            { type: "separator", margin: "md" },
+            text("งานล่าสุด", { size: "xs", color: MUTED, margin: "md" }),
+            ...recent.map(job => ({
+              type: "box", layout: "horizontal", spacing: "sm",
+              contents: [text(job.racket, { size: "sm", color: NAVY, flex: 5 }), text(`${job.status}\n${day(job.created)}`, { size: "xxs", color: MUTED, align: "end", flex: 3 })],
+            })),
+          ] : []),
+          text("ฝากไม้ด้วยเบอร์อื่น? เพิ่มเบอร์ในบัตรสมาชิก หรือพิมพ์เบอร์นั้นมาได้เลย", { size: "xxs", color: MUTED, margin: "md" }),
+        ],
+      },
+      ...(/^https:\/\//.test(url) ? {
+        footer: {
+          type: "box", layout: "vertical", paddingAll: "12px",
+          contents: [{ type: "button", style: "secondary", height: "sm", action: { type: "uri", label: "เปิดบัตรสมาชิก", uri: url } }],
+        },
+      } : {}),
+    },
+  };
+}

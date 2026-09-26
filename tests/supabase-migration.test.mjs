@@ -1755,3 +1755,22 @@ test("สมาชิกผ่าน LINE: sign up / check membership from LINE,
   assert.equal(token.readLineToken(signed, "", now), null, "no secret configured -> nothing is trusted");
   assert.ok(payload);
 });
+
+test("ติดตามงานขึ้นเอ็น follows สมาชิกผ่าน LINE: member phones' jobs, 'nothing at the shop' for members, sign-up for others", async t => {
+  const webhook = await read("app/api/line/route.ts");
+  const track = webhook.slice(webhook.indexOf("async function onTrack("), webhook.indexOf("async function pointsCard("));
+  assert.match(track, /WHERE \(line_user=\?\$\{byPhone\}\) AND \$\{ACTIVE_JOBS\}/, "jobs on every verified member phone, not only receipt-linked ones");
+  assert.match(track, /if\(phones\.length\)\{[\s\S]*return \[noActiveJobsMessage\(/, "a member with nothing at the shop isn't asked for their phone again");
+  assert.match(track, /return \[ASK_PHONE,\.\.\.\(signup\?\[signup\]:\[\]\)\];/, "a non-member is asked for a phone and offered the sign-up");
+  const phone = webhook.slice(webhook.indexOf("async function onPhone("), webhook.indexOf("async function onPoints("));
+  assert.match(phone, /if\(!rows\.some\(r=>r\.phone===digits&&r\.status==='verified'\)\)/, "typing a number that isn't yours yet offers the sign-up");
+  let line;
+  try { line = await import("../lib/line-message.ts"); }
+  catch { t.skip("this Node version cannot import .ts files directly"); return; }
+  const msg = line.noActiveJobsMessage({ phones: ["087-xxx-4441"], recent: [{ racket: "Li-Ning Halbertec 7000", status: "คืนไม้แล้ว", created: "2026-09-24T12:00:00Z" }], url: "https://shop.example/line/member?t=x" });
+  const json = JSON.stringify(msg);
+  assert.match(json, /ตอนนี้ไม่มีไม้ของคุณที่ร้าน/);
+  assert.match(json, /สมาชิก 087-xxx-4441/);
+  assert.match(json, /Li-Ning Halbertec 7000/);
+  assert.equal(msg.contents.footer.contents[0].action.uri, "https://shop.example/line/member?t=x");
+});

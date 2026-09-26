@@ -1,6 +1,6 @@
 import {runtime,db,all,one,uid,now,notifyJob,replyLine,siteUrl,statuses,normalizeJobStatus} from '@/lib/server';
 import {DEFAULT_SHOP} from '@/lib/shop-hours';
-import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
+import {brandOf,brandQuickReply,isService,memberCardMessage,memberLinkMessage,noActiveJobsMessage,productAnswerMessage,productBrandCarousel,productNotFoundMessage,promotionsMessage,stringPriceMessages,trackJobsMessage} from '@/lib/line-message';
 import {PRODUCT_INTENT,coreQuery,inquiryKey,isGeneralStringingQuestion,pickMatches,searchProducts} from '@/lib/product-search';
 import {askProductAi} from '@/lib/product-ai';
 import {memberProgram,memberStatus} from '@/lib/member-status';
@@ -28,15 +28,29 @@ async function trackReply(jobs:any[],lineUser:string){
   return message?[message]:[];
 }
 
-// "ติดตามงานขึ้นเอ็น": jobs already linked to this LINE account come back straight away; otherwise ask for a phone.
+const memberUrl=(lineUser:string)=>{const base=siteUrl().replace(/\/$/,'');return base?`${base}/line/member?t=${encodeURIComponent(memberToken(lineUser))}`:''};
+
+// "ติดตามงานขึ้นเอ็น", tied to สมาชิกผ่าน LINE: jobs linked to this LINE account plus every job on a phone it is a
+// verified member for (shown in full - the account proved that number is theirs). A member with nothing at the shop
+// is told so for their own number (with their last jobs) instead of being asked for it again; a non-member is asked
+// for a phone and offered the sign-up, so next time it just works.
 async function onTrack(lineUser:string){
-  // Jobs linked to this LINE account, plus every job on a phone it is a verified member for (shown in full - the
-  // account proved that number is theirs).
-  const phones=(await lineMembersReady())?(await linePhones(lineUser)).filter(p=>p.status==='verified').map(p=>p.phone).slice(0,10):[];
+  const ready=await lineMembersReady(),rows=ready?await linePhones(lineUser):[];
+  const phones=rows.filter(p=>p.status==='verified').map(p=>p.phone).slice(0,10),pending=rows.filter(p=>p.status!=='verified').map(p=>maskPhone(p.phone));
   const byPhone=phones.length?` OR regexp_replace(phone,'\\D','','g') IN (${phones.map(()=>'?').join(',')})`:'';
   const linked=(await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE (line_user=?${byPhone}) AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,lineUser,...phones)).map((j:any)=>({...j,line_user:lineUser}));
-  if(!linked.length)return [ASK_PHONE];
-  return [...await trackReply(linked,lineUser),text('ถ้ามีไม้ที่ฝากด้วยเบอร์อื่น พิมพ์เบอร์นั้นมาได้เลย')];
+  const url=ready?memberUrl(lineUser):'';
+  if(linked.length){
+    const hint=phones.length?'ฝากไม้ด้วยเบอร์อื่น? เพิ่มเบอร์ได้ในบัตรสมาชิก หรือพิมพ์เบอร์นั้นมาได้เลย':'ถ้ามีไม้ที่ฝากด้วยเบอร์อื่น พิมพ์เบอร์นั้นมาได้เลย';
+    const signup=ready&&!phones.length?memberLinkMessage(url,{registered:rows.length>0,pending}):null;
+    return [...await trackReply(linked,lineUser),text(hint),...(signup?[signup]:[])];
+  }
+  if(phones.length){
+    const recent=(await all(`SELECT racket,status,created FROM jobs WHERE (line_user=?${byPhone}) AND status<>'ยกเลิก' ORDER BY created DESC LIMIT 3`,lineUser,...phones)).map((j:any)=>({...j,status:normalizeJobStatus(j.status)}));
+    return [noActiveJobsMessage({phones:phones.map(maskPhone),recent,url})];
+  }
+  const signup=ready?memberLinkMessage(url,{registered:rows.length>0,pending}):null;
+  return [ASK_PHONE,...(signup?[signup]:[])];
 }
 
 async function pointsCard(phone:string,trackToken=''){
@@ -55,7 +69,9 @@ async function pointsCard(phone:string,trackToken=''){
 async function onPhone(digits:string,lineUser:string){
   const jobs=await all(`SELECT id,token,racket,status,paid,amount,created,line_user FROM jobs WHERE regexp_replace(phone,'\\D','','g')=? AND ${ACTIVE_JOBS} ORDER BY created DESC LIMIT 10`,digits);
   const card=await pointsCard(digits);
-  const messages=[...(card?[card]:[]),...await trackReply(jobs,lineUser)];
+  const messages:any[]=[...(card?[card]:[]),...await trackReply(jobs,lineUser)];
+  // Not this LINE account's registered number yet: offer the sign-up, so its jobs and stamps show without typing.
+  if(await lineMembersReady()){const rows=await linePhones(lineUser);if(!rows.some(r=>r.phone===digits&&r.status==='verified')){const signup=memberLinkMessage(memberUrl(lineUser),{registered:rows.length>0,pending:rows.filter(r=>r.status!=='verified').map(r=>maskPhone(r.phone))});if(signup&&messages.length)messages.push(signup);}}
   return messages.length?messages:[text('ไม่พบข้อมูลของเบอร์นี้ ถ้าคิดว่าไม่ถูกต้อง ติดต่อร้านได้เลย')];
 }
 
@@ -74,8 +90,7 @@ async function onPoints(lineUser:string){
 // member yet: the programme card + "สมัครสมาชิก". Before the line_members migration it falls back to onPoints.
 async function onMember(lineUser:string){
   if(!(await lineMembersReady()))return onPoints(lineUser);
-  const phones=await linePhones(lineUser),base=siteUrl().replace(/\/$/,'');
-  const url=base?`${base}/line/member?t=${encodeURIComponent(memberToken(lineUser))}`:'';
+  const phones=await linePhones(lineUser),base=siteUrl().replace(/\/$/,''),url=memberUrl(lineUser);
   const config:any=await one('SELECT * FROM config WHERE id=1');
   const verified=phones.filter(p=>p.status==='verified'),pending=phones.filter(p=>p.status!=='verified').map(p=>maskPhone(p.phone));
   const messages:any[]=[];
