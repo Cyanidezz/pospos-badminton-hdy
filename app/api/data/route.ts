@@ -81,7 +81,10 @@ if(!barcode){let number=config.next_product_number;const used=new Set((await all
 const duplicate=await one('SELECT id,active FROM products WHERE barcode=? OR scan_code=? LIMIT 1',barcode,barcode);if(duplicate)throw new Error(duplicate.active===0?'สินค้าบาร์โค้ดนี้ถูกลบไว้ ให้เจ้าของร้านกู้คืนก่อน':'มีสินค้าบาร์โค้ดนี้แล้ว กรุณารีเฟรชและสแกนอีกครั้ง');
 if(b.image)await ownedFiles([b.image]);
 statements.push(q('INSERT INTO products(id,name,barcode,category,price,unit,stock,cost,image,low_stock) VALUES(?,?,?,?,?,?,?,?,?,?)',id,str(b.name),barcode,category,money(b.price),str(b.unit,20),qty,cost,b.image||null,integer(b.lowStock??5,0)));
-if(qty>0)statements.push(q('INSERT INTO receipts(id,product_id,qty,staff_id,created,cost) VALUES(?,?,?,?,?,?)',id+'-initial',id,qty,me.id,now(),cost));result={id,barcode};}
+if(qty>0)statements.push(q('INSERT INTO receipts(id,product_id,qty,staff_id,created,cost) VALUES(?,?,?,?,?,?)',id+'-initial',id,qty,me.id,now(),cost));
+// ⭐ สินค้าสำคัญ from the start (owner only, once the low-stock-alert migration added the column).
+if(b.important&&me.role==='owner'&&'low_stock_line' in config)statements.push(q('UPDATE products SET important=1 WHERE id=?',id));
+result={id,barcode};}
 
 else if(action==='receive'){const p=await one('SELECT * FROM products WHERE id=? AND active=1',b.productId);if(!p)throw new Error('ไม่พบสินค้า');const qty=integer(b.qty);statements.push(q('INSERT INTO receipts(id,product_id,qty,staff_id,created,cost) VALUES(?,?,?,?,?,?)',id,p.id,qty,me.id,now(),p.cost),q('UPDATE products SET stock=stock+? WHERE id=?',qty,p.id));}
 else if(action==='breakdownRule'||action==='breakdownDelete'||action==='breakdownConvert'){if(!(await one("SELECT to_regclass('public.product_breakdowns') AS t") as any)?.t)throw new Error('ต้องรัน migration 20260926010000_product_breakdowns.sql ก่อน');

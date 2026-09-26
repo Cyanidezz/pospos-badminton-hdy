@@ -1871,3 +1871,14 @@ test("แก้ไขสินค้า: change the count on hand with a reason 
   assert.match(pos, /stockQty:p\.stock,stockBefore:p\.stock,stockReason:''/);
   assert.match(edit, /\{changed&&<Field label="เหตุผลที่ปรับจำนวน">/, "a reason is asked for only when the number changes");
 });
+
+test("low-stock alert lists every important product low right now (new ones first, 🆕); new products can start as ⭐", async () => {
+  const low = await read("lib/low-stock.ts");
+  const data = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  assert.match(low, /const allLow: any\[\] = await all\(`SELECT id,name,unit,low_stock,\$\{AVAILABLE\} AS available FROM products WHERE active=1 AND important=1 AND \$\{AVAILABLE\}<low_stock`\);/, "the whole picture, not just what just crossed the line");
+  assert.match(low, /\$\{fresh\.has\(p\.id\) \? "🆕" : "•"\}/);
+  assert.match(low, /if \(!fresh\.size\) return;/, "still only sent when something NEW is low - no repeats");
+  assert.match(data, /if\(b\.important&&me\.role==='owner'&&'low_stock_line' in config\)statements\.push\(q\('UPDATE products SET important=1 WHERE id=\?',id\)\);/);
+  assert.match(pos, /\{owner&&\(modal==='editProduct'\|\|modal==='product'\)&&<label className="important-check">/, "the ⭐ checkbox on the new-product form too");
+});

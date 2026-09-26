@@ -19,11 +19,16 @@ export async function checkLowStockAlerts() {
     if (!low.length) return;
     // Mark first: two requests finishing at once must not both send the same alert.
     const claimed: any[] = await all(`UPDATE products SET low_alerted=1 WHERE id IN (${low.map(() => "?").join(",")}) AND low_alerted=0 RETURNING id`, ...low.map(p => p.id));
-    const items = low.filter(p => claimed.some(c => c.id === p.id));
-    if (!items.length) return;
-    const lines = items.map(p => `• ${p.name} เหลือ ${Math.max(0, Number(p.available))} ${p.unit || "ชิ้น"} (แจ้งเมื่อน้อยกว่า ${p.low_stock})`);
+    const fresh = new Set(claimed.map(c => c.id));
+    if (!fresh.size) return;
+    // The message lists EVERY important product that is low right now (not only the ones that just crossed the line),
+    // so each alert is the whole picture - the newly low ones first, marked 🆕, then the rest, emptiest first.
+    const allLow: any[] = await all(`SELECT id,name,unit,low_stock,${AVAILABLE} AS available FROM products WHERE active=1 AND important=1 AND ${AVAILABLE}<low_stock`);
+    allLow.sort((a, b) => Number(fresh.has(b.id)) - Number(fresh.has(a.id)) || Number(a.available) - Number(b.available) || String(a.name).localeCompare(String(b.name)));
+    const shown = allLow.slice(0, 40);
+    const lines = shown.map(p => `${fresh.has(p.id) ? "🆕" : "•"} ${p.name} เหลือ ${Math.max(0, Number(p.available))} ${p.unit || "ชิ้น"} (แจ้งเมื่อน้อยกว่า ${p.low_stock})`);
     const base = siteUrl().replace(/\/$/, "");
-    const message = { type: "text", text: `⚠️ สินค้าสำคัญใกล้หมด ${items.length} รายการ\n${lines.join("\n")}${base ? `\n\nเปิดคลังสินค้า: ${base}` : ""}`.slice(0, 4900) };
+    const message = { type: "text", text: `⚠️ สินค้าสำคัญใกล้หมด ${allLow.length} รายการ${fresh.size < allLow.length ? ` (ใหม่ ${fresh.size})` : ""}\n${lines.join("\n")}${allLow.length > shown.length ? `\nและอีก ${allLow.length - shown.length} รายการ` : ""}${base ? `\n\nเปิดคลังสินค้า: ${base}` : ""}`.slice(0, 4900) };
     for (const r of recipients.slice(0, 5)) if (typeof r?.lineUser === "string") await pushLineMessages(r.lineUser, [message]);
   } catch (error: any) {
     console.error("Low stock alert failed", error?.message);
