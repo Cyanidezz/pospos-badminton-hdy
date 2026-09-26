@@ -1828,3 +1828,33 @@ test("LINE: a typed number shows nothing unless this LINE account is verified fo
   assert.equal(line.verifyPhoneMessage("0805390444", "https://shop.example/x", { pending: true }).contents.footer.contents[0].action.label, "ดูรหัสยืนยัน");
   assert.doesNotMatch(JSON.stringify(verify), /เลขรับไม้|#[0-9A-F]{8}/, "no job number anywhere");
 });
+
+test("สินค้าสำคัญ: low-stock alerts to the owner's LINE - once per shortage, re-armed on restock, owner can switch off", async () => {
+  const migration = await read("supabase/migrations/20260926050000_low_stock_alerts.sql");
+  const low = await read("lib/low-stock.ts");
+  const data = await read("app/api/data/route.ts");
+  const count = await read("app/api/count/route.ts");
+  const webhook = await read("app/api/line/route.ts");
+  const pos = await read("app/pos.tsx");
+  const settings = await read("app/shop-settings.tsx");
+  assert.match(migration, /add column if not exists important smallint not null default 0/);
+  assert.match(migration, /add column if not exists low_stock_line smallint not null default 0/, "off until the owner turns it on");
+  assert.match(low, /if \(!c\.low_stock_line \|\| !recipients\.length\) return;/);
+  assert.match(low, /UPDATE products SET low_alerted=1 WHERE id IN \(\$\{low\.map\(\(\) => "\?"\)\.join\(","\)\}\) AND low_alerted=0 RETURNING id/, "claimed before sending: never alerted twice");
+  assert.match(low, /UPDATE products SET low_alerted=0 WHERE important=1 AND low_alerted=1 AND \$\{AVAILABLE\}>=low_stock/, "re-armed once back above the line");
+  assert.match(low, /stock-\(SELECT COUNT\(\*\) FROM jobs WHERE product_id=products\.id AND paid=0 AND returned IS NULL AND status<>'ยกเลิก'\)/, "counts strings reserved for queued rackets, like the rest of the POS");
+  assert.match(data, /if\(!action\.startsWith\('alertLine'\)\)await checkLowStockAlerts\(\);/);
+  assert.match(count, /await checkLowStockAlerts\(\);/, "a stock count can also drop something below its line");
+  assert.match(data, /else if\(action==='productImportant'\)\{owner\(me\);/);
+  assert.match(webhook, /const alertCode=message\.match\(\/\^\(\?:แจ้งเตือน\|รับแจ้งเตือน\|alert\)\\s\*\(\\d\{6\}\)\$\/i\);/);
+  assert.match(webhook, /Date\.now\(\)-new Date\(c\.alert_link_created\|\|0\)\.getTime\(\)<30\*60000/, "link codes last 30 minutes");
+  assert.match(pos, /'สินค้าหมด','สินค้าสำคัญ'\]/, "filter for important products");
+  assert.match(pos, /className=\{'important-toggle'/);
+  assert.match(settings, /export function LowStockAlertPanel/);
+});
+
+test("no '?::jsonb' binds: postgres.js would store a JSON string as a jsonb string, not the array/object", async () => {
+  for (const file of ["app/api/data/route.ts", "app/api/line/route.ts", "lib/line-member.ts", "lib/low-stock.ts", "lib/server.ts"]) {
+    assert.doesNotMatch(await read(file), /\?::jsonb/, file + " - use (?::text)::jsonb");
+  }
+});

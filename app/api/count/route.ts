@@ -1,5 +1,6 @@
 import {auth,permissions,owner,db,all,one,now,str,integer,money,uid,getCategories,transaction} from '@/lib/server';
 import {COUNT_REASONS} from '@/lib/stock-count';
+import {checkLowStockAlerts} from '@/lib/low-stock';
 
 // Stock counting ("รอบนับสต๊อก"). Kept apart from /api/data so a scan is one small request instead of a full reload.
 export const dynamic='force-dynamic';
@@ -123,6 +124,7 @@ export async function POST(req:Request){
         db().prepare("UPDATE stock_count_items SET applied=1 WHERE count_id=? AND applied=0 AND reason IS NOT NULL AND counted<>expected").bind(countId),
         db().prepare("UPDATE stock_counts SET status='closed',closed=?,closed_by=?,summary=? WHERE id=? AND status='review'").bind(now(),me.id,summary,countId),
       ]);
+      await checkLowStockAlerts();
       return Response.json({ok:true,applied:picked.length});
     }
     return fail('ไม่พบคำสั่ง');

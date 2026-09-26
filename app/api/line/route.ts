@@ -122,6 +122,20 @@ async function onPrice(){
   return stringPriceMessages({text:config?.string_price_text??'',image:config?.string_price_image??null,siteUrl:siteUrl(),phone:config?.contact_phone??DEFAULT_SHOP.phone});
 }
 
+// "แจ้งเตือน 123456": the owner links this LINE account to receive low-stock alerts, with the one-time code shown in
+// ตั้งค่าร้าน > LINE OA (valid 30 minutes, single use). The LINE display name is kept so the settings list is readable.
+async function onAlertLink(code:string,lineUser:string){
+  const c:any=(await one('SELECT to_jsonb(config) AS c FROM config WHERE id=1') as any)?.c||{};
+  const fresh=c.alert_link_code&&c.alert_link_code===code&&Date.now()-new Date(c.alert_link_created||0).getTime()<30*60000;
+  if(!fresh)return [text('รหัสไม่ถูกต้องหรือหมดอายุแล้ว สร้างรหัสใหม่ได้ที่ ตั้งค่าร้าน → LINE OA → แจ้งเตือนสินค้าใกล้หมด')];
+  let name='LINE';
+  try{const r=await fetch(`https://api.line.me/v2/bot/profile/${lineUser}`,{headers:{Authorization:`Bearer ${runtime().LINE_CHANNEL_ACCESS_TOKEN}`}});if(r.ok)name=String((await r.json()).displayName||name).slice(0,60);}catch{}
+  const users=(Array.isArray(c.alert_line_users)?c.alert_line_users:[]).filter((u:any)=>u.lineUser!==lineUser);
+  users.push({lineUser,name,linked:now()});
+  await db().prepare('UPDATE config SET alert_line_users=(?::text)::jsonb,alert_link_code=NULL,alert_link_created=NULL WHERE id=1').bind(JSON.stringify(users.slice(-5)),).run();
+  return [text(`✅ เชื่อม LINE นี้ (${name}) รับแจ้งเตือนสินค้าสำคัญใกล้หมดแล้ว\nเปิด/ปิดการแจ้งเตือนได้ที่ ตั้งค่าร้าน → LINE OA`)];
+}
+
 async function onLink(token:string,lineUser:string){
   const j:any=await db().prepare('SELECT id,phone,customer FROM jobs WHERE token=? AND (line_user IS NULL OR line_user=?)').bind(token,lineUser).first();
   if(!j)return;
@@ -245,6 +259,8 @@ export async function POST(req:Request){
       const message=String(e.message.text||'').trim();
       const link=message.match(/^LINK ([a-f0-9-]{50,80})$/i);
       if(link){await onLink(link[1],lineUser);continue;}
+      const alertCode=message.match(/^(?:แจ้งเตือน|รับแจ้งเตือน|alert)\s*(\d{6})$/i);
+      if(alertCode){await replyLine(replyToken,await onAlertLink(alertCode[1],lineUser));continue;}
       // Typed text works the same as the rich-menu buttons, for anyone who types instead of tapping.
       // Tracking in the customer's own words: "เบอร์อื่น" / "ฝากไม้ด้วยเบอร์อื่น" -> ask for that number; "ไม้เสร็จยัง",
       // "สถานะไม้", "เช็คไม้" -> their jobs.

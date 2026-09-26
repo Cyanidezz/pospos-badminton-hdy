@@ -274,3 +274,32 @@ export function InquiryPanel({aiReady,onAction}:any){
     </>}
   </div>;
 }
+
+// แจ้งเตือนสินค้าสำคัญใกล้หมด เข้า LINE: which LINE accounts get it (linked by sending a one-time code to the OA),
+// the on/off switch, and a test message. Which products count: ⭐ สินค้าสำคัญ in คลังสินค้า, each with its own
+// "แจ้งเตือนเมื่อพร้อมขายน้อยกว่า" number.
+export function LowStockAlertPanel({config,products,lineOa,onAction,reload}:any){
+  const ready='low_stock_line' in config;
+  const [code,setCode]=useState(''),[busy,setBusy]=useState(false);
+  const users:any[]=Array.isArray(config.alert_line_users)?config.alert_line_users:[];
+  const important=(products||[]).filter((p:any)=>p.active!==0&&Number(p.important)===1);
+  const lowNow=important.filter((p:any)=>p.stock-p.reserved<p.low_stock);
+  // While a code is showing, look for the new link every few seconds (the owner sends it from their phone).
+  useEffect(()=>{if(!code)return;const t=setInterval(async()=>{await reload();},5000);const stop=setTimeout(()=>clearInterval(t),30*60000);return()=>{clearInterval(t);clearTimeout(stop)};// eslint-disable-next-line react-hooks/exhaustive-deps
+  },[code]);
+  useEffect(()=>{if(code&&users.length)setCode('')},[users.length]);// eslint-disable-line react-hooks/exhaustive-deps
+  const run=async(action:string,body:any={})=>{setBusy(true);try{return await onAction(action,{...body,requestId:crypto.randomUUID()},false)}finally{setBusy(false)}};
+  const when=(iso:string)=>iso?new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit',timeZone:'Asia/Bangkok'}):'';
+  return <div className="panel report alert-panel"><h2>แจ้งเตือนสินค้าใกล้หมด (LINE)</h2>
+    <p className="muted">เมื่อ<b>สินค้าสำคัญ ⭐</b> เหลือพร้อมขายน้อยกว่าจำนวนที่ตั้งไว้ ระบบส่งข้อความเข้า LINE ที่เชื่อมไว้ด้านล่าง ครั้งเดียวต่อการใกล้หมดแต่ละรอบ (รับสินค้าเข้าแล้วจะแจ้งใหม่ได้) · เลือกสินค้าสำคัญได้ที่หน้าคลังสินค้า</p>
+    {!ready?<div className="notice">ต้องรัน migration <code>20260926050000_low_stock_alerts.sql</code> บน Supabase ก่อน</div>:<>
+      <div className="switch-row"><div><b>ส่งแจ้งเตือนเข้า LINE</b><p>สินค้าสำคัญ {important.length} รายการ{lowNow.length?` · ใกล้หมดตอนนี้ ${lowNow.length} รายการ`:''}</p></div><Switch checked={!!config.low_stock_line} disabled={busy} onCheckedChange={v=>run('alertLineToggle',{enabled:v})}/></div>
+      <div className="field"><span>LINE ที่รับแจ้งเตือน</span>
+        {users.length?<ul className="alert-users">{users.map((u:any)=><li key={u.lineUser}><span><b>{u.name||'LINE'}</b><small>เชื่อมเมื่อ {when(u.linked)}</small></span><button type="button" className="secondary small danger" disabled={busy} onClick={()=>{if(confirm(`เลิกส่งแจ้งเตือนเข้า LINE ของ ${u.name||'บัญชีนี้'}?`))run('alertLineRemove',{lineUser:u.lineUser})}}>ลบ</button></li>)}</ul>:<p className="muted">ยังไม่ได้เชื่อม LINE</p>}
+      </div>
+      {code?<div className="alert-code"><p>จาก LINE ของคุณ ส่งข้อความนี้ไปที่ LINE OA ของร้าน{lineOa?` (${lineOa})`:''} ภายใน 30 นาที</p><b>แจ้งเตือน {code}</b><small>รอการเชื่อมต่อ… หน้านี้จะอัปเดตเองเมื่อเชื่อมสำเร็จ</small></div>
+        :<button type="button" className="secondary" disabled={busy||users.length>=5} onClick={async()=>{const d=await run('alertLineCode');if(d?.code)setCode(d.code)}}>+ เชื่อม LINE รับแจ้งเตือน</button>}
+      {users.length>0&&<button type="button" className="secondary" disabled={busy} onClick={async()=>{const d=await run('alertLineTest');if(d)toast.success(`ส่งข้อความทดสอบแล้ว ${d.sent}/${users.length} บัญชี`)}}>ส่งข้อความทดสอบ</button>}
+    </>}
+  </div>;
+}

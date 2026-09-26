@@ -2,6 +2,8 @@ import {auth,owner,permit,permissions,permissionKeys,defaultCashierPermissions,d
 import {createSupabaseAdminClient} from '@/lib/supabase/admin';
 import {normalizeHours} from '@/lib/shop-hours';
 import {bulkPrice} from '@/lib/bulk-price';
+import {checkLowStockAlerts} from '@/lib/low-stock';
+import {randomInt} from 'node:crypto';
 import {starsSql} from '@/lib/member-reward';
 import {REWARD_REASON,rewardDiscount as rewardOff} from '@/lib/customers';
 export const dynamic='force-dynamic';
@@ -9,7 +11,7 @@ export async function GET(){try{const me=await auth(),isOwner=me.role==='owner',
 // Every read below is folded into ONE statement (allInOne): the database is far from most callers, so round trips cost more than the queries do.
 const [[config],products,receipts,jobRows,members,leaves,sales,items,expenses,suppliers,purchaseOrders,purchaseOrderItems,earningSales,earningJobRows,movements,categoryRows]=await allInOne([
 ['SELECT * FROM config WHERE id=1'],
-[`SELECT id,name,barcode,category,price,${cost},image,scan_code,low_stock,active,stock,unit,to_jsonb(products)->>'aliases' AS aliases,(SELECT COUNT(*) FROM jobs WHERE product_id=products.id AND paid=0 AND returned IS NULL AND status<>'ยกเลิก') reserved FROM products ORDER BY name`],
+[`SELECT id,name,barcode,category,price,${cost},image,scan_code,low_stock,active,stock,unit,to_jsonb(products)->>'aliases' AS aliases,COALESCE((to_jsonb(products)->>'important')::int,0) AS important,(SELECT COUNT(*) FROM jobs WHERE product_id=products.id AND paid=0 AND returned IS NULL AND status<>'ยกเลิก') reserved FROM products ORDER BY name`],
 [`SELECT id,product_id,qty,${cost},staff_id,created FROM receipts ORDER BY created DESC`],
 // reward_used is a base member-program column (always present once that migration ran); slip is read through
 // to_jsonb so a not-yet-migrated "slip" column (see 20260922050000_job_slip.sql) is just null, not a query error.
@@ -103,6 +105,14 @@ q(unitCost===null?'UPDATE products SET stock=stock+? WHERE id=?':'UPDATE product
 q('INSERT INTO stock_adjustments(id,product_id,delta,reason,staff_id,created) VALUES(?,?,?,?,?,?)',id+'-out',parent.id,-qty,reason,me.id,stamp),
 q('INSERT INTO stock_adjustments(id,product_id,delta,reason,staff_id,created) VALUES(?,?,?,?,?,?)',id+'-in',child.id,childQty,reason,me.id,stamp));
 result={id,childQty};}}
+else if(action==='productImportant'){owner(me);if(!('low_stock_line' in config))throw new Error('ต้องรัน migration 20260926050000_low_stock_alerts.sql ก่อน');if(!Array.isArray(b.productIds)||!b.productIds.length||b.productIds.length>200)throw new Error('เลือกสินค้าได้ครั้งละ 1–200 รายการ');const ids=[...new Set(b.productIds.map((x:any)=>str(x,80)))];for(const productId of ids)statements.push(q('UPDATE products SET important=? WHERE id=? AND active=1',b.important?1:0,productId));result={id,updated:ids.length};}
+// LINE alerts for the owner (ตั้งค่าร้าน > LINE OA): on/off, a one-time code to link a LINE account (sent to the OA
+// chat, handled by the webhook), remove a linked account, send a test.
+else if(action==='alertLineToggle'||action==='alertLineCode'||action==='alertLineRemove'||action==='alertLineTest'){owner(me);if(!('low_stock_line' in config))throw new Error('ต้องรัน migration 20260926050000_low_stock_alerts.sql ก่อน');
+if(action==='alertLineToggle')statements.push(q('UPDATE config SET low_stock_line=? WHERE id=1',b.enabled?1:0));
+else if(action==='alertLineCode'){const code=String(randomInt(0,1000000)).padStart(6,'0');statements.push(q('UPDATE config SET alert_link_code=?,alert_link_created=? WHERE id=1',code,now()));result={id,code};}
+else if(action==='alertLineRemove'){const lineUser=str(b.lineUser,64);statements.push(q("UPDATE config SET alert_line_users=COALESCE((SELECT jsonb_agg(x) FROM jsonb_array_elements(alert_line_users) x WHERE x->>'lineUser'<>?),'[]'::jsonb) WHERE id=1",lineUser));}
+else{const users:any[]=Array.isArray(config.alert_line_users)?config.alert_line_users:[];if(!users.length)throw new Error('ยังไม่ได้เชื่อม LINE สำหรับรับแจ้งเตือน');let sent=0;for(const u of users)if(await pushLineMessages(u.lineUser,[{type:'text',text:'✅ ทดสอบแจ้งเตือนจาก Wingpro POS\nLINE นี้จะได้รับแจ้งเมื่อสินค้าสำคัญใกล้หมด'}]))sent++;result={id,sent};}}
 else if(action==='bulkProductPrice'){owner(me);if(!Array.isArray(b.productIds)||!b.productIds.length||b.productIds.length>200)throw new Error('เลือกสินค้าได้ครั้งละ 1–200 รายการ');const mode=b.mode;if(!['set','add','percent'].includes(mode))throw new Error('วิธีแก้ราคาไม่ถูกต้อง');const ids=[...new Set(b.productIds.map((x:any)=>str(x,80)))];
 // Recomputed here from each product's price in the database (bulkPrice, the same rule as the preview), never from
 // prices the browser sent.
@@ -114,6 +124,7 @@ else if(action==='editProduct'){owner(me);const p=await one('SELECT * FROM produ
 // separate "กรอกต้นทุน" does. Left blank = unchanged.
 if(b.cost!==undefined&&b.cost!==null&&String(b.cost).trim()!==''){const cost=money(b.cost);if(cost!==p.cost)statements.push(q('UPDATE products SET cost=? WHERE id=?',cost,p.id),q('UPDATE receipts SET cost=? WHERE product_id=? AND cost IS NULL',cost,p.id),q('UPDATE items SET cost=? WHERE product_id=? AND cost IS NULL',cost,p.id));}
 // Other names customers use (LINE chatbot matching) - only once 20260925040000_product_inquiries.sql added the column.
+if(b.important!==undefined&&'important' in p)statements.push(q('UPDATE products SET important=? WHERE id=?',b.important?1:0,p.id));
 if(b.aliases!==undefined&&'aliases' in p)statements.push(q('UPDATE products SET aliases=? WHERE id=?',String(b.aliases||'').split(/[,\n]/).map((x:string)=>x.trim()).filter(Boolean).join(', ').slice(0,500),p.id));}
 else if(action==='archiveProduct'||action==='restoreProduct'){owner(me);const p=await one('SELECT * FROM products WHERE id=?',b.productId);if(!p)throw new Error('ไม่พบสินค้า');if(action==='archiveProduct'&&await one('SELECT id FROM jobs WHERE product_id=? AND returned IS NULL AND status<>\'ยกเลิก\'',p.id))throw new Error('สินค้านี้มีงานขึ้นเอ็นที่ยังไม่คืนไม้ จัดการงานให้เสร็จก่อนลบ');statements.push(q('UPDATE products SET active=? WHERE id=?',action==='restoreProduct'?1:0,p.id));}
 else if(action==='deleteProductPermanently'){owner(me);const p=await one('SELECT * FROM products WHERE id=?',b.productId);if(!p||p.active!==0)throw new Error('ลบถาวรได้เฉพาะสินค้าที่อยู่ในสินค้าที่ลบ');if(b.confirmName!==p.name)throw new Error('กรุณาพิมพ์ชื่อสินค้าให้ตรงเพื่อยืนยัน');if(await one('SELECT id FROM jobs WHERE product_id=? AND status<>\'ยกเลิก\' AND (returned IS NULL OR paid=0)',p.id))throw new Error('สินค้านี้มีงานขึ้นเอ็นที่ยังไม่เสร็จ กรุณารับชำระและคืนไม้ก่อนลบถาวร');statements.push(q('DELETE FROM receipts WHERE product_id=?',p.id),q('DELETE FROM stock_adjustments WHERE product_id=?',p.id),q('DELETE FROM products WHERE id=? AND active=0',p.id));}
@@ -228,6 +239,8 @@ result={id,notifyLineMember:{lineUser,phone,name:row.name}};}}
 else if(action==='expense'){const date=str(b.date,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error('วันที่ไม่ถูกต้อง');const rows=Array.isArray(b.items)?b.items:[b];if(!rows.length||rows.length>50)throw new Error('บันทึกได้ครั้งละ 1–50 รายการ');for(const [i,x] of rows.entries()){const photos=await ownedFiles(x.photos||[]);const amount=money(x.amount);if(amount<=0)throw new Error('จำนวนเงินค่าใช้จ่ายต้องมากกว่า 0');statements.push(q('INSERT INTO expenses(id,date,category,name,amount,photos) VALUES(?,?,?,?,?,?)',id+'-'+i,date,str(x.category||'อื่น ๆ',60),str(x.name),amount,JSON.stringify(photos)));}}
 else throw new Error('ไม่พบคำสั่ง');
 await transaction(id,me,action,rev,statements);
+// Anything that moved stock may have pushed an important product below its line (one quick query otherwise).
+if(!action.startsWith('alertLine'))await checkLowStockAlerts();
 // A LINE member request a staff member approved: tell the customer (one push message; best effort).
 if(result.notifyLineMember){const m=result.notifyLineMember;delete result.notifyLineMember;try{result.notification=await pushLineMessages(m.lineUser,[{type:'text',text:`ร้านยืนยันบัตรสมาชิกของคุณ${m.name?` (${m.name})`:''} เบอร์ ${m.phone.slice(0,3)}-xxx-${m.phone.slice(-4)} แล้ว\nกด “บัตรสมาชิก” ในเมนูเพื่อดูดาวสะสมได้เลย`}])?'แจ้งลูกค้าทาง LINE แล้ว':'ยืนยันแล้ว แต่ส่งข้อความ LINE ไม่สำเร็จ';}catch{result.notification='ยืนยันแล้ว แต่ส่งข้อความ LINE ไม่สำเร็จ';}}
 if(result.notifyId){try{result.notification=await notifyJob(result.notifyId);}catch{result.notification='บันทึกแล้ว แต่ส่งแจ้งเตือนไม่สำเร็จ';}}return Response.json({ok:true,...result});}catch(e:any){console.error('POS operation failed',e.message);const message=String(e.message||'');return Response.json({error:message.includes('unique constraint')||message.includes('duplicate key')?'ข้อมูลซ้ำ กรุณาตรวจสอบบาร์โค้ดหรือโหลดรายการใหม่':message.includes('not-null constraint')||message.includes('null value')?'มีรายการเปลี่ยนพร้อมกัน กรุณาลองบันทึกอีกครั้ง':message.includes('syntax error')?'บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง':message.includes('division by zero')?'สต๊อกเปลี่ยนไประหว่างบันทึก กรุณาโหลดใหม่แล้วลองอีกครั้ง':message},{status:400});}}
