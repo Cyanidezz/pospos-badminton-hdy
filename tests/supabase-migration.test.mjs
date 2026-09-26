@@ -1882,3 +1882,10 @@ test("low-stock alert lists every important product low right now (new ones firs
   assert.match(data, /if\(b\.important&&me\.role==='owner'&&'low_stock_line' in config\)statements\.push\(q\('UPDATE products SET important=1 WHERE id=\?',id\)\);/);
   assert.match(pos, /\{owner&&\(modal==='editProduct'\|\|modal==='product'\)&&<label className="important-check">/, "the ⭐ checkbox on the new-product form too");
 });
+
+test("คลังสินค้า: a ⭐ สินค้าสำคัญ status card filters important products across strings and other products", async () => {
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /const importantProducts=products\.filter\(\(p:any\)=>Number\(p\.important\)===1\);/);
+  assert.match(pos, /\{id:'สินค้าสำคัญ',label:'⭐ สินค้าสำคัญ',count:importantProducts\.length,tone:'important'/);
+  assert.match(pos, /\(stockFilter==='สินค้าสำคัญ'\|\|\(p\.category==='เอ็นแบดมินตัน'\)===\(inventoryKind==='strings'\)\)/, "not limited to the strings / other products switch");
+});
