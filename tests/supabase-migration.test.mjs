@@ -1846,7 +1846,8 @@ test("สินค้าสำคัญ: low-stock alerts to the owner's LINE - 
   assert.match(data, /if\(!action\.startsWith\('alertLine'\)\)await checkLowStockAlerts\(\);/);
   assert.match(count, /await checkLowStockAlerts\(\);/, "a stock count can also drop something below its line");
   assert.match(data, /else if\(action==='productImportant'\)\{owner\(me\);/);
-  assert.match(webhook, /const alertCode=message\.match\(\/\^\(\?:แจ้งเตือน\|รับแจ้งเตือน\|alert\)\\s\*\(\\d\{6\}\)\$\/i\);/);
+  assert.match(webhook, /const alertCode=message\.replace\(\/\\s\+\/g,' '\)\.match\(\/\^\(\?:\(\?:แจ้งเตือน\|รับแจ้งเตือน\|alert\)\\s\*\)\?\(\\d\{6\}\)\$\/i\);/, "the code alone works too");
+  assert.match(webhook, /if\(alertCode&&\(\/\\D\/\.test\(message\)\|\|\(await one\("SELECT to_jsonb\(config\)->>'alert_link_code' AS code FROM config WHERE id=1"\)/, "bare digits only while a code is waiting");
   assert.match(webhook, /Date\.now\(\)-new Date\(c\.alert_link_created\|\|0\)\.getTime\(\)<30\*60000/, "link codes last 30 minutes");
   assert.match(pos, /'สินค้าหมด','สินค้าสำคัญ'\]/, "filter for important products");
   assert.match(pos, /className=\{'important-toggle'/);

@@ -297,7 +297,7 @@ export function LowStockAlertPanel({config,products,lineOa,onAction,reload}:any)
       <div className="field"><span>LINE ที่รับแจ้งเตือน</span>
         {users.length?<ul className="alert-users">{users.map((u:any)=><li key={u.lineUser}><span><b>{u.name||'LINE'}</b><small>เชื่อมเมื่อ {when(u.linked)}</small></span><button type="button" className="secondary small danger" disabled={busy} onClick={()=>{if(confirm(`เลิกส่งแจ้งเตือนเข้า LINE ของ ${u.name||'บัญชีนี้'}?`))run('alertLineRemove',{lineUser:u.lineUser})}}>ลบ</button></li>)}</ul>:<p className="muted">ยังไม่ได้เชื่อม LINE</p>}
       </div>
-      {code?<div className="alert-code"><p>จาก LINE ของคุณ ส่งข้อความนี้ไปที่ LINE OA ของร้าน{lineOa?` (${lineOa})`:''} ภายใน 30 นาที</p><b>แจ้งเตือน {code}</b><small>รอการเชื่อมต่อ… หน้านี้จะอัปเดตเองเมื่อเชื่อมสำเร็จ</small></div>
+      {code?<div className="alert-code"><p>จาก LINE ของคุณ ส่งรหัสนี้ไปที่ LINE OA ของร้าน{lineOa?` (${lineOa})`:''} ภายใน 30 นาที</p><b>{code}</b><small>รอการเชื่อมต่อ… หน้านี้จะอัปเดตเองเมื่อเชื่อมสำเร็จ</small></div>
         :<button type="button" className="secondary" disabled={busy||users.length>=5} onClick={async()=>{const d=await run('alertLineCode');if(d?.code)setCode(d.code)}}>+ เชื่อม LINE รับแจ้งเตือน</button>}
       {users.length>0&&<button type="button" className="secondary" disabled={busy} onClick={async()=>{const d=await run('alertLineTest');if(d)toast.success(`ส่งข้อความทดสอบแล้ว ${d.sent}/${users.length} บัญชี`)}}>ส่งข้อความทดสอบ</button>}
     </>}

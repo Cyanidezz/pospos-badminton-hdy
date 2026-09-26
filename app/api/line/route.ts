@@ -259,8 +259,9 @@ export async function POST(req:Request){
       const message=String(e.message.text||'').trim();
       const link=message.match(/^LINK ([a-f0-9-]{50,80})$/i);
       if(link){await onLink(link[1],lineUser);continue;}
-      const alertCode=message.match(/^(?:แจ้งเตือน|รับแจ้งเตือน|alert)\s*(\d{6})$/i);
-      if(alertCode){await replyLine(replyToken,await onAlertLink(alertCode[1],lineUser));continue;}
+      // "แจ้งเตือน 123456" - or just the 6 digits, which is what people actually send - while a link code is waiting.
+      const alertCode=message.replace(/\s+/g,' ').match(/^(?:(?:แจ้งเตือน|รับแจ้งเตือน|alert)\s*)?(\d{6})$/i);
+      if(alertCode&&(/\D/.test(message)||(await one("SELECT to_jsonb(config)->>'alert_link_code' AS code FROM config WHERE id=1") as any)?.code)){await replyLine(replyToken,await onAlertLink(alertCode[1],lineUser));continue;}
       // Typed text works the same as the rich-menu buttons, for anyone who types instead of tapping.
       // Tracking in the customer's own words: "เบอร์อื่น" / "ฝากไม้ด้วยเบอร์อื่น" -> ask for that number; "ไม้เสร็จยัง",
       // "สถานะไม้", "เช็คไม้" -> their jobs.
