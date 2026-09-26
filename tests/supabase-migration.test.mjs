@@ -1895,3 +1895,10 @@ test("builds for Safari 15 too (iPad mini on iOS 15): browserslist below Next's 
   assert.ok(Array.isArray(pkg.browserslist) && pkg.browserslist.includes("safari >= 15") && pkg.browserslist.includes("ios_saf >= 15"),
     "without it the build ships class static blocks, a syntax error on Safari 15 - no JavaScript runs, so login silently just reloads");
 });
+
+test("ขายหน้าร้าน opens on in-stock products; services always shown; a search shows every match", async () => {
+  const pos = await read("app/pos.tsx");
+  assert.match(pos, /\[posStockView,setPosStockView\]=useState<'instock'\|'all'>\('instock'\)/);
+  assert.match(pos, /posSellable=\(p:any\)=>p\.stock-p\.reserved>0\|\|\/ค่าบริการ\/\.test\(p\.category\|\|''\)\|\|\/\^\(บริการ\|ค่า\)\/\.test/, "บริการขึ้นเอ็น has no real stock but is always sellable");
+  assert.match(pos, /filtered=posStockView==='instock'&&!search\.trim\(\)\?posInStock:posMatches/, "searching / scanning finds sold-out items too - a wrong count never blocks a sale");
+});
