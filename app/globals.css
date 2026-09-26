@@ -1045,3 +1045,14 @@ button.important-toggle:not([data-slot]):focus-visible{outline:2px solid #3a70d4
 .important-check span{display:flex;flex-direction:column;gap:3px}
 .important-check small{color:#7b6a45;line-height:1.5}
 .important-note{white-space:nowrap}
+.stock-edit{border:1px solid #e3e8f0;border-radius:12px;padding:12px 14px;margin:0 0 17px;background:#fafcff}
+.stock-edit .field{margin-bottom:8px}
+.stock-edit .field:last-child{margin-bottom:0}
+.stock-edit-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.stock-edit-row input{width:140px;flex:0 0 140px}
+.stock-edit-diff{font-size:13px;color:#7b8b81}
+.stock-edit-diff.is-up{color:#17804f;font-weight:700}
+.stock-edit-diff.is-down{color:#b04742;font-weight:700}
+.stock-edit-reasons{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+button.stock-edit-reasons,.stock-edit-reasons>button:not([data-slot]){padding:6px 11px;border-radius:999px;border:1px solid #d9e0ec;background:#fff;color:#2f4164;font-size:12px;font-weight:600}
+.stock-edit-reasons>button.is-active:not([data-slot]){background:#3a70d4;border-color:#3a70d4;color:#fff}

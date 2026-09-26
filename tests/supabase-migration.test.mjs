@@ -1859,3 +1859,15 @@ test("no '?::jsonb' binds: postgres.js would store a JSON string as a jsonb stri
     assert.doesNotMatch(await read(file), /\?::jsonb/, file + " - use (?::text)::jsonb");
   }
 });
+
+test("แก้ไขสินค้า: change the count on hand with a reason - recorded as a stock adjustment, refused if stock moved meanwhile", async () => {
+  const data = await read("app/api/data/route.ts");
+  const pos = await read("app/pos.tsx");
+  const edit = await read("app/stock-edit.tsx");
+  assert.match(data, /&&Number\(b\.stockQty\)!==p\.stock\)\{const qty=integer\(b\.stockQty,0\);/, "untouched (even a negative count) is left alone");
+  assert.match(data, /if\(Number\(b\.stockBefore\)!==p\.stock\)throw new Error\(`สต๊อก \$\{p\.name\} เปลี่ยนไประหว่างแก้ไข/);
+  assert.match(data, /if\(!reason\)throw new Error\('กรุณาใส่เหตุผลที่ปรับจำนวนสินค้า'\);/);
+  assert.match(data, /INSERT INTO stock_adjustments\(id,product_id,delta,reason,staff_id,created\) VALUES\(\?,\?,\?,\?,\?,\?\)',id\+'-stock',p\.id,qty-p\.stock/, "shows in the stock movement history");
+  assert.match(pos, /stockQty:p\.stock,stockBefore:p\.stock,stockReason:''/);
+  assert.match(edit, /\{changed&&<Field label="เหตุผลที่ปรับจำนวน">/, "a reason is asked for only when the number changes");
+});
